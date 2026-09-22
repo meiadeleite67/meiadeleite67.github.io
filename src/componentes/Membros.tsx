@@ -4,11 +4,7 @@ import type { Estado, Membro } from '../lib/tipos';
 export function Membros({ estado }: { estado: Estado }) {
   return (
     <section>
-      <p className="eyebrow">Os cozinheiros</p>
-      <h1 style={{ fontSize: 'clamp(28px,5vw,42px)' }}>Quem faz a meia de leite</h1>
-      <p className="lead">
-        O grupo, um por um. Quem entra é acrescentado aqui.
-      </p>
+      <h1 style={{ fontSize: 'clamp(28px,5vw,42px)' }}>Membro do MEIadeLEIte</h1>
 
       {estado.membros.length === 0 ? (
         <p className="vazio" style={{ marginTop: 20 }}>
