@@ -80,6 +80,9 @@ export function Rodape({ irPara }: { irPara: (p: Pagina) => void }) {
           Feito ao Balcão pelo senhor luis
         </span>
         <span>Os torrões do blackjack não valem nada em lado nenhum, nem no bar.</span>
+        <span className="direita">
+          © {new Date().getFullYear()} MEIadeLEIte. Todos os direitos reservados.
+        </span>
       </div>
     </footer>
   );
