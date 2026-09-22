@@ -37,8 +37,7 @@ export function Rodape({ irPara }: { irPara: (p: Pagina) => void }) {
           </svg>
           <p>
             <b>MEIadeLEIte</b>
-            Grupo do ano na edição 25/26 do Pixel d'Ouro. Continuamos a fazer exatamente o mesmo
-            que fazíamos antes de ganhar.
+            Grupo do ano na edição 25/26 do Pixel d'Ouro. Nem sabem o que está por vir.
           </p>
         </div>
 
