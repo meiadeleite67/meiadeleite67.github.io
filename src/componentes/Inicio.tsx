@@ -33,6 +33,15 @@ export function Inicio({ estado, irPara }: { estado: Estado; irPara: (p: Pagina)
         <Trofeu />
       </section>
 
+      <section className="foto-grupo">
+        <img
+          src="/media/grupo.jpeg"
+          alt="O grupo MEIadeLEIte todo junto"
+          width={1600}
+          height={900}
+        />
+      </section>
+
       <section className="grelha g3">
         <div className="painel">
           <p className="rotulo">A seguir</p>

@@ -1038,6 +1038,22 @@ table.rank tr.podio td:first-child {
 }
 
 
+/* a foto do grupo, logo a seguir ao título */
+.foto-grupo {
+  border-radius: var(--r);
+  overflow: hidden;
+  border: 1px solid var(--linha);
+  box-shadow: var(--sombra);
+  line-height: 0;
+}
+.foto-grupo img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
 /* ============================ membros ============================ */
 .membros {
   display: grid;
@@ -2131,11 +2147,24 @@ footer {
   right: 0;
   top: 0;
   height: var(--base-fundura);
-  transform: translateZ(calc(var(--base-fundura) / 2)) rotateX(90deg);
+  /* deitado para trás, mas não de todo: é esse ângulo que deixa ler o que
+     lá está gravado, como num atril */
+  transform: translateZ(calc(var(--base-fundura) / 2)) rotateX(64deg);
   transform-origin: center top;
-  background: linear-gradient(180deg, #55555a 0%, #3a3a3e 42%, #2a2a2e 100%);
-  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.5);
-  border-radius: 2px;
+  background: linear-gradient(180deg, #4e4e54 0%, #3a3a3e 46%, #262629 100%);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45);
+  border-radius: 2px 2px 0 0;
+  display: grid;
+  place-items: center;
+}
+.base-topo span {
+  font-family: var(--disp);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  color: #f1ebe0;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2), 0 -1px 2px rgba(0, 0, 0, 0.85);
 }
 .base-frente {
   position: absolute;
@@ -2149,16 +2178,7 @@ footer {
   place-items: center;
   padding-top: 6px;
 }
-/* o "Grupo do Ano" é gravado na base, e por isso leva o brilho de um
-   gravado: uma sombra por baixo e um fio de luz por cima */
-.base-frente span {
-  font-family: var(--disp);
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  color: #efe9dd;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.18), 0 -1px 2px rgba(0, 0, 0, 0.8);
-}
+
 .trofeu .sombra {
   position: absolute;
   left: 50%;
@@ -2196,8 +2216,8 @@ footer {
   .trofeu .base {
     width: calc(var(--largura) + 26px);
   }
-  .trofeu .base-frente span {
-    font-size: 14px;
+  .trofeu .base-topo span {
+    font-size: 13px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

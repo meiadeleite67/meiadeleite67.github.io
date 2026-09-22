@@ -125,10 +125,12 @@ export function Trofeu() {
         </div>
 
         <div className="base">
-          <div className="base-topo" />
-          <div className="base-frente">
+          {/* o texto vai no plano inclinado logo por baixo da placa, que é
+              onde ele está no troféu verdadeiro */}
+          <div className="base-topo">
             <span>Grupo do Ano</span>
           </div>
+          <div className="base-frente" />
         </div>
 
         <div className="sombra" />
