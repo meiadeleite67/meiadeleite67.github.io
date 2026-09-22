@@ -3,14 +3,17 @@
  *
  *     npm run admin
  *
- * Inventa uma chave, mostra o QR aqui no terminal para apontares o Google
- * Authenticator, e diz-te o comando para a guardar no Worker.
+ * Inventa uma chave, mostra o QR para apontares o Google Authenticator, e
+ * entrega a chave ao Worker sozinho. Nao ha nada para copiar nem para colar:
+ * a chave vai daqui direita para o wrangler, sem passar pelo teclado.
  *
- * A chave nao fica gravada em lado nenhum deste computador nem entra no
- * repositorio: so aparece aqui uma vez. Se a perderes, corres isto outra vez
- * e apagas a entrada velha na app.
+ * E de proposito. Colar a chave a mao no wrangler e onde isto costuma
+ * falhar: o terminal nem sempre recebe o paste inteiro, a chave fica cortada
+ * e depois nenhum codigo da app bate certo, sem se perceber porque.
  */
 import crypto from 'node:crypto';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import QRCode from 'qrcode';
 
 const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -36,16 +39,43 @@ const conta = encodeURIComponent('admin@meiadeleite.pt');
 const uri = `otpauth://totp/Meia%20de%20Leite:${conta}?secret=${segredo}&issuer=Meia%20de%20Leite&algorithm=SHA1&digits=6&period=30`;
 
 console.log('');
-console.log('  Abre o Google Authenticator, carrega no mais, le um QR code');
-console.log('  e aponta a isto:');
+console.log('  1. Apaga na app todas as entradas antigas com o nome "Meia de Leite".');
+console.log('  2. Abre o Google Authenticator, carrega no mais, le um QR code,');
+console.log('     e aponta a isto:');
 console.log('');
 console.log(await QRCode.toString(uri, { type: 'terminal', small: true }));
-console.log('  Se preferires escrever a mao, a chave e:');
-console.log(`      ${segredo}`);
-console.log('');
-console.log('  Agora guarda-a no Worker. Corre isto e cola a chave quando ele pedir:');
-console.log('');
-console.log('      cd worker && npx wrangler secret put TOTP_SEGREDO');
-console.log('');
-console.log('  Feito isso, entras em https://meiadeleite.pt/admin com os seis digitos.');
-console.log('');
+
+/* A chave so aparece se a pedirem: o QR chega para montar a app, e assim ela
+   nao fica a apanhar sol no historico do terminal. */
+if (process.argv.includes('--mostrar-chave')) {
+  console.log('  A chave, para meteres a mao se o QR nao der:');
+  console.log(`      ${segredo}`);
+  console.log('');
+  console.log('  Guarda-a como guardas uma palavra-passe. Nao a mandes a ninguem,');
+  console.log('  nem a coles em conversas: quem a tiver entra no admin.');
+  console.log('');
+}
+
+console.log('  3. A guardar a chave no Worker...');
+
+const wrangler = spawn(
+  process.platform === 'win32' ? 'npx.cmd' : 'npx',
+  ['wrangler', 'secret', 'put', 'TOTP_SEGREDO'],
+  { cwd: fileURLToPath(new URL('../worker/', import.meta.url)), stdio: ['pipe', 'inherit', 'inherit'] }
+);
+
+wrangler.stdin.write(segredo);
+wrangler.stdin.end();
+
+wrangler.on('close', (codigo) => {
+  console.log('');
+  if (codigo === 0) {
+    console.log('  Feito. Entra em https://meiadeleite.pt/admin com os seis digitos da app.');
+    console.log('  Se ja tinhas uma chave antiga, deixou de servir agora mesmo.');
+  } else {
+    console.log('  O wrangler nao conseguiu guardar a chave.');
+    console.log('  Se for falta de sessao, corre `cd worker && npx wrangler login` e tenta outra vez.');
+    console.log('  A app ja tem a entrada nova, mas ela so serve depois de a chave ficar guardada.');
+  }
+  console.log('');
+});

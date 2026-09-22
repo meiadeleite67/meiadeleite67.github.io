@@ -74,16 +74,17 @@ Mete o `id` que ele devolve no `wrangler.toml`.
 npm run admin
 ```
 
-Mostra um QR no terminal para apontares o Google Authenticator e diz-te o comando para guardar
-a chave no Worker:
+Apaga primeiro na app as entradas antigas com o nome "Meia de Leite", lê o QR que aparece no
+terminal, e está feito: o comando entrega a chave ao Worker sozinho.
 
-```bash
-cd worker && npx wrangler secret put TOTP_SEGREDO
-```
+Não há nada para copiar nem colar, e isso é de propósito. Colar a chave à mão no
+`wrangler secret put` é onde isto costuma partir-se: o terminal nem sempre recebe o paste
+inteiro, a chave fica cortada, e depois nenhum código da app bate certo sem se perceber porquê.
 
-A chave nunca entra no repositório nem viaja pela internet: só aparece nesse terminal e depois
-vive como segredo do Worker. Se a perderes, corres o `npm run admin` outra vez e apagas a
-entrada velha na app.
+A chave nunca entra no repositório. Vive como segredo do Worker e, por omissão, nem sequer
+aparece escrita no terminal — só o QR. Se precisares dela para a meter à mão noutro telemóvel,
+corre `npm run admin -- --mostrar-chave`, mas trata-a como uma palavra-passe: quem a tiver entra
+no admin. Correr o comando outra vez inventa uma chave nova e a anterior deixa de servir.
 
 **3. Publicar:**
 
