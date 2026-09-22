@@ -58,9 +58,17 @@ if (process.argv.includes('--mostrar-chave')) {
 
 console.log('  3. A guardar a chave no Worker...');
 
+/* Arranca-se o wrangler pelo proprio node, e nao pelo npx. No Windows o npx
+   e um ficheiro .cmd, e o Node recusa-se a arranca-lo desde a correcao de uma
+   vulnerabilidade: dava spawn EINVAL. */
 const wrangler = spawn(
-  process.platform === 'win32' ? 'npx.cmd' : 'npx',
-  ['wrangler', 'secret', 'put', 'TOTP_SEGREDO'],
+  process.execPath,
+  [
+    fileURLToPath(new URL('../node_modules/wrangler/bin/wrangler.js', import.meta.url)),
+    'secret',
+    'put',
+    'TOTP_SEGREDO'
+  ],
   { cwd: fileURLToPath(new URL('../worker/', import.meta.url)), stdio: ['pipe', 'inherit', 'inherit'] }
 );
 

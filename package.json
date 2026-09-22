@@ -21,6 +21,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "qrcode": "^1.5.4",
     "typescript": "^5.7.2",
-    "vite": "^6.0.5"
+    "vite": "^6.0.5",
+    "wrangler": "^4.136.3"
   }
 }

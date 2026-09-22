@@ -77,6 +77,9 @@ npm run admin
 Apaga primeiro na app as entradas antigas com o nome "Meia de Leite", lê o QR que aparece no
 terminal, e está feito: o comando entrega a chave ao Worker sozinho.
 
+O wrangler vem instalado com o `npm install`, por isso os comandos com `npx wrangler` usam essa
+cópia e não andam a descarregar nada.
+
 Não há nada para copiar nem colar, e isso é de propósito. Colar a chave à mão no
 `wrangler secret put` é onde isto costuma partir-se: o terminal nem sempre recebe o paste
 inteiro, a chave fica cortada, e depois nenhum código da app bate certo sem se perceber porquê.
