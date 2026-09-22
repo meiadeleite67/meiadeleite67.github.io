@@ -275,7 +275,7 @@ function Cozinha({
       </section>
 
       <section>
-        <h2 style={{ fontSize: 22, marginBottom: 12 }}>Quadro de honra</h2>
+        <h2 style={{ fontSize: 22, marginBottom: 12 }}>Leaderboard</h2>
         <div className="painel">
           {estado.ranking.length === 0 ? (
             <p className="vazio">Ninguém jogou ainda.</p>

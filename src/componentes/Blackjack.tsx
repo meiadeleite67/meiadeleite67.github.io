@@ -339,10 +339,7 @@ export function Blackjack({
       )}
 
       <section>
-        <h2 style={{ fontSize: 24 }}>Quadro de honra</h2>
-        <p className="lead" style={{ marginBottom: 14 }}>
-          É o mesmo para todos os que abrirem o site.
-        </p>
+        <h2 style={{ fontSize: 24, marginBottom: 14 }}>Leaderboard</h2>
         <div className="painel">
           {estado.ranking.length === 0 ? (
             <p className="vazio">
