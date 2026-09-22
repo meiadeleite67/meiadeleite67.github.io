@@ -197,7 +197,8 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { headers: cabecalhos(request) });
 
     const url = new URL(request.url);
-    const caminho = url.pathname.replace(/\/+$/, '') || '/';
+    // o Worker atende em meiadeleite.pt/api/..., por isso tira-se o /api
+    const caminho = url.pathname.replace(/^\/api/, '').replace(/\/+$/, '') || '/';
     const metodo = request.method;
 
     /* ---- quadro de honra ---- */

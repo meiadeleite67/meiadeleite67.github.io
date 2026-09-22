@@ -2,7 +2,13 @@ name = "meiadeleite-quadro"
 main = "index.js"
 compatibility_date = "2026-09-01"
 
-# O KV onde as pontuacoes ficam guardadas. O id vem do comando
+# O Worker atende no proprio dominio, em /api. Assim fica na mesma origem
+# do site: nao e preciso CORS e nao depende de nenhum endereco workers.dev.
+[[routes]]
+pattern = "meiadeleite.pt/api/*"
+zone_name = "meiadeleite.pt"
+
+# O KV onde as pontuacoes e a agenda ficam guardadas. O id vem do comando
 #   npx wrangler kv namespace create QUADRO
 [[kv_namespaces]]
 binding = "QUADRO"

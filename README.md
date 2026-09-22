@@ -91,11 +91,16 @@ entrada velha na app.
 cd worker && npx wrangler deploy
 ```
 
-Ficas com um endereço do género `https://meiadeleite-quadro.<conta>.workers.dev`. Copia-o para
-o campo `quadro` em [`public/conteudo/config.json`](public/conteudo/config.json) e faz commit.
+O Worker atende em `meiadeleite.pt/api`, no próprio domínio, por causa da rota declarada no
+`wrangler.toml`. Isso evita o endereço `workers.dev`, que algumas redes bloqueiam, e põe tudo na
+mesma origem: o site fala com ele sem CORS nenhum pelo meio.
 
-Enquanto esse campo estiver vazio o site funciona na mesma: mostra a agenda do ficheiro, os
-torrões ficam no browser de cada um e o `/admin` diz que não há por onde entrar.
+Se o wrangler perguntar se queres registar um subdomínio `workers.dev`, podes dizer que não: a
+rota no domínio chega. (Se disseres que não **e** não houver rota declarada, o deploy falha a
+dizer que o Worker não tem onde atender.)
+
+Enquanto o Worker não estiver publicado o site funciona na mesma: mostra a agenda do ficheiro,
+os torrões ficam no browser de cada um e o `/admin` diz que não há por onde entrar.
 
 ### O que o Worker aceita
 
