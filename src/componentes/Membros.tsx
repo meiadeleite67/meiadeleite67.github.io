@@ -4,7 +4,7 @@ import type { Estado, Membro } from '../lib/tipos';
 export function Membros({ estado }: { estado: Estado }) {
   return (
     <section>
-      <h1 style={{ fontSize: 'clamp(28px,5vw,42px)' }}>Membro do MEIadeLEIte</h1>
+      <h1 style={{ fontSize: 'clamp(28px,5vw,42px)' }}>Membros do MEIadeLEIte</h1>
 
       {estado.membros.length === 0 ? (
         <p className="vazio" style={{ marginTop: 20 }}>
