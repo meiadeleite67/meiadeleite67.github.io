@@ -24,6 +24,7 @@ const enderecoDe = (p: Pagina) => (p === 'inicio' ? '/' : `/${p}`);
 export default function App() {
   const [pagina, setPagina] = useState<Pagina>(paginaDoEndereco);
   const [estado, setEstado] = useState<Estado>(VAZIO);
+  const [menuAberto, setMenuAberto] = useState(false);
   const { fase, entornar } = useEntornar();
 
   const recarregar = useCallback(async () => {
@@ -53,6 +54,15 @@ export default function App() {
     },
     [pagina, entornar]
   );
+
+  useEffect(() => {
+    if (!menuAberto) return;
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuAberto(false);
+    };
+    window.addEventListener('keydown', tecla);
+    return () => window.removeEventListener('keydown', tecla);
+  }, [menuAberto]);
 
   // o voltar atrás e o seguinte do browser
   useEffect(() => {
@@ -88,18 +98,35 @@ export default function App() {
             </span>
           </button>
 
-          <nav aria-label="Secções">
+          {/* no telemóvel o menu é uma gaveta que abre de lado */}
+          <button
+            className="hamburguer"
+            type="button"
+            aria-label={menuAberto ? 'Fechar o menu' : 'Abrir o menu'}
+            aria-expanded={menuAberto}
+            onClick={() => setMenuAberto((a) => !a)}
+          >
+            <span className={menuAberto ? 'x' : ''} />
+            <span className={menuAberto ? 'x' : ''} />
+            <span className={menuAberto ? 'x' : ''} />
+          </button>
+
+          <nav className={menuAberto ? 'aberta' : ''} aria-label="Secções">
             {PAGINAS.map((p) => (
               <button
                 key={p.id}
                 type="button"
-                onClick={() => irPara(p.id)}
+                onClick={() => {
+                  setMenuAberto(false);
+                  irPara(p.id);
+                }}
                 aria-current={p.id === pagina ? 'page' : undefined}
               >
                 {p.nome}
               </button>
             ))}
           </nav>
+          {menuAberto && <div className="gaveta-fundo" onClick={() => setMenuAberto(false)} />}
         </div>
       </header>
 

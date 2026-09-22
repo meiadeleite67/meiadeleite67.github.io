@@ -193,7 +193,7 @@ export function Blackjack({
                       tabIndex={-1}
                       aria-hidden="true"
                       style={{
-                        bottom: `${Math.min(i, 7) * 12}px`,
+                        bottom: `calc(${Math.min(i, 7)} * var(--desvio-ficha, 12px))`,
                         left: `${(i % 3) - 1}px`,
                         zIndex: i + 1,
                         animationDelay: '0ms'

@@ -1577,3 +1577,178 @@ footer {
     animation: none !important;
   }
 }
+
+/* ======================= no telemóvel =======================
+   O menu passa a gaveta, a mesa encolhe para caber num ecrã, e o rodapé
+   deixa de tentar alinhar coisas à direita quando não há largura. */
+
+.hamburguer {
+  display: none;
+  width: 42px;
+  height: 42px;
+  border: 1px solid #3a2a1e;
+  border-radius: 10px;
+  background: transparent;
+  padding: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+.hamburguer span {
+  display: block;
+  width: 19px;
+  height: 2px;
+  border-radius: 2px;
+  background: #e8d3ba;
+  transition: transform 0.2s, opacity 0.15s;
+}
+.hamburguer span.x:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+.hamburguer span.x:nth-child(2) {
+  opacity: 0;
+}
+.hamburguer span.x:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+.gaveta-fundo {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .hamburguer {
+    display: flex;
+    /* por cima da gaveta, senao o X fica escondido por baixo dela */
+    position: relative;
+    z-index: 46;
+  }
+  .gaveta-fundo {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 44;
+    background: rgba(10, 6, 4, 0.6);
+    animation: entrar 0.2s ease-out;
+  }
+  .bar nav {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 45;
+    width: min(78vw, 280px);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    background: #1b100b;
+    border-left: 1px solid #3a2a1e;
+    padding: calc(env(safe-area-inset-top, 0px) + 72px) 16px 16px;
+    transform: translateX(100%);
+    transition: transform 0.24s ease-out;
+    box-shadow: -18px 0 40px -20px #000;
+  }
+  .bar nav.aberta {
+    transform: translateX(0);
+  }
+  .bar nav button {
+    text-align: left;
+    font-size: 16px;
+    padding: 12px 14px;
+    border-radius: 10px;
+  }
+
+  /* o rodapé deixa de empurrar coisas para a direita */
+  .rodape-fim {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .rodape-fim .direita {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  /* o cabeçalho da página encolhe para a mesa começar mais acima */
+  main {
+    padding-block: 18px 40px;
+  }
+  .lead {
+    font-size: 14.5px;
+    margin-top: 8px;
+    line-height: 1.45;
+  }
+  section h1 {
+    line-height: 1.02;
+  }
+
+  /* a mesa inteira num ecrã: cartas, baralho e fichas mais pequenos */
+  .mesa {
+    padding: 14px 12px 18px;
+  }
+  .mesa-topo {
+    margin-bottom: 8px;
+  }
+  .saldo {
+    font-size: 22px;
+  }
+  .carta {
+    width: 46px;
+    height: 66px;
+    font-size: 13px;
+    padding: 4px 5px;
+  }
+  .carta .naipe {
+    font-size: 16px;
+  }
+  .cartas {
+    min-height: 68px;
+    gap: 6px;
+  }
+  .lado {
+    gap: 5px;
+  }
+  .centro {
+    margin: 2px 0;
+  }
+  .baralho {
+    width: 40px;
+    height: 58px;
+  }
+  .aposta-zona {
+    gap: 14px;
+    margin-top: 6px;
+  }
+  .pilha-caixa {
+    min-width: 76px;
+    gap: 3px;
+  }
+  .pilha {
+    --desvio-ficha: 8px;
+    width: 46px;
+    height: 86px;
+  }
+  .ficha {
+    width: 46px;
+    height: 46px;
+    font-size: 13px;
+  }
+  .ficha::before {
+    inset: 3px;
+    border-width: 2px;
+  }
+  .ficha::after {
+    inset: 10px;
+  }
+  .fichas {
+    gap: 8px;
+  }
+  .acoes {
+    margin-top: 10px;
+  }
+  .a-jogar-como {
+    margin-top: 10px;
+  }
+}
