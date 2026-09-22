@@ -5,35 +5,39 @@ import {
   APOSTAS,
   conta,
   distribuir,
+  dividir,
   dobrar,
   emprestimo,
   ficar,
   mesaNova,
   outraMao,
   pedir,
+  podeDividir,
+  podeDobrar,
   porFicha,
   soma,
   suave,
   tirarFichas
 } from '../lib/blackjack';
-import type { Carta, Mesa } from '../lib/blackjack';
+import type { Carta, Mao, Mesa, Resultado } from '../lib/blackjack';
 import type { Estado } from '../lib/tipos';
 
 const LARGURA_CARTA = 64;
 
-export function Blackjack({
-  estado,
-  recarregar
-}: {
-  estado: Estado;
-  recarregar: () => void;
-}) {
+const DIZ: Record<Resultado, string> = {
+  blackjack: 'Blackjack',
+  ganhou: 'Ganhaste',
+  empate: 'Empate',
+  perdeu: 'Perdeste',
+  rebentou: 'Rebentou'
+};
+
+export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: () => void }) {
   const [mesa, setMesa] = useState<Mesa>(() => {
     const g = lido('mdl.torroes.v2');
     return mesaNova(g !== null && Number.isFinite(Number(g)) ? Number(g) : 250);
   });
   const [nome, setNome] = useState(() => lido('mdl.nome') || '');
-  // sem nome não se joga: a janela fica por cima da mesa até alguém escrever um
   const [aPedirNome, setAPedirNome] = useState(() => !(lido('mdl.nome') || '').trim());
   const [rascunho, setRascunho] = useState(() => lido('mdl.nome') || '');
 
@@ -43,7 +47,6 @@ export function Blackjack({
     guardar('mdl.torroes.v2', String(mesa.saldo));
   }, [mesa.saldo]);
 
-  // focar sem o browser arrastar a página atrás do cursor
   useEffect(() => {
     if (aPedirNome) campoNome.current?.focus({ preventScroll: true });
   }, [aPedirNome]);
@@ -59,7 +62,7 @@ export function Blackjack({
         jaJogou
           ? {
               ...mesaNova(jaJogou.torroes),
-              maos: jaJogou.maos,
+              jogadas: jaJogou.maos,
               vitorias: jaJogou.vitorias,
               bjs: jaJogou.bjs,
               pico: jaJogou.pico
@@ -80,7 +83,7 @@ export function Blackjack({
         .pontuar({
           nome: nome.trim(),
           torroes: m.saldo,
-          maos: m.maos,
+          maos: m.jogadas,
           vitorias: m.vitorias,
           bjs: m.bjs,
           pico: m.pico
@@ -94,6 +97,7 @@ export function Blackjack({
 
   const b = mesa;
   const naMesa = soma(b.fichas);
+  const emJogo = b.maos.reduce((t, m) => t + m.aposta, 0);
   const totalCasa = b.revelar
     ? String(conta(b.casa))
     : b.casa.length
@@ -107,7 +111,8 @@ export function Blackjack({
         <h1 style={{ fontSize: 'clamp(28px,5vw,42px)' }}>Blackjack dos Torrões</h1>
         <p className="lead">
           Começas com 250 torrões de açúcar. Não valem nada, não se compram e não se trocam. Só
-          servem para te armares em bom no grupo. A casa paga 3:2 no blackjack e fica nos 17.
+          servem para te armares em bom no grupo. A casa paga 3:2 no blackjack, fica nos 17, e dá
+          para dividir quando as duas primeiras cartas valem o mesmo.
         </p>
 
         <div className="mesa" style={{ marginTop: 22 }}>
@@ -123,7 +128,7 @@ export function Blackjack({
                 Mãos, ganhas, blackjacks
               </span>
               <span className="num" style={{ fontSize: 17 }}>
-                {b.maos} · {b.vitorias} · {b.bjs}
+                {b.jogadas} · {b.vitorias} · {b.bjs}
               </span>
             </div>
           </div>
@@ -151,7 +156,6 @@ export function Blackjack({
             </div>
           </div>
 
-          {/* o baralho fica no meio da mesa e é dele que saem as cartas */}
           <div className="centro">
             <div className="baralho" aria-hidden="true">
               <i />
@@ -160,21 +164,21 @@ export function Blackjack({
             </div>
           </div>
 
-          <div className="lado">
-            <div className="cartas">
-              {b.mao.map((c, i) => (
-                <CartaEl key={`m${i}`} carta={c} i={i} total={b.mao.length} />
-              ))}
-            </div>
-            <div className="lado-cab">
-              <span className="rotulo">Tu</span>
-              {b.mao.length > 0 && (
-                <span className="total">
-                  <b>{conta(b.mao)}</b>
-                  {suave(b.mao) ? ' (suave)' : ''}
-                </span>
-              )}
-            </div>
+          {/* uma coluna por mão: com o split passam a ser duas ou mais */}
+          <div className={`maos${b.maos.length > 1 ? ' varias' : ''}`}>
+            {b.maos.length === 0 ? (
+              <div className="cartas" />
+            ) : (
+              b.maos.map((mao, i) => (
+                <MaoEl
+                  key={i}
+                  mao={mao}
+                  aJogar={b.fase === 'jogo' && i === b.atual}
+                  numero={i + 1}
+                  quantas={b.maos.length}
+                />
+              ))
+            )}
           </div>
 
           {b.fase === 'aposta' ? (
@@ -226,7 +230,12 @@ export function Blackjack({
                 </div>
               </div>
             </div>
-          ) : null}
+          ) : (
+            <p className="em-jogo">
+              <span className="rotulo">Em jogo</span> <b className="num">{emJogo}</b> torrões
+              {b.maos.length > 1 && ` em ${b.maos.length} mãos`}
+            </p>
+          )}
 
           <div className="acoes">
             {b.fase === 'aposta' && (
@@ -263,9 +272,14 @@ export function Blackjack({
                 <button className="btn claro" type="button" onClick={() => aplicar(ficar(b))}>
                   Ficar
                 </button>
-                {b.mao.length === 2 && b.saldo >= b.aposta && (
+                {podeDobrar(b) && (
                   <button className="btn claro" type="button" onClick={() => aplicar(dobrar(b))}>
                     Dobrar
+                  </button>
+                )}
+                {podeDividir(b) && (
+                  <button className="btn claro" type="button" onClick={() => aplicar(dividir(b))}>
+                    Dividir
                   </button>
                 )}
               </>
@@ -384,6 +398,40 @@ export function Blackjack({
         </div>
       </section>
     </>
+  );
+}
+
+function MaoEl({
+  mao,
+  aJogar,
+  numero,
+  quantas
+}: {
+  mao: Mao;
+  aJogar: boolean;
+  numero: number;
+  quantas: number;
+}) {
+  const total = conta(mao.cartas);
+  return (
+    <div className={`lado mao${aJogar ? ' a-jogar' : ''}${mao.resultado ? ' fechada' : ''}`}>
+      <div className="cartas">
+        {mao.cartas.map((c, i) => (
+          <CartaEl key={i} carta={c} i={i} total={mao.cartas.length} />
+        ))}
+      </div>
+      <div className="lado-cab">
+        <span className="rotulo">{quantas > 1 ? `Mão ${numero}` : 'Tu'}</span>
+        {mao.cartas.length > 0 && (
+          <span className="total">
+            <b>{total}</b>
+            {suave(mao.cartas) && total !== 21 ? ' (suave)' : ''}
+          </span>
+        )}
+        {quantas > 1 && <span className="aposta-da-mao num">{mao.aposta}</span>}
+        {mao.resultado && <span className={`fim-da-mao ${mao.resultado}`}>{DIZ[mao.resultado]}</span>}
+      </div>
+    </div>
   );
 }
 

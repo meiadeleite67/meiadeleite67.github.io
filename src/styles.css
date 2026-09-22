@@ -457,6 +457,80 @@ label .rotulo {
   transform: none;
 }
 
+
+/* ---- várias mãos ao mesmo tempo, depois de dividir ---- */
+.maos {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.maos .mao {
+  flex: 0 1 auto;
+  border-radius: 12px;
+  padding: 6px 8px 4px;
+  border: 1px solid transparent;
+  transition: border-color 0.2s, background 0.2s;
+}
+.maos.varias .mao {
+  background: rgba(0, 0, 0, 0.16);
+}
+.maos .mao.a-jogar {
+  border-color: var(--crema);
+  background: rgba(192, 119, 52, 0.14);
+}
+.maos.varias .mao.fechada {
+  opacity: 0.82;
+}
+.maos.varias .carta {
+  width: 48px;
+  height: 70px;
+  font-size: 13px;
+}
+.maos.varias .carta .naipe {
+  font-size: 16px;
+}
+.maos.varias .cartas {
+  min-height: 72px;
+  gap: 5px;
+}
+.aposta-da-mao {
+  font-size: 12px;
+  color: #a9c4b6;
+}
+.aposta-da-mao::before {
+  content: '· ';
+}
+.fim-da-mao {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+.fim-da-mao.ganhou,
+.fim-da-mao.blackjack {
+  color: #8fd8ae;
+}
+.fim-da-mao.empate {
+  color: #d8c9b4;
+}
+.fim-da-mao.perdeu,
+.fim-da-mao.rebentou {
+  color: #e59a9a;
+}
+.em-jogo {
+  margin: 12px 0 0;
+  text-align: center;
+  font-size: 14px;
+  color: #cfe0d6;
+}
+.em-jogo .rotulo {
+  color: #a9c4b6;
+}
+
 /* ---- fichas ---- */
 .aposta-zona {
   display: flex;
@@ -1816,6 +1890,25 @@ footer {
   .aposta-zona {
     gap: 14px;
     margin-top: 6px;
+  }
+  .maos {
+    gap: 6px;
+  }
+  .maos.varias .carta {
+    width: 38px;
+    height: 56px;
+    font-size: 11px;
+    padding: 3px 4px;
+  }
+  .maos.varias .carta .naipe {
+    font-size: 13px;
+  }
+  .maos.varias .cartas {
+    min-height: 58px;
+    gap: 4px;
+  }
+  .maos .mao {
+    padding: 4px 5px 2px;
   }
   .pilha-caixa {
     min-width: 76px;
