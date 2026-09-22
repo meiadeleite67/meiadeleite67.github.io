@@ -14,8 +14,8 @@ export function Inicio({ estado, irPara }: { estado: Estado; irPara: (p: Pagina)
           Somos o <em>MEIadeLEIte</em>. Alguém tinha de ser.
         </h1>
         <p className="lead">
-          Cartas para perder torrões de açúcar, o que vai saindo no Instagram e a agenda toda,
-          para ninguém voltar a dizer que não sabia.
+          Cartas para perder torrões de açúcar, o que vai saindo no Instagram, e a agenda do que
+          aí vem. Desculpas para faltar, já não há.
         </p>
         <div style={{ marginTop: 18 }}>
           <span className="medalha">

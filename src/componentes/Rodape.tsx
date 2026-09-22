@@ -77,7 +77,7 @@ export function Rodape({ irPara }: { irPara: (p: Pagina) => void }) {
           <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
             <circle cx="8" cy="8" r="7" fill="var(--crema)" />
           </svg>
-          Feito ao balcão
+          Feito ao Balcão pelo senhor luis
         </span>
         <span>Os torrões do blackjack não valem nada em lado nenhum, nem no bar.</span>
       </div>
