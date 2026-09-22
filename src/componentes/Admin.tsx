@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, temServidor } from '../lib/api';
+import { AdminMembros } from './AdminMembros';
 import { MESES_INTEIROS, TIPOS, dataCurta, hoje } from '../lib/dados';
 import type { Estado, TipoEvento } from '../lib/tipos';
 
@@ -273,6 +274,8 @@ function Cozinha({
           )}
         </div>
       </section>
+
+      <AdminMembros membros={estado.membros} recarregar={recarregar} />
 
       <section>
         <h2 style={{ fontSize: 22, marginBottom: 12 }}>Leaderboard</h2>

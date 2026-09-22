@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Entornar, useEntornar } from './componentes/Entornar';
 import { Inicio } from './componentes/Inicio';
+import { Membros } from './componentes/Membros';
 import { Blackjack } from './componentes/Blackjack';
 import { Mural } from './componentes/Mural';
 import { Agenda } from './componentes/Agenda';
@@ -10,7 +11,7 @@ import { api } from './lib/api';
 import { PAGINAS, TODAS_AS_PAGINAS } from './lib/dados';
 import type { Estado, Pagina } from './lib/tipos';
 
-const VAZIO: Estado = { agenda: [], insta: [], ranking: [] };
+const VAZIO: Estado = { agenda: [], insta: [], ranking: [], membros: [] };
 
 /** A página vem do endereço: /blackjack, /agenda, /admin. Os links podem ser
  *  partilhados e a de admin existe sem estar em sítio nenhum à vista. */
@@ -132,6 +133,7 @@ export default function App() {
 
       <main className="troca" key={pagina}>
         {pagina === 'inicio' && <Inicio estado={estado} irPara={irPara} />}
+        {pagina === 'membros' && <Membros estado={estado} />}
         {pagina === 'blackjack' && <Blackjack estado={estado} recarregar={recarregar} />}
         {pagina === 'instagram' && <Mural estado={estado} />}
         {pagina === 'agenda' && <Agenda estado={estado} />}

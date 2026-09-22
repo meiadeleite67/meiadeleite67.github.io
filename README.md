@@ -22,8 +22,12 @@ npm run preview
 
 ## Mudar o que está no site
 
-**A agenda** muda-se na página de admin, em https://meiadeleite.pt/admin. Entras com um código
-do Google Authenticator e marcas ou apagas eventos ali mesmo, sem commits.
+**A agenda e os membros** mudam-se na página de admin, em https://meiadeleite.pt/admin. Entras
+com um código do Google Authenticator e mexes ali mesmo, sem commits.
+
+As fotos dos membros são encolhidas no browser antes de subirem: ficam quadradas, com 480
+pixels de lado, em JPEG. Uma foto de telemóvel passa de uns megabytes para uns 40 kB, que é o
+que faz sentido guardar no KV.
 
 **O mural** está em [`public/conteudo/estado.json`](public/conteudo/estado.json). Editas, fazes
 commit, e o site atualiza-se em dois ou três minutos.
@@ -113,11 +117,20 @@ os torrões ficam no browser de cada um e o `/admin` diz que não há por onde e
 | `GET /quadro` | o quadro de honra |
 | `PUT /quadro` | grava a pontuação de um nome |
 | `GET /agenda` | a agenda |
+| `GET /membros` | os membros, e `/membros/<id>/foto` a fotografia de cada um |
 | `POST /admin/entrar` | troca um código de 6 dígitos por uma chave de sessão, que dura 8 horas |
 | `POST`, `PATCH`, `DELETE` em `/agenda` | marcar, mudar e apagar, com essa chave |
+| `POST`, `PATCH`, `DELETE` em `/membros` | o mesmo, para os membros |
 
 Ao fim de oito códigos errados o endereço fica dois minutos de castigo, para ninguém andar a
 adivinhar os seis dígitos à bruta.
+
+Sempre que se mexer no `worker/index.js` é preciso publicar outra vez, senão o site pede coisas
+que o Worker ainda não sabe responder:
+
+```bash
+cd worker && npx wrangler deploy
+```
 
 ## O domínio
 

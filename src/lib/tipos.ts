@@ -23,6 +23,14 @@ export type Post = {
   slides: number;
 };
 
+export type Membro = {
+  id: string;
+  nome: string;
+  descricao: string;
+  temFoto: boolean;
+  ordem: number;
+};
+
 export type Pontuacao = {
   nome: string;
   torroes: number;
@@ -37,6 +45,7 @@ export type Estado = {
   agenda: Evento[];
   insta: Post[];
   ranking: Pontuacao[];
+  membros: Membro[];
 };
 
-export type Pagina = 'inicio' | 'blackjack' | 'instagram' | 'agenda' | 'admin';
+export type Pagina = 'inicio' | 'membros' | 'blackjack' | 'instagram' | 'agenda' | 'admin';

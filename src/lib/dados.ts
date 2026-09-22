@@ -2,6 +2,7 @@ import type { Pagina, TipoEvento } from './tipos';
 
 export const PAGINAS: { id: Pagina; nome: string }[] = [
   { id: 'inicio', nome: 'Início' },
+  { id: 'membros', nome: 'Membros' },
   { id: 'blackjack', nome: 'Blackjack' },
   { id: 'instagram', nome: 'Instagram' },
   { id: 'agenda', nome: 'Agenda' }

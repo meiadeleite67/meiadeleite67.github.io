@@ -8,10 +8,13 @@
  *   GET    /quadro          o quadro de honra
  *   PUT    /quadro          grava a pontuação de um nome
  *   GET    /agenda          a agenda
+ *   GET    /membros         os membros do grupo
+ *   GET    /membros/<id>/foto   a fotografia de um membro
  *   POST   /admin/entrar    troca um código de 6 dígitos por uma chave
  *   POST   /agenda          marca (precisa da chave)
  *   PATCH  /agenda/<id>     muda  (precisa da chave)
  *   DELETE /agenda/<id>     apaga (precisa da chave)
+ *   POST, PATCH, DELETE em /membros    o mesmo, para os membros
  *
  * O segredo do autenticador NUNCA está aqui no código: vive num segredo do
  * Worker (TOTP_SEGREDO), posto com `wrangler secret put`. Assim não anda no
@@ -32,6 +35,8 @@ const MAX_ENGANOS = 8;
 const CASTIGO = 2 * 60 * 1000;
 const MAX_EVENTOS = 300;
 const MAX_NOMES = 200;
+const MAX_MEMBROS = 60;
+const MAX_FOTO = 400_000; // caracteres de base64, uns 300 kB de imagem
 
 /* ============================ utilidades ============================ */
 
@@ -179,6 +184,21 @@ async function entrar(request, env) {
   return responder({ chave }, request);
 }
 
+/** As fotos dos membros ficam guardadas à parte, uma por chave, para a lista
+ *  de membros continuar leve de ler. Chegam já encolhidas pelo browser. */
+async function guardarFoto(env, id, foto) {
+  if (typeof foto !== 'string' || !foto.startsWith('data:image/')) return false;
+  const base64 = foto.slice(foto.indexOf(',') + 1);
+  if (base64.length > MAX_FOTO) return 'grande';
+  try {
+    atob(base64.slice(0, 64));
+  } catch {
+    return false;
+  }
+  await env.QUADRO.put(`foto:${id}`, base64);
+  return true;
+}
+
 function limparEvento(veio, antes) {
   return {
     id: antes?.id ?? novoId(),
@@ -308,6 +328,100 @@ export default {
       agenda[onde] = limparEvento(veio, agenda[onde]);
       await env.QUADRO.put('agenda', JSON.stringify(agenda));
       return responder(agenda[onde], request);
+    }
+
+    /* ---- membros ---- */
+
+    if (caminho === '/membros') {
+      const lista = await ler(env, 'membros', []);
+
+      if (metodo === 'GET') return responder(lista, request);
+
+      if (metodo === 'POST') {
+        if (!(await temChave(request, env)))
+          return responder({ erro: 'Precisas de entrar outra vez.' }, request, 401);
+
+        let veio;
+        try {
+          veio = await request.json();
+        } catch {
+          return responder({ erro: 'Corpo inválido.' }, request, 400);
+        }
+        const nome = texto(veio?.nome, 40);
+        if (!nome) return responder({ erro: 'Falta o nome.' }, request, 400);
+        if (lista.length >= MAX_MEMBROS)
+          return responder({ erro: 'Já não cabem mais membros.' }, request, 409);
+
+        const membro = {
+          id: novoId(),
+          nome,
+          descricao: texto(veio?.descricao, 200),
+          temFoto: false,
+          ordem: lista.length
+        };
+        const guardou = await guardarFoto(env, membro.id, veio?.foto);
+        if (guardou === 'grande')
+          return responder({ erro: 'A foto é demasiado pesada.' }, request, 413);
+        membro.temFoto = guardou === true;
+
+        lista.push(membro);
+        await env.QUADRO.put('membros', JSON.stringify(lista));
+        return responder(membro, request);
+      }
+    }
+
+    const membroComId = /^\/membros\/([A-Za-z0-9_-]{1,40})$/.exec(caminho);
+    if (membroComId && (metodo === 'PATCH' || metodo === 'DELETE')) {
+      if (!(await temChave(request, env)))
+        return responder({ erro: 'Precisas de entrar outra vez.' }, request, 401);
+
+      const lista = await ler(env, 'membros', []);
+      const onde = lista.findIndex((m) => m.id === membroComId[1]);
+      if (onde < 0) return responder({ erro: 'Esse membro já não existe.' }, request, 404);
+
+      if (metodo === 'DELETE') {
+        await env.QUADRO.delete(`foto:${lista[onde].id}`);
+        lista.splice(onde, 1);
+        lista.forEach((m, i) => {
+          m.ordem = i;
+        });
+        await env.QUADRO.put('membros', JSON.stringify(lista));
+        return responder({ ok: true }, request);
+      }
+
+      let veio;
+      try {
+        veio = await request.json();
+      } catch {
+        return responder({ erro: 'Corpo inválido.' }, request, 400);
+      }
+      const m = lista[onde];
+      if (texto(veio?.nome, 40)) m.nome = texto(veio.nome, 40);
+      if (typeof veio?.descricao === 'string') m.descricao = texto(veio.descricao, 200);
+      if (veio?.foto) {
+        const guardou = await guardarFoto(env, m.id, veio.foto);
+        if (guardou === 'grande')
+          return responder({ erro: 'A foto é demasiado pesada.' }, request, 413);
+        if (guardou === true) m.temFoto = true;
+      }
+      await env.QUADRO.put('membros', JSON.stringify(lista));
+      return responder(m, request);
+    }
+
+    /** A foto de um membro, servida como imagem para o site a poder mostrar
+     *  numa tag normal. */
+    const fotoComId = /^\/membros\/([A-Za-z0-9_-]{1,40})\/foto$/.exec(caminho);
+    if (fotoComId && metodo === 'GET') {
+      const guardada = await env.QUADRO.get(`foto:${fotoComId[1]}`);
+      if (!guardada) return new Response(null, { status: 404, headers: cabecalhos(request) });
+      const bytes = Uint8Array.from(atob(guardada), (c) => c.charCodeAt(0));
+      return new Response(bytes, {
+        headers: {
+          'Content-Type': 'image/jpeg',
+          'Cache-Control': 'public, max-age=300',
+          ...cabecalhos(request)
+        }
+      });
     }
 
     /** Primeira vez: deixa o admin trazer para aqui a agenda que está no

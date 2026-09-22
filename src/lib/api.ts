@@ -1,4 +1,4 @@
-import type { Estado, Evento, Pontuacao } from './tipos';
+import type { Estado, Evento, Membro, Pontuacao } from './tipos';
 
 /**
  * O site é servido pelo GitHub Pages, que só entrega ficheiros. Quem grava é
@@ -13,7 +13,7 @@ import type { Estado, Evento, Pontuacao } from './tipos';
  * ficheiro e os torrões ficam só no browser de cada um.
  */
 
-const VAZIO: Estado = { agenda: [], insta: [], ranking: [] };
+const VAZIO: Estado = { agenda: [], insta: [], ranking: [], membros: [] };
 
 let servidor: string | null = null;
 let chave = '';
@@ -78,16 +78,18 @@ export const api = {
     const agendaDoFicheiro = Array.isArray(doFicheiro?.agenda) ? doFicheiro.agenda : [];
     if (!base) return { ...VAZIO, insta, agenda: agendaDoFicheiro };
 
-    const [doServidor, ranking] = await Promise.all([
+    const [doServidor, ranking, membros] = await Promise.all([
       pedir<{ definida: boolean; agenda: Evento[] }>('/agenda').catch(() => null),
-      pedir<Pontuacao[]>('/quadro').catch(() => [] as Pontuacao[])
+      pedir<Pontuacao[]>('/quadro').catch(() => [] as Pontuacao[]),
+      pedir<Membro[]>('/membros').catch(() => [] as Membro[])
     ]);
 
     return {
       insta,
       // a agenda do servidor manda; sem ela, fica a do ficheiro
       agenda: doServidor?.definida ? doServidor.agenda : agendaDoFicheiro,
-      ranking: Array.isArray(ranking) ? ranking : []
+      ranking: Array.isArray(ranking) ? ranking : [],
+      membros: Array.isArray(membros) ? [...membros].sort((a, b) => a.ordem - b.ordem) : []
     };
   },
 
@@ -119,6 +121,13 @@ export const api = {
     pedir<Evento>(`/agenda/${id}`, { method: 'PATCH', body: JSON.stringify(e) }),
   apagarEvento: (id: string) => pedir<{ ok: boolean }>(`/agenda/${id}`, { method: 'DELETE' }),
 
+  /* ---- membros ---- */
+  acrescentarMembro: (m: { nome: string; descricao: string; foto?: string }) =>
+    pedir<Membro>('/membros', { method: 'POST', body: JSON.stringify(m) }),
+  mudarMembro: (id: string, m: { nome?: string; descricao?: string; foto?: string }) =>
+    pedir<Membro>(`/membros/${id}`, { method: 'PATCH', body: JSON.stringify(m) }),
+  apagarMembro: (id: string) => pedir<{ ok: boolean }>(`/membros/${id}`, { method: 'DELETE' }),
+
   /** Leva para o servidor a agenda que está no ficheiro, na primeira vez. */
   importarAgenda: (agenda: Evento[]) =>
     pedir<{ ok: boolean; quantos: number }>('/agenda/importar', {
@@ -127,6 +136,10 @@ export const api = {
     })
 };
 
-/** Onde estão as fotos, servidas como ficheiros do próprio site. */
+/** A foto de um membro vem do servidor, que é quem a guarda. Quando isto é
+ *  chamado já houve uma leitura do estado, por isso o endereço está sabido. */
+export const fotoDoMembro = (id: string) => (servidor ? `${servidor}/membros/${id}/foto` : '');
+
+/** Onde estão as fotos do mural, servidas como ficheiros do próprio site. */
 export const capaDe = (id: string) => `/media/${id}.jpg`;
 export const slideDe = (id: string, n: number) => `/media/${id}-${n}.jpg`;
