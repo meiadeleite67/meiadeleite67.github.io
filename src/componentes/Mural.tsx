@@ -14,7 +14,7 @@ export function Mural({ estado }: { estado: Estado }) {
       <h1 style={{ fontSize: 'clamp(28px,5vw,42px)' }}>O que vai saindo no Instagram</h1>
       <p className="lead">
         As publicações e os reels do @_meiadeleite_, do mais recente para o mais antigo. Carrega em
-        qualquer um para o ver aqui mesmo, com os slides a mudar e os reels a tocar.
+        qualquer um para o ver aqui mesmo.
       </p>
 
       <div className="perfil-fita">
