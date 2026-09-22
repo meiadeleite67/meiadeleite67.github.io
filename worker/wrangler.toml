@@ -2,11 +2,15 @@ name = "meiadeleite-quadro"
 main = "index.js"
 compatibility_date = "2026-09-01"
 
-# O Worker atende no proprio dominio, em /api. Assim fica na mesma origem
-# do site: nao e preciso CORS e nao depende de nenhum endereco workers.dev.
-[[routes]]
-pattern = "meiadeleite.pt/api/*"
-zone_name = "meiadeleite.pt"
+# O Worker atende no endereco workers.dev da conta.
+#
+# Se algum dia quiseres que ele atenda tambem no proprio dominio, em
+# meiadeleite.pt/api, tira o comentario daqui de baixo e publica outra vez.
+# Fica na mesma origem do site e deixa de precisar de CORS.
+#
+# [[routes]]
+# pattern = "meiadeleite.pt/api/*"
+# zone_name = "meiadeleite.pt"
 
 # O KV onde as pontuacoes e a agenda ficam guardadas. O id vem do comando
 #   npx wrangler kv namespace create QUADRO
