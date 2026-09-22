@@ -12,7 +12,7 @@
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-const PAGINAS = ['blackjack', 'instagram', 'agenda'];
+const PAGINAS = ['blackjack', 'instagram', 'agenda', 'admin'];
 
 if (!existsSync('dist/index.html')) {
   console.error('Nao ha dist/index.html. Corre o build primeiro.');

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { api, temQuadroPartilhado } from '../lib/api';
+import { api, temServidor } from '../lib/api';
 import { guardar, lido } from '../lib/dados';
 import {
   APOSTAS,
@@ -346,7 +346,7 @@ export function Blackjack({
         <div className="painel">
           {estado.ranking.length === 0 ? (
             <p className="vazio">
-              {temQuadroPartilhado()
+              {temServidor()
                 ? 'Ainda ninguém arriscou um torrão. Sê o primeiro a perder tudo.'
                 : 'O quadro partilhado ainda não está ligado. Por agora os torrões ficam só no teu browser.'}
             </p>

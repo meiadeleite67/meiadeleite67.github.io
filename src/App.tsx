@@ -4,6 +4,7 @@ import { Inicio } from './componentes/Inicio';
 import { Blackjack } from './componentes/Blackjack';
 import { Mural } from './componentes/Mural';
 import { Agenda } from './componentes/Agenda';
+import { Admin } from './componentes/Admin';
 import { Rodape } from './componentes/Rodape';
 import { api } from './lib/api';
 import { PAGINAS, TODAS_AS_PAGINAS } from './lib/dados';
@@ -107,6 +108,7 @@ export default function App() {
         {pagina === 'blackjack' && <Blackjack estado={estado} recarregar={recarregar} />}
         {pagina === 'instagram' && <Mural estado={estado} />}
         {pagina === 'agenda' && <Agenda estado={estado} />}
+        {pagina === 'admin' && <Admin estado={estado} recarregar={recarregar} />}
 
         <Rodape irPara={irPara} />
       </main>

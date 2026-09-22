@@ -22,31 +22,13 @@ npm run preview
 
 ## Mudar o que está no site
 
-Não há página de administração: o GitHub Pages só entrega ficheiros e não corre programas.
-O conteúdo é um ficheiro, e mexer nele é publicar.
+**A agenda** muda-se na página de admin, em https://meiadeleite.pt/admin. Entras com um código
+do Google Authenticator e marcas ou apagas eventos ali mesmo, sem commits.
 
-**A agenda e o mural** estão em [`public/conteudo/estado.json`](public/conteudo/estado.json).
-Editas, fazes commit, e o site atualiza-se em dois ou três minutos.
+**O mural** está em [`public/conteudo/estado.json`](public/conteudo/estado.json). Editas, fazes
+commit, e o site atualiza-se em dois ou três minutos.
 
-Um evento é assim:
-
-```json
-{
-  "id": "jantar-natal",
-  "titulo": "Jantar de Natal",
-  "data": "2026-12-12",
-  "hora": "20:30",
-  "sitio": "A combinar",
-  "tipo": "jantar",
-  "notas": "Levem dinheiro trocado.",
-  "criadoEm": "2026-09-22T00:00:00.000Z"
-}
-```
-
-O `tipo` é um de `copos`, `jantar`, `estudo`, `exame`, `festa`, `cozinha`, `outro`. Cada um
-tem a sua cor no calendário.
-
-Uma publicação do Instagram é assim:
+Uma publicação é assim:
 
 ```json
 {
@@ -65,31 +47,68 @@ O `id` é o código que aparece no endereço da publicação. O `formato` é `fo
 e por aí fora, e o `slides` diz quantas são. Os reels abrem no leitor do próprio Instagram, que
 é o único sítio onde o vídeo toca.
 
-## O quadro de honra
+O `estado.json` também tem uma agenda: é a que o site mostra enquanto o Worker não tiver
+nenhuma guardada. Na primeira vez que entrares no admin, o botão "Trazer a agenda do ficheiro"
+leva-a para lá.
 
-O blackjack joga-se no browser, mas as pontuações têm de ser gravadas nalgum lado. Quem grava
-é um Worker da Cloudflare, o código está em [`worker/`](worker/). Montagem, uma vez só:
+## O servidor do grupo
+
+O GitHub Pages só entrega ficheiros. Tudo o que precisa de ser gravado (o quadro de honra do
+blackjack, a agenda, a entrada no admin) vive num Worker da Cloudflare, e o código está em
+[`worker/`](worker/).
+
+### Montar, uma vez só
+
+**1. O sítio onde as coisas ficam guardadas:**
 
 ```bash
 cd worker
 npx wrangler kv namespace create QUADRO
 ```
 
-Mete o `id` que ele devolve no `wrangler.toml`, e depois:
+Mete o `id` que ele devolve no `wrangler.toml`.
+
+**2. O autenticador**, a partir da raiz do projeto:
 
 ```bash
-npx wrangler deploy
+npm run admin
 ```
 
-Fica com um endereço do género `https://meiadeleite-quadro.<conta>.workers.dev`. Copia-o para
-o campo `quadro` em [`public/conteudo/config.json`](public/conteudo/config.json), faz commit, e
-o quadro passa a ser o mesmo para toda a gente.
+Mostra um QR no terminal para apontares o Google Authenticator e diz-te o comando para guardar
+a chave no Worker:
 
-Enquanto esse campo estiver vazio o site funciona na mesma: os torrões ficam guardados só no
-browser de cada um e a tabela avisa que ainda não está ligada.
+```bash
+cd worker && npx wrangler secret put TOTP_SEGREDO
+```
 
-O Worker não tem palavras-passe: quem souber o endereço consegue escrever no quadro. Para
-torrões de açúcar entre amigos, chega bem.
+A chave nunca entra no repositório nem viaja pela internet: só aparece nesse terminal e depois
+vive como segredo do Worker. Se a perderes, corres o `npm run admin` outra vez e apagas a
+entrada velha na app.
+
+**3. Publicar:**
+
+```bash
+cd worker && npx wrangler deploy
+```
+
+Ficas com um endereço do género `https://meiadeleite-quadro.<conta>.workers.dev`. Copia-o para
+o campo `quadro` em [`public/conteudo/config.json`](public/conteudo/config.json) e faz commit.
+
+Enquanto esse campo estiver vazio o site funciona na mesma: mostra a agenda do ficheiro, os
+torrões ficam no browser de cada um e o `/admin` diz que não há por onde entrar.
+
+### O que o Worker aceita
+
+| | |
+| --- | --- |
+| `GET /quadro` | o quadro de honra |
+| `PUT /quadro` | grava a pontuação de um nome |
+| `GET /agenda` | a agenda |
+| `POST /admin/entrar` | troca um código de 6 dígitos por uma chave de sessão, que dura 8 horas |
+| `POST`, `PATCH`, `DELETE` em `/agenda` | marcar, mudar e apagar, com essa chave |
+
+Ao fim de oito códigos errados o endereço fica dois minutos de castigo, para ninguém andar a
+adivinhar os seis dígitos à bruta.
 
 ## O domínio
 
@@ -97,14 +116,13 @@ O `CNAME` aponta para `meiadeleite.pt`. Para o domínio funcionar, nas definiç�
 em Pages, o Source tem de estar em **GitHub Actions** e o Custom domain preenchido com
 `meiadeleite.pt`.
 
-No DNS do domínio ficam os registos que o GitHub pede: quatro `A` para o apex e um `CNAME` do
-`www` para `meiadeleite67.github.io`. Se o DNS passar a ser gerido pela Cloudflare, esses
-registos têm de ficar com o proxy desligado (nuvem cinzenta), senão o GitHub não consegue
-emitir o certificado.
+O DNS é gerido pela Cloudflare, com o proxy ligado (nuvem laranja). É a Cloudflare que trata do
+certificado e serve o site a partir do GitHub Pages. Se algum dia desligarem o proxy, é preciso
+deixar o GitHub emitir o certificado dele, o que só acontece com os registos expostos: quatro
+`A` para o apex e um `CNAME` do `www` para `meiadeleite67.github.io`.
 
 ## O que aqui não está
 
-Houve uma versão com servidor próprio, com página de administração protegida por Google
-Authenticator e sincronização automática com a API do Instagram. Isso precisa de uma máquina
-sempre ligada, coisa que o GitHub Pages não é, por isso ficou de fora. O código dessa versão
-está na pasta `meia-de-leite`, ao lado desta.
+A sincronização automática com a API do Instagram, que existia na versão com servidor próprio.
+Precisa de um token da Meta e de alguém a ir buscar as publicações de tempos a tempos. O código
+dessa versão está na pasta `meia-de-leite`, ao lado desta.

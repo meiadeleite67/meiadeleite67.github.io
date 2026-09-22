@@ -7,7 +7,8 @@ export const PAGINAS: { id: Pagina; nome: string }[] = [
   { id: 'agenda', nome: 'Agenda' }
 ];
 
-export const TODAS_AS_PAGINAS: Pagina[] = PAGINAS.map((p) => p.id);
+/** A de admin nao esta na barra de propósito: chega-se la pelo endereco. */
+export const TODAS_AS_PAGINAS: Pagina[] = [...PAGINAS.map((p) => p.id), 'admin'];
 
 export const TIPOS: Record<TipoEvento, { nome: string; cls: string; cor: string }> = {
   copos: { nome: 'Copos', cls: 't-copos', cor: 'var(--crema)' },

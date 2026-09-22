@@ -39,4 +39,4 @@ export type Estado = {
   ranking: Pontuacao[];
 };
 
-export type Pagina = 'inicio' | 'blackjack' | 'instagram' | 'agenda';
+export type Pagina = 'inicio' | 'blackjack' | 'instagram' | 'agenda' | 'admin';
