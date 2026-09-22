@@ -1973,6 +1973,10 @@ footer {
    fazer a espessura. Sem biblioteca nenhuma. */
 
 .trofeu-cena {
+  /* o arrasto na horizontal roda o troféu; o vertical continua a deslizar a
+     página, senão ninguém conseguia passar por ele no telemóvel */
+  touch-action: pan-y;
+  cursor: grab;
   --espessura: 7px;
   --largura: 224px;
   --altura: 282px;
@@ -1994,6 +1998,19 @@ footer {
   transform: rotateX(var(--inclina-x, 0deg)) rotateY(var(--inclina-y, 0deg));
   transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.3, 1);
   animation: rodar-trofeu 16s ease-in-out infinite;
+}
+/* enquanto alguém lhe pega, manda a mão e não a animação.
+   Dois eixos não cabem na propriedade rotate, que só aceita um, por isso a
+   rotação à mão vai no transform. */
+.trofeu.a-mao {
+  /* a animação fica em pausa em vez de desligada: assim guarda o ângulo onde
+     ia e, quando se larga, continua de lá sem dar um salto */
+  animation-play-state: paused;
+  transform: rotateX(var(--gira-x, 0deg)) rotateY(var(--gira-y, 0deg));
+  transition: none;
+}
+.trofeu-cena:active {
+  cursor: grabbing;
 }
 @keyframes rodar-trofeu {
   0%,

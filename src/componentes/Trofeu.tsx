@@ -34,6 +34,16 @@ const P_EM_PONTO_DE_CRUZ = [
 
 const CELA = 9;
 
+/** Onde é que a rotação automática vai neste instante, para quem lhe pega
+ *  continuar de onde ela estava e o troféu não dar um salto. */
+function anguloDeAgora(cena: HTMLElement): number {
+  const trofeu = cena.querySelector('.trofeu');
+  if (!trofeu) return 0;
+  const r = getComputedStyle(trofeu).rotate;
+  const graus = /(-?[\d.]+)deg/.exec(r || '');
+  return graus ? Number(graus[1]) : 0;
+}
+
 function PontoDeCruz() {
   const marcas: JSX.Element[] = [];
   P_EM_PONTO_DE_CRUZ.forEach((linha, y) => {
@@ -67,16 +77,57 @@ function PontoDeCruz() {
 
 export function Trofeu() {
   const [inclinacao, setInclinacao] = useState({ x: 0, y: 0 });
+  /** Ângulo posto à mão. Nulo quer dizer que o troféu roda sozinho. */
+  const [aMao, setAMao] = useState<{ x: number; y: number } | null>(null);
   const cena = useRef<HTMLDivElement>(null);
+  const arrasto = useRef<{ ativo: boolean; x: number; y: number; rx: number; ry: number }>({
+    ativo: false,
+    x: 0,
+    y: 0,
+    rx: 0,
+    ry: 0
+  });
+  const voltarSozinho = useRef<number>();
+  /* O mesmo ângulo, guardado à parte: os ouvintes de eventos leem daqui, para
+     não ser preciso voltar a instalá-los a cada movimento do dedo. */
+  const aMaoAgora = useRef<{ x: number; y: number } | null>(null);
+  const porAMao = (v: { x: number; y: number } | null) => {
+    aMaoAgora.current = v;
+    setAMao(v);
+  };
 
-  /* O troféu roda sozinho, mas segue o rato quando ele anda por perto: é o
-     que dá a sensação de ser um objeto e não um desenho. */
+  /* Com rato, o troféu segue o cursor quando ele anda por perto. Com dedo não
+     há cursor nenhum, por isso roda-se arrastando: é o que dá a sensação de
+     ser um objeto e não um desenho. */
   useEffect(() => {
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
     const elemento = cena.current;
     if (!elemento) return;
 
+    const aoPegar = (e: PointerEvent) => {
+      clearTimeout(voltarSozinho.current);
+      const a = arrasto.current;
+      a.ativo = true;
+      a.x = e.clientX;
+      a.y = e.clientY;
+      const atual = aMaoAgora.current ?? { x: 0, y: anguloDeAgora(elemento) };
+      a.rx = atual.x;
+      a.ry = atual.y;
+      porAMao(atual);
+      setInclinacao({ x: 0, y: 0 });
+      elemento.setPointerCapture?.(e.pointerId);
+    };
+
     const aoMexer = (e: PointerEvent) => {
+      const a = arrasto.current;
+      if (a.ativo) {
+        porAMao({
+          x: Math.max(-26, Math.min(26, a.rx - (e.clientY - a.y) * 0.35)),
+          y: a.ry + (e.clientX - a.x) * 0.6
+        });
+        return;
+      }
+      if (e.pointerType !== 'mouse') return;
       const c = elemento.getBoundingClientRect();
       const dx = (e.clientX - (c.left + c.width / 2)) / c.width;
       const dy = (e.clientY - (c.top + c.height / 2)) / c.height;
@@ -85,12 +136,29 @@ export function Trofeu() {
         y: Math.max(-1, Math.min(1, dx)) * 22
       });
     };
-    const aoSair = () => setInclinacao({ x: 0, y: 0 });
 
+    const aoLargar = () => {
+      if (!arrasto.current.ativo) return;
+      arrasto.current.ativo = false;
+      // uns segundos quieto e ele volta a rodar sozinho
+      voltarSozinho.current = window.setTimeout(() => porAMao(null), 3500);
+    };
+
+    const aoSair = () => {
+      if (!arrasto.current.ativo) setInclinacao({ x: 0, y: 0 });
+    };
+
+    elemento.addEventListener('pointerdown', aoPegar);
     window.addEventListener('pointermove', aoMexer);
+    window.addEventListener('pointerup', aoLargar);
+    window.addEventListener('pointercancel', aoLargar);
     elemento.addEventListener('pointerleave', aoSair);
     return () => {
+      clearTimeout(voltarSozinho.current);
+      elemento.removeEventListener('pointerdown', aoPegar);
       window.removeEventListener('pointermove', aoMexer);
+      window.removeEventListener('pointerup', aoLargar);
+      window.removeEventListener('pointercancel', aoLargar);
       elemento.removeEventListener('pointerleave', aoSair);
     };
   }, []);
@@ -104,11 +172,13 @@ export function Trofeu() {
       style={
         {
           '--inclina-x': `${inclinacao.x}deg`,
-          '--inclina-y': `${inclinacao.y}deg`
+          '--inclina-y': `${inclinacao.y}deg`,
+          '--gira-x': `${aMao?.x ?? 0}deg`,
+          '--gira-y': `${aMao?.y ?? 0}deg`
         } as React.CSSProperties
       }
     >
-      <div className="trofeu">
+      <div className={`trofeu${aMao ? ' a-mao' : ''}`}>
         <div className="placa">
           <div className="face frente">
             <PontoDeCruz />
