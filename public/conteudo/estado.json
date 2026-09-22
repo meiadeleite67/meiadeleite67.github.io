@@ -1,0 +1,116 @@
+{
+  "agenda": [
+    {
+      "id": "exemplo-cozinha",
+      "titulo": "Reunião de cozinha",
+      "data": "2026-09-25",
+      "hora": "18:30",
+      "sitio": "Café do costume",
+      "tipo": "cozinha",
+      "notas": "Exemplo para veres como fica. Apaga no ficheiro conteudo/estado.json.",
+      "criadoEm": "2026-09-21T00:00:00.000Z"
+    },
+    {
+      "id": "exemplo-jantar",
+      "titulo": "Jantar de curso",
+      "data": "2026-10-03",
+      "hora": "20:30",
+      "sitio": "A combinar no grupo",
+      "tipo": "jantar",
+      "notas": "Exemplo para veres como fica. Apaga no ficheiro conteudo/estado.json.",
+      "criadoEm": "2026-09-21T00:00:00.000Z"
+    }
+  ],
+  "insta": [
+    {
+      "id": "DdEBMy7DJtL",
+      "data": "2026-09-09",
+      "url": "https://www.instagram.com/p/DdEBMy7DJtL/",
+      "legenda": "É com enorme contentamento que o grupo do ano da gala pixel 25/26 contratou duas novas peças essenciais que vão trazer muito conteúdo e diversão. Sejam bem vindos JOCA E RUI!!!",
+      "temImagem": true,
+      "formato": "album",
+      "slides": 2
+    },
+    {
+      "id": "DY55-nyieDj",
+      "data": "2026-05-28",
+      "url": "https://www.instagram.com/reel/DY55-nyieDj/",
+      "legenda": "Meia de leite na queima",
+      "temImagem": true,
+      "formato": "reel",
+      "slides": 0
+    },
+    {
+      "id": "DYnkZyAMF4q",
+      "data": "2026-05-21",
+      "url": "https://www.instagram.com/reel/DYnkZyAMF4q/",
+      "legenda": "#manequinchallenge #meiadeleite #vespa #qeuiamdasfitas",
+      "temImagem": true,
+      "formato": "reel",
+      "slides": 0
+    },
+    {
+      "id": "DYmfEVQo8TO",
+      "data": "2026-05-21",
+      "url": "https://www.instagram.com/reel/DYmfEVQo8TO/",
+      "legenda": "Obrigado a todos pela vitória!",
+      "temImagem": true,
+      "formato": "reel",
+      "slides": 0
+    },
+    {
+      "id": "DYYJyqsMxcZ",
+      "data": "2026-05-15",
+      "url": "https://www.instagram.com/p/DYYJyqsMxcZ/",
+      "legenda": "Obrigado a todos este prémio é mais que merecido 🧦🥛🫶🏻",
+      "temImagem": true,
+      "formato": "foto",
+      "slides": 1
+    },
+    {
+      "id": "DYPYrCsMs2R",
+      "data": "2026-05-12",
+      "url": "https://www.instagram.com/reel/DYPYrCsMs2R/",
+      "legenda": "MEIadeLEIte X RIC votem para ganharem muita aura 🧦🥛#cristianoronaldo #mundial #parabenstiagovski",
+      "temImagem": true,
+      "formato": "reel",
+      "slides": 0
+    },
+    {
+      "id": "DYO-6NdMmkY",
+      "data": "2026-05-12",
+      "url": "https://www.instagram.com/reel/DYO-6NdMmkY/",
+      "legenda": "Se o BENNY A diz, está dito!! Bebam meias com leite 🧦🥛#cristianoronaldo",
+      "temImagem": true,
+      "formato": "reel",
+      "slides": 0
+    },
+    {
+      "id": "DYEvmt0MvBH",
+      "data": "2026-05-08",
+      "url": "https://www.instagram.com/reel/DYEvmt0MvBH/",
+      "legenda": "Mega jogo da baguete nos cornos, espero que gostem e bebam muito MEIadeLEIte 🧦🥛",
+      "temImagem": true,
+      "formato": "reel",
+      "slides": 0
+    },
+    {
+      "id": "DYAytBdMoNG",
+      "data": "2026-05-06",
+      "url": "https://www.instagram.com/reel/DYAytBdMoNG/",
+      "legenda": "É muito importante votarem pff, MEIadeLEIte sempre!!\n💔💔🧦🥛#mundial #CristianoRonaldo",
+      "temImagem": true,
+      "formato": "reel",
+      "slides": 0
+    },
+    {
+      "id": "DX9b2Q3M9BC",
+      "data": "2026-05-05",
+      "url": "https://www.instagram.com/reel/DX9b2Q3M9BC/",
+      "legenda": "Caros e caras colegas, apresentamos a nossa candidatura oficial a grupo do ano da gala do Pixel D’Ouro de 26/27, VOTEM MEIadeLEIte #parabenstiagovski",
+      "temImagem": true,
+      "formato": "reel",
+      "slides": 0
+    }
+  ]
+}

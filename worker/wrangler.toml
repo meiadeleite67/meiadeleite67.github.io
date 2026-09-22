@@ -1,0 +1,9 @@
+name = "meiadeleite-quadro"
+main = "index.js"
+compatibility_date = "2026-09-01"
+
+# O KV onde as pontuacoes ficam guardadas. O id vem do comando
+#   npx wrangler kv namespace create QUADRO
+[[kv_namespaces]]
+binding = "QUADRO"
+id = "METE_AQUI_O_ID_DO_KV"
