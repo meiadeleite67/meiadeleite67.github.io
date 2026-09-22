@@ -65,39 +65,6 @@ function PontoDeCruz() {
   );
 }
 
-/** O selo da Universidade de Coimbra, reduzido ao que se lê a este tamanho. */
-function Selo() {
-  return (
-    <svg className="selo-uc" viewBox="0 0 64 64" aria-hidden="true">
-      <circle cx="32" cy="32" r="30" fill="none" stroke="#9aa7bd" strokeWidth="1.2" />
-      <circle cx="32" cy="32" r="26" fill="none" stroke="#9aa7bd" strokeWidth="0.7" />
-      <circle cx="32" cy="32" r="18" fill="none" stroke="#9aa7bd" strokeWidth="1" />
-      {/* a torre da universidade, em três traços */}
-      <path
-        d="M32 17 L32 22 M26 44 L26 28 L32 22 L38 28 L38 44 Z M29 44 L29 36 L35 36 L35 44"
-        fill="none"
-        stroke="#9aa7bd"
-        strokeWidth="1.3"
-        strokeLinejoin="round"
-      />
-      <g stroke="#9aa7bd" strokeWidth="0.7" fill="none">
-        {Array.from({ length: 36 }, (_, i) => {
-          const a = (i / 36) * Math.PI * 2;
-          return (
-            <line
-              key={i}
-              x1={32 + Math.cos(a) * 26.6}
-              y1={32 + Math.sin(a) * 26.6}
-              x2={32 + Math.cos(a) * 29.2}
-              y2={32 + Math.sin(a) * 29.2}
-            />
-          );
-        })}
-      </g>
-    </svg>
-  );
-}
-
 export function Trofeu() {
   const [inclinacao, setInclinacao] = useState({ x: 0, y: 0 });
   const cena = useRef<HTMLDivElement>(null);
@@ -144,11 +111,6 @@ export function Trofeu() {
       <div className="trofeu">
         <div className="placa">
           <div className="face frente">
-            <Selo />
-            <div className="ano">
-              <span>12</span>
-              <span>90</span>
-            </div>
             <PontoDeCruz />
             <div className="gravado">
               <span className="titulo">XXI Pixel d&apos;Ouro</span>

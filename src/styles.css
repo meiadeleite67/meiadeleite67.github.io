@@ -2091,25 +2091,10 @@ footer {
   }
 }
 
-.selo-uc {
-  width: 46px;
-  height: 46px;
-  opacity: 0.78;
-}
-.frente .ano {
-  display: flex;
-  justify-content: space-between;
-  width: 96px;
-  margin-top: -32px;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  color: #9aa7bd;
-}
 .ponto-de-cruz {
-  width: 136px;
-  height: 136px;
-  margin-top: 6px;
+  width: 144px;
+  height: 144px;
+  margin-top: auto;
   filter: drop-shadow(0 1px 1px rgba(30, 50, 80, 0.35));
 }
 .frente .gravado {
@@ -2172,10 +2157,32 @@ footer {
   filter: blur(7px);
 }
 
-/* o troféu só aparece onde há espaço para ele ao lado do título */
+/* sem largura para ficar ao lado do título, o troféu passa para baixo dele,
+   mais pequeno, para não empurrar a página toda para longe */
 @media (max-width: 899px) {
   .trofeu-cena {
-    display: none;
+    --largura: 168px;
+    --altura: 218px;
+    --espessura: 5px;
+    min-height: calc(var(--altura) + 70px);
+    margin-top: 26px;
+  }
+  .trofeu .placa .frente {
+    padding: 14px 10px 10px;
+  }
+  .trofeu .ponto-de-cruz {
+    width: 108px;
+    height: 108px;
+  }
+  .trofeu .frente .titulo {
+    font-size: 14px;
+  }
+  .trofeu .base {
+    height: 42px;
+    width: calc(var(--largura) + 12px);
+  }
+  .trofeu .base-frente span {
+    font-size: 12px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
