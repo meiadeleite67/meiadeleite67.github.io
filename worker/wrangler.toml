@@ -16,4 +16,4 @@ compatibility_date = "2026-09-01"
 #   npx wrangler kv namespace create QUADRO
 [[kv_namespaces]]
 binding = "QUADRO"
-id = "METE_AQUI_O_ID_DO_KV"
+id = "9237e4fa77dd48ba94f2b8bd21754cec"
