@@ -1,3 +1,4 @@
+import { Trofeu } from './Trofeu';
 import { dataCurta, hoje, quandoEmPalavras } from '../lib/dados';
 import type { Estado, Pagina } from '../lib/tipos';
 
@@ -9,7 +10,8 @@ export function Inicio({ estado, irPara }: { estado: Estado; irPara: (p: Pagina)
   return (
     <>
       <section className="hero">
-        <p className="eyebrow">Projeto de um grupo de bêbados</p>
+        <div className="hero-texto">
+          <p className="eyebrow">Projeto de um grupo de bêbados</p>
         <h1>
           Somos o <em>MEIadeLEIte</em>. Alguém tinha de ser.
         </h1>
@@ -24,8 +26,11 @@ export function Inicio({ estado, irPara }: { estado: Estado; irPara: (p: Pagina)
               <path d="M5 10 L3 15 L8 13 L13 15 L11 10 Z" fill="#8A5A30" />
             </svg>
             Grupo do Ano, Pixel d'Ouro 25/26
-          </span>
+            </span>
+          </div>
         </div>
+
+        <Trofeu />
       </section>
 
       <section className="grelha g3">
