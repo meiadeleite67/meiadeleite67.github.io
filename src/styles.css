@@ -3147,3 +3147,22 @@ footer {
   flex: 1 1 180px;
   min-width: 0;
 }
+
+/* as paginas do quadro de honra */
+.paginas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--linha);
+}
+.paginas-conta {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tinta-3);
+  margin-right: auto;
+}

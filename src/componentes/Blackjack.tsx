@@ -6,6 +6,8 @@ import type { Carta, Mao, Mesa, Resultado } from '../lib/blackjack';
 import type { Estado, RespostaDaMesa } from '../lib/tipos';
 
 const LARGURA_CARTA = 64;
+/** Quantos nomes cabem numa pagina do quadro de honra. */
+const POR_PAGINA = 10;
 
 const DIZ: Record<Resultado, string> = {
   blackjack: 'Blackjack',
@@ -45,6 +47,8 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
   const [passo, setPasso] = useState(0);
   const [aEsperar, setAEsperar] = useState(false);
   const [recado, setRecado] = useState('');
+  /** Em que pagina do quadro de honra vamos. */
+  const [pagina, setPagina] = useState(0);
 
   const campoNome = useRef<HTMLInputElement>(null);
   /* Um pedido de cada vez: dois a andar juntos davam uma carta a mais. */
@@ -136,6 +140,17 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
     }
   }
 
+  /* Da primeira vez que o quadro chega, abre na pagina de quem esta a jogar:
+     quem esta em trigesimo nao tem de andar a procura de si proprio. */
+  const jaSaltei = useRef('');
+  useEffect(() => {
+    const quem = nome.trim();
+    if (!quem || estado.ranking.length === 0 || jaSaltei.current === quem) return;
+    const onde = estado.ranking.findIndex((r) => r.nome === quem);
+    jaSaltei.current = quem;
+    if (onde >= 0) setPagina(Math.floor(onde / POR_PAGINA));
+  }, [nome, estado.ranking]);
+
   function darCartas() {
     const aposta = soma(mesa.fichas);
     if (aposta <= 0 || aposta > mesa.saldo) return;
@@ -151,6 +166,13 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
    *  ja esta fechada e paga do lado de la. */
   const outraMao = () =>
     setMesa((m) => ({ ...m, maos: [], casa: [], atual: 0, fase: 'aposta', revelar: false }));
+
+  /* O quadro cresce e a pagina com ele, por isso vai as fatias. */
+  const paginas = Math.max(1, Math.ceil(estado.ranking.length / POR_PAGINA));
+  const naPagina = Math.min(pagina, paginas - 1);
+  const primeiro = naPagina * POR_PAGINA;
+  const aMostrar = estado.ranking.slice(primeiro, primeiro + POR_PAGINA);
+  const ondeEstou = estado.ranking.findIndex((r) => r.nome === nome.trim());
 
   const b = mesa;
   const naMesa = soma(b.fichas);
@@ -461,12 +483,14 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
                 </tr>
               </thead>
               <tbody>
-                {estado.ranking.map((r, i) => (
+                {aMostrar.map((r, i) => (
                   <tr
                     key={r.nome}
-                    className={`${r.nome === nome.trim() ? 'eu' : ''} ${i < 3 ? 'podio' : ''}`.trim()}
+                    className={`${r.nome === nome.trim() ? 'eu' : ''} ${
+                      primeiro + i < 3 ? 'podio' : ''
+                    }`.trim()}
                   >
-                    <td>{i + 1}</td>
+                    <td>{primeiro + i + 1}</td>
                     <td>
                       {r.nome}
                       {r.nome === nome.trim() ? ' (tu)' : ''}
@@ -480,6 +504,43 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
                 ))}
               </tbody>
             </table>
+          )}
+
+          {paginas > 1 && (
+            <div className="paginas">
+              <button
+                className="btn claro mini"
+                type="button"
+                disabled={naPagina === 0}
+                onClick={() => setPagina(naPagina - 1)}
+              >
+                Anteriores
+              </button>
+
+              <span className="paginas-conta">
+                {primeiro + 1} a {Math.min(primeiro + POR_PAGINA, estado.ranking.length)} de{' '}
+                {estado.ranking.length}
+              </span>
+
+              {ondeEstou >= 0 && Math.floor(ondeEstou / POR_PAGINA) !== naPagina && (
+                <button
+                  className="btn claro mini"
+                  type="button"
+                  onClick={() => setPagina(Math.floor(ondeEstou / POR_PAGINA))}
+                >
+                  Onde estou
+                </button>
+              )}
+
+              <button
+                className="btn claro mini"
+                type="button"
+                disabled={naPagina >= paginas - 1}
+                onClick={() => setPagina(naPagina + 1)}
+              >
+                Seguintes
+              </button>
+            </div>
           )}
         </div>
       </section>
