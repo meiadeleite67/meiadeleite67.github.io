@@ -3,19 +3,33 @@ import { guardar, lido } from './dados';
 /**
  * O som da meia de leite a ser entornada.
  *
- * Não há ficheiro de áudio nenhum: o som é fabricado na hora pelo browser.
- * Um líquido a cair é, no fundo, ruído passado por um filtro que se vai
- * abrindo, mais uns quantos gluglus por cima, que é o que o ouvido reconhece
- * como líquido e não como vento. Sai mais barato do que um ficheiro e não há
- * nada para descarregar.
+ * Já foi ruído fabricado na hora pelo browser, e soava a areia a ser
+ * arrastada. Agora é uma gravação a sério, cortada nos primeiros dois
+ * segundos, que é o tempo que a animação demora a passar.
+ *
+ * Toca pelo Web Audio e não por uma tag <audio> porque assim dá para baixar
+ * o volume no fim sem aquele estalo de quem corta um som a meio, e para
+ * tocar outra vez antes de o anterior ter acabado.
  *
  * O browser só deixa tocar som depois de alguém carregar em alguma coisa, o
  * que aqui calha bem: o som só acontece ao trocar de página, e trocar de
  * página é sempre um clique.
  */
 
+const FICHEIRO = '/media/entornar.mp3';
+/** Os últimos instantes vão a baixar, para não acabar de repente. */
+const DESVANECER = 0.25;
+
 let contexto: AudioContext | null = null;
+let gravacao: Promise<AudioBuffer | null> | null = null;
 let ligado = lido('mdl.som') !== 'nao';
+
+/* O ficheiro começa a vir mal a página abre, para o primeiro derrame já o
+   encontrar cá. São uns poucos quilobytes e não trava nada. */
+const bytes: Promise<ArrayBuffer | null> =
+  typeof fetch === 'function'
+    ? fetch(FICHEIRO).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null)
+    : Promise.resolve(null);
 
 export const somEstaLigado = () => ligado;
 
@@ -28,7 +42,9 @@ export function alternarSom(): boolean {
 
 function arranjarContexto(): AudioContext | null {
   if (contexto) return contexto;
-  const Classe = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  const Classe =
+    window.AudioContext ??
+    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Classe) return null;
   try {
     contexto = new Classe();
@@ -38,15 +54,12 @@ function arranjarContexto(): AudioContext | null {
   return contexto;
 }
 
-/** Ruído branco, a matéria-prima de tudo o que é água a cair. */
-function ruido(ctx: AudioContext, segundos: number): AudioBufferSourceNode {
-  const quadros = Math.floor(ctx.sampleRate * segundos);
-  const buffer = ctx.createBuffer(1, quadros, ctx.sampleRate);
-  const dados = buffer.getChannelData(0);
-  for (let i = 0; i < quadros; i++) dados[i] = Math.random() * 2 - 1;
-  const fonte = ctx.createBufferSource();
-  fonte.buffer = buffer;
-  return fonte;
+function arranjarGravacao(ctx: AudioContext): Promise<AudioBuffer | null> {
+  if (gravacao) return gravacao;
+  gravacao = bytes
+    .then((b) => (b ? ctx.decodeAudioData(b.slice(0)) : null))
+    .catch(() => null);
+  return gravacao;
 }
 
 export function derramar(volume = 1): void {
@@ -55,63 +68,22 @@ export function derramar(volume = 1): void {
   if (!ctx) return;
   if (ctx.state === 'suspended') ctx.resume().catch(() => null);
 
-  const agora = ctx.currentTime;
-  const mestre = ctx.createGain();
-  mestre.gain.value = 0.55 * volume;
-  mestre.connect(ctx.destination);
+  arranjarGravacao(ctx).then((buffer) => {
+    /* Entre pedir o som e ele chegar pode ter havido tempo para desligar. */
+    if (!buffer || !ligado) return;
 
-  /* O jorro: ruído por um filtro que abre enquanto o líquido ganha força e
-     fecha quando ele se esgota. */
-  const jorro = ruido(ctx, 1.2);
-  const filtro = ctx.createBiquadFilter();
-  filtro.type = 'bandpass';
-  filtro.Q.value = 1.1;
-  filtro.frequency.setValueAtTime(420, agora);
-  filtro.frequency.linearRampToValueAtTime(1500, agora + 0.34);
-  filtro.frequency.linearRampToValueAtTime(760, agora + 1.05);
+    const fonte = ctx.createBufferSource();
+    fonte.buffer = buffer;
 
-  const volumeDoJorro = ctx.createGain();
-  volumeDoJorro.gain.setValueAtTime(0.0001, agora);
-  volumeDoJorro.gain.exponentialRampToValueAtTime(0.5, agora + 0.16);
-  volumeDoJorro.gain.setValueAtTime(0.5, agora + 0.55);
-  volumeDoJorro.gain.exponentialRampToValueAtTime(0.0001, agora + 1.15);
+    const mestre = ctx.createGain();
+    const agora = ctx.currentTime;
+    const fim = agora + buffer.duration;
+    mestre.gain.setValueAtTime(volume, agora);
+    mestre.gain.setValueAtTime(volume, fim - DESVANECER);
+    mestre.gain.linearRampToValueAtTime(0.0001, fim);
 
-  jorro.connect(filtro).connect(volumeDoJorro).connect(mestre);
-  jorro.start(agora);
-  jorro.stop(agora + 1.2);
-
-  /* Os gluglus: cada um é um tom grave que cai depressa, como a bolha de ar
-     que entra no copo quando o líquido sai. */
-  for (let i = 0; i < 5; i++) {
-    const quando = agora + 0.18 + i * 0.13 + Math.random() * 0.06;
-    const tom = ctx.createOscillator();
-    tom.type = 'sine';
-    const inicio = 150 + Math.random() * 110;
-    tom.frequency.setValueAtTime(inicio, quando);
-    tom.frequency.exponentialRampToValueAtTime(inicio * 0.55, quando + 0.09);
-
-    const volumeDoGlu = ctx.createGain();
-    volumeDoGlu.gain.setValueAtTime(0.0001, quando);
-    volumeDoGlu.gain.exponentialRampToValueAtTime(0.22, quando + 0.015);
-    volumeDoGlu.gain.exponentialRampToValueAtTime(0.0001, quando + 0.11);
-
-    tom.connect(volumeDoGlu).connect(mestre);
-    tom.start(quando);
-    tom.stop(quando + 0.13);
-  }
-
-  /* O esparrinho do fim, quando aquilo bate no chão. */
-  const salpico = ruido(ctx, 0.3);
-  const agudos = ctx.createBiquadFilter();
-  agudos.type = 'highpass';
-  agudos.frequency.value = 2100;
-
-  const volumeDoSalpico = ctx.createGain();
-  volumeDoSalpico.gain.setValueAtTime(0.0001, agora + 0.6);
-  volumeDoSalpico.gain.exponentialRampToValueAtTime(0.3, agora + 0.68);
-  volumeDoSalpico.gain.exponentialRampToValueAtTime(0.0001, agora + 1.0);
-
-  salpico.connect(agudos).connect(volumeDoSalpico).connect(mestre);
-  salpico.start(agora + 0.6);
-  salpico.stop(agora + 1.0);
+    fonte.connect(mestre).connect(ctx.destination);
+    fonte.start(agora);
+    fonte.stop(fim);
+  });
 }
