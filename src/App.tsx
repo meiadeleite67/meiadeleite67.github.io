@@ -38,12 +38,31 @@ export default function App() {
     }
   }, []);
 
-  // uma leitura ao entrar e depois de cinco em cinco segundos, para o que o
-  // admin marca aparecer aos outros sem ninguém recarregar a página
+  /* Uma leitura ao entrar e depois de meio em meio minuto, para o que o admin
+     marca aparecer aos outros sem ninguem recarregar a pagina.
+
+     Com o separador escondido nao se pergunta nada: um separador esquecido
+     numa janela atras nao tem novidades para mostrar a ninguem, e a perguntar
+     de cinco em cinco segundos gastava sozinho uma conta inteira de pedidos ao
+     fim do mes. Quando volta a estar a vista, pergunta logo. */
   useEffect(() => {
-    recarregar();
-    const t = window.setInterval(recarregar, 5000);
-    return () => clearInterval(t);
+    let t = 0;
+    const perguntar = () => {
+      if (document.visibilityState !== 'visible') return;
+      recarregar();
+    };
+    const comecar = () => {
+      clearInterval(t);
+      if (document.visibilityState !== 'visible') return;
+      recarregar();
+      t = window.setInterval(perguntar, 30000);
+    };
+    comecar();
+    document.addEventListener('visibilitychange', comecar);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', comecar);
+    };
   }, [recarregar]);
 
   const irPara = useCallback(

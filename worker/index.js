@@ -5,6 +5,7 @@
  * única peça viva: guarda o quadro de honra do blackjack e a agenda, e trata
  * da entrada na página de admin com o código do Google Authenticator.
  *
+ *   GET    /tudo            a agenda, o quadro, os membros e o mural de uma vez
  *   GET    /quadro          o quadro de honra
  *   POST   /quadro/sentar     entra na mesa, e é aqui que um nome fica de alguém
  *   POST   /quadro/emprestimo os cem do costume, para quem está sem nada
@@ -359,6 +360,32 @@ export default {
     // o Worker atende em meiadeleite.pt/api/..., por isso tira-se o /api
     const caminho = url.pathname.replace(/^\/api/, '').replace(/\/+$/, '') || '/';
     const metodo = request.method;
+
+    /* Tudo o que o site precisa de saber, num pedido so.
+
+       Antes eram quatro pedidos de cinco em cinco segundos por cada separador
+       aberto, o que da quase um pedido por segundo por pessoa e come uma conta
+       inteira num mes de separadores esquecidos. Ler quatro coisas do
+       armazenamento e barato; o que custa e a viagem. */
+    if (caminho === '/tudo' && metodo === 'GET') {
+      const [agenda, quadro, membros, mural] = await Promise.all([
+        ler(env, 'agenda', null),
+        ler(env, 'quadro', {}),
+        ler(env, 'membros', []),
+        ler(env, 'mural', [])
+      ]);
+      return responder(
+        {
+          agenda: { definida: agenda !== null, agenda: agenda ?? [] },
+          quadro: Object.values(quadro)
+            .map((l) => semSegredos(l))
+            .sort((a, b) => b.torroes - a.torroes),
+          membros,
+          mural
+        },
+        request
+      );
+    }
 
     /* ---- quadro de honra ---- */
 

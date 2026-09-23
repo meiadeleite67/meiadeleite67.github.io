@@ -24,6 +24,8 @@ import type {
 const VAZIO: Estado = { agenda: [], insta: [], ranking: [], membros: [] };
 
 let servidor: string | null = null;
+/** O que veio do ficheiro do site, lido uma vez so. */
+let doFicheiroGuardado: { insta?: Post[]; agenda?: Evento[] } | null = null;
 let chave = '';
 
 export const sessao = {
@@ -83,21 +85,34 @@ type NovoEvento = {
 
 export const api = {
   async estado(): Promise<Estado> {
-    const doFicheiro = await fetch('/conteudo/estado.json', { cache: 'no-cache' })
-      .then((r) => (r.ok ? r.json() : null))
-      .catch(() => null);
+    /* O ficheiro do site so muda quando ha publicacao nova, e publicacao nova
+       quer dizer site publicado de novo, o que ja traz tudo outra vez. Le-se
+       uma vez por visita e nao de meio em meio minuto. */
+    if (!doFicheiroGuardado) {
+      doFicheiroGuardado = await fetch('/conteudo/estado.json', { cache: 'no-cache' })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+    }
+    const doFicheiro = doFicheiroGuardado;
 
     const base = await endereco();
     const insta = Array.isArray(doFicheiro?.insta) ? doFicheiro.insta : [];
     const agendaDoFicheiro = Array.isArray(doFicheiro?.agenda) ? doFicheiro.agenda : [];
     if (!base) return { ...VAZIO, insta, agenda: agendaDoFicheiro };
 
-    const [doServidor, ranking, membros, doMural] = await Promise.all([
-      pedir<{ definida: boolean; agenda: Evento[] }>('/agenda').catch(() => null),
-      pedir<Pontuacao[]>('/quadro').catch(() => [] as Pontuacao[]),
-      pedir<Membro[]>('/membros').catch(() => [] as Membro[]),
-      pedir<Post[]>('/mural').catch(() => [] as Post[])
-    ]);
+    /* Tudo numa viagem so. Eram quatro, e quatro de cinco em cinco segundos
+       por cada separador aberto dao milhoes de pedidos ao fim do mes. */
+    const tudo = await pedir<{
+      agenda: { definida: boolean; agenda: Evento[] };
+      quadro: Pontuacao[];
+      membros: Membro[];
+      mural: Post[];
+    }>('/tudo').catch(() => null);
+
+    const doServidor = tudo?.agenda ?? null;
+    const ranking = tudo?.quadro ?? [];
+    const membros = tudo?.membros ?? [];
+    const doMural = tudo?.mural ?? [];
 
     /* O mural sao duas coisas juntas: as publicacoes que vivem no ficheiro do
        site e as que foram postas pelo painel de admin. Se a mesma aparecer nos
