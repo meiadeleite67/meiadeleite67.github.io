@@ -2,6 +2,10 @@ name = "meiadeleite-quadro"
 main = "index.js"
 compatibility_date = "2026-09-01"
 
+# A conta do grupo, fixada para o wrangler nao perguntar qual usar a quem
+# tiver acesso a mais do que uma.
+account_id = "281d601cbcde851304121a32ea476202"
+
 # O Worker atende no endereco workers.dev da conta.
 #
 # Se algum dia quiseres que ele atenda tambem no proprio dominio, em
