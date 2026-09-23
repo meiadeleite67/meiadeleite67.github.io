@@ -8,3 +8,9 @@ worker/.dev.vars
 !.dev.vars.example
 .env*
 !.env.example
+
+# O wrangler tenta escrever aqui um wrangler.jsonc para publicar o site
+# como Worker. O site vive no GitHub Pages e o Worker tem a configuracao
+# dele em worker/wrangler.toml, por isso este nao serve nada e so leva
+# um "wrangler deploy" distraido a publicar a coisa errada.
+wrangler.jsonc
