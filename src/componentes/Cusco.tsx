@@ -3,8 +3,8 @@ import { useMemo, type CSSProperties } from 'react';
 /**
  * O Cusco em três dimensões, pela mesma receita do troféu: caixas feitas com
  * as transformações 3D do próprio CSS, seis faces cada uma, sem biblioteca
- * nenhuma. Ele é feito de dezasseis caixas, e é isso que lhe dá o ar de
- * brinquedo de madeira em vez de cão a sério, que é o que queremos.
+ * nenhuma. São vinte e sete caixas com os cantos bem redondos, que é o que
+ * lhe tira o ar de caixote e lhe dá ar de bicho.
  *
  * As cores vieram das fotografias: o pelo acastanhado, o peito e o focinho
  * mais claros, o nariz preto e a coleira verde acinzentada que ele traz.
@@ -38,32 +38,54 @@ type Peca = {
   rz?: number;
   ry?: number;
   cor: string;
+  /** Quanto se arredondam os cantos desta peça. É o que tira o ar de caixote:
+   *  um cubo com os cantos bem redondos já se parece com um bicho. */
+  raio?: number;
   /** a que parte pertence, para as poses saberem o que mexer */
   grupo?: 'cabeca' | 'cauda' | 'corpo';
 };
 
 const PECAS: Peca[] = [
-  { nome: 'corpo', w: 116, h: 56, d: 54, x: 0, y: 0, z: 0, cor: PELO, grupo: 'corpo' },
-  { nome: 'barriga', w: 96, h: 18, d: 46, x: 2, y: 22, z: 0, cor: CREME, grupo: 'corpo' },
-  { nome: 'anca', w: 40, h: 54, d: 52, x: -48, y: -2, z: 0, cor: PELO, grupo: 'corpo' },
-  { nome: 'peito', w: 34, h: 50, d: 50, x: 52, y: 2, z: 0, cor: PELO, grupo: 'corpo' },
+  /* O corpo é feito de três volumes que se sobrepõem, e não de um caixote só:
+     é a sobreposição, com os cantos redondos, que lhe dá a barriga e o lombo
+     em vez de arestas. */
+  { nome: 'corpo', w: 110, h: 54, d: 52, x: 2, y: 0, z: 0, raio: 18, cor: PELO, grupo: 'corpo' },
+  { nome: 'garupa', w: 48, h: 52, d: 50, x: -44, y: -1, z: 0, raio: 22, cor: PELO, grupo: 'corpo' },
+  { nome: 'peito', w: 42, h: 52, d: 50, x: 44, y: 1, z: 0, raio: 20, cor: PELO, grupo: 'corpo' },
+  { nome: 'barriga', w: 88, h: 18, d: 42, x: 4, y: 23, z: 0, raio: 9, cor: CREME, grupo: 'corpo' },
 
-  { nome: 'pescoco', w: 30, h: 34, d: 36, x: 66, y: -20, z: 0, cor: PELO, grupo: 'cabeca' },
-  { nome: 'coleira', w: 9, h: 36, d: 38, x: 70, y: -18, z: 0, cor: COLEIRA, grupo: 'cabeca' },
-  { nome: 'cabeca', w: 52, h: 44, d: 46, x: 92, y: -44, z: 0, cor: PELO, grupo: 'cabeca' },
-  { nome: 'focinho', w: 34, h: 22, d: 24, x: 124, y: -36, z: 0, cor: CREME, grupo: 'cabeca' },
-  { nome: 'nariz', w: 9, h: 9, d: 12, x: 143, y: -40, z: 0, cor: ESCURO, grupo: 'cabeca' },
-  { nome: 'olho-esq', w: 6, h: 7, d: 6, x: 112, y: -54, z: -15, cor: ESCURO, grupo: 'cabeca' },
-  { nome: 'olho-dir', w: 6, h: 7, d: 6, x: 112, y: -54, z: 15, cor: ESCURO, grupo: 'cabeca' },
-  { nome: 'orelha-esq', w: 13, h: 38, d: 8, x: 86, y: -36, z: -24, rz: -8, cor: PELO_CLARO, grupo: 'cabeca' },
-  { nome: 'orelha-dir', w: 13, h: 38, d: 8, x: 86, y: -36, z: 24, rz: -8, cor: PELO_CLARO, grupo: 'cabeca' },
+  { nome: 'pescoco', w: 32, h: 36, d: 34, x: 64, y: -22, z: 0, raio: 14, cor: PELO, grupo: 'cabeca' },
+  { nome: 'coleira', w: 9, h: 37, d: 36, x: 69, y: -20, z: 0, raio: 5, cor: COLEIRA, grupo: 'cabeca' },
 
-  { nome: 'pata-fe', w: 15, h: 46, d: 15, x: 46, y: 46, z: -17, cor: PELO, grupo: 'corpo' },
-  { nome: 'pata-fd', w: 15, h: 46, d: 15, x: 46, y: 46, z: 17, cor: PELO, grupo: 'corpo' },
-  { nome: 'pata-te', w: 15, h: 46, d: 15, x: -44, y: 46, z: -17, cor: PELO, grupo: 'corpo' },
-  { nome: 'pata-td', w: 15, h: 46, d: 15, x: -44, y: 46, z: 17, cor: PELO, grupo: 'corpo' },
+  { nome: 'cabeca', w: 50, h: 42, d: 44, x: 92, y: -44, z: 0, raio: 18, cor: PELO, grupo: 'cabeca' },
+  { nome: 'testa', w: 40, h: 18, d: 38, x: 94, y: -60, z: 0, raio: 12, cor: PELO, grupo: 'cabeca' },
+  { nome: 'focinho', w: 30, h: 20, d: 24, x: 120, y: -38, z: 0, raio: 9, cor: PELO_CLARO, grupo: 'cabeca' },
+  { nome: 'queixo', w: 26, h: 9, d: 19, x: 119, y: -28, z: 0, raio: 4, cor: CREME, grupo: 'cabeca' },
+  { nome: 'nariz', w: 12, h: 10, d: 14, x: 136, y: -42, z: 0, raio: 5, cor: ESCURO, grupo: 'cabeca' },
 
-  { nome: 'cauda', w: 11, h: 36, d: 11, x: -70, y: -18, z: 0, rz: 38, cor: PELO_CLARO, grupo: 'cauda' }
+  /* Os olhos tinham de ficar à tona: estavam a menos fundura do que a própria
+     cabeça e ficavam enterrados lá dentro, sem se verem. */
+  { nome: 'olho-esq', w: 10, h: 11, d: 10, x: 108, y: -54, z: -19, raio: 5, cor: ESCURO, grupo: 'cabeca' },
+  { nome: 'olho-dir', w: 10, h: 11, d: 10, x: 108, y: -54, z: 19, raio: 5, cor: ESCURO, grupo: 'cabeca' },
+  { nome: 'luz-esq', w: 4, h: 4, d: 4, x: 111, y: -57, z: -22, raio: 2, cor: '#ffffff', grupo: 'cabeca' },
+  { nome: 'luz-dir', w: 4, h: 4, d: 4, x: 111, y: -57, z: 22, raio: 2, cor: '#ffffff', grupo: 'cabeca' },
+
+  { nome: 'orelha-esq', w: 15, h: 40, d: 10, x: 79, y: -40, z: -23, rz: -12, raio: 7, cor: PELO_CLARO, grupo: 'cabeca' },
+  { nome: 'orelha-dir', w: 15, h: 40, d: 10, x: 79, y: -40, z: 23, rz: -12, raio: 7, cor: PELO_CLARO, grupo: 'cabeca' },
+
+  { nome: 'pata-fe', w: 15, h: 42, d: 15, x: 52, y: 46, z: -17, raio: 7, cor: PELO, grupo: 'corpo' },
+  { nome: 'pata-fd', w: 15, h: 42, d: 15, x: 52, y: 46, z: 17, raio: 7, cor: PELO, grupo: 'corpo' },
+  { nome: 'pata-te', w: 15, h: 42, d: 15, x: -42, y: 46, z: -17, raio: 7, cor: PELO, grupo: 'corpo' },
+  { nome: 'pata-td', w: 15, h: 42, d: 15, x: -42, y: 46, z: 17, raio: 7, cor: PELO, grupo: 'corpo' },
+  { nome: 'pe-fe', w: 17, h: 11, d: 18, x: 53, y: 70, z: -17, raio: 5, cor: CREME, grupo: 'corpo' },
+  { nome: 'pe-fd', w: 17, h: 11, d: 18, x: 53, y: 70, z: 17, raio: 5, cor: CREME, grupo: 'corpo' },
+  { nome: 'pe-te', w: 17, h: 11, d: 18, x: -41, y: 70, z: -17, raio: 5, cor: CREME, grupo: 'corpo' },
+  { nome: 'pe-td', w: 17, h: 11, d: 18, x: -41, y: 70, z: 17, raio: 5, cor: CREME, grupo: 'corpo' },
+
+  /* A cauda e uma peca so. Com a ponta a parte, o abanar deixava-a para tras:
+     cada peca roda sobre o seu proprio eixo, e a ponta nunca acompanhava a
+     raiz. */
+  { nome: 'cauda', w: 12, h: 38, d: 12, x: -68, y: -4, z: 0, rz: -24, raio: 6, cor: PELO_CLARO, grupo: 'cauda' }
 ];
 
 /** Para onde cada peça sai quando ele rebenta. Fica decidido uma vez e não a
@@ -94,6 +116,7 @@ function Caixa({ peca, voo }: { peca: Peca; voo?: CSSProperties }) {
     '--rz': `${peca.rz ?? 0}deg`,
     '--ry': `${peca.ry ?? 0}deg`,
     '--cor': peca.cor,
+    '--raio': `${peca.raio ?? 4}px`,
     ...voo
   } as CSSProperties;
 

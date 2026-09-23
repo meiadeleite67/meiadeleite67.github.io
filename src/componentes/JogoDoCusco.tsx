@@ -242,7 +242,7 @@ export function JogoDoCusco() {
             Deste-lhe <b>{receita.cafe}</b> de café para <b>{receita.leite}</b> de leite.
             {fim !== 'perfeita' && ' A boa é vinte para oitenta.'}
           </p>
-          <button className="btn claro" type="button" onClick={outraVez}>
+          <button className="btn azul" type="button" onClick={outraVez}>
             Outro copo
           </button>
         </div>
