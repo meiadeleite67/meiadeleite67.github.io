@@ -2851,3 +2851,80 @@ footer {
     display: none;
   }
 }
+
+/* ======================= a mascote =======================
+   Ha uma so, e por isso tem cartao proprio: deitado, maior, com a moldura
+   acesa e uma faixa com a pata. Fica por cima da grelha dos outros. */
+
+.mascote {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-top: 24px;
+  padding: 18px 20px;
+  border: 1px solid var(--crema-2);
+  border-radius: var(--r);
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(224, 158, 89, 0.16), transparent 60%),
+    linear-gradient(180deg, rgba(255, 244, 227, 0.05), rgba(255, 244, 227, 0.015));
+  box-shadow: var(--sombra);
+}
+.mascote .retrato {
+  width: 108px;
+  height: 108px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--crema-2), 0 0 0 5px rgba(224, 158, 89, 0.18);
+}
+.mascote .retrato img {
+  border-radius: 50%;
+}
+.mascote-texto {
+  min-width: 0;
+}
+.mascote-faixa {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: var(--crema-2);
+  color: #f7ebda;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.mascote-faixa svg {
+  width: 14px;
+  height: 14px;
+  color: var(--crema);
+}
+.mascote h2 {
+  margin: 10px 0 0;
+  font-size: clamp(22px, 3.6vw, 30px);
+  line-height: 1.1;
+}
+.mascote p {
+  margin: 6px 0 0;
+  color: var(--tinta-2);
+}
+.titulo-do-resto {
+  margin: 28px 0 0;
+  font-size: 19px;
+  color: var(--tinta-2);
+  font-weight: 600;
+}
+
+@media (max-width: 560px) {
+  .mascote {
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+    gap: 14px;
+  }
+  .mascote .retrato {
+    width: 88px;
+    height: 88px;
+  }
+}

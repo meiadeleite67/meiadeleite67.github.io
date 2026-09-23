@@ -28,6 +28,8 @@ export type Membro = {
   nome: string;
   descricao: string;
   temFoto: boolean;
+  /** A mascote do grupo. Ha uma so, e fica no topo da lista, a parte. */
+  mascote?: boolean;
   ordem: number;
 };
 

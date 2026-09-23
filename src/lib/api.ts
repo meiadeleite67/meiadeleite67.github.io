@@ -150,7 +150,10 @@ export const api = {
   /* ---- membros ---- */
   acrescentarMembro: (m: { nome: string; descricao: string; foto?: string }) =>
     pedir<Membro>('/membros', { method: 'POST', body: JSON.stringify(m) }),
-  mudarMembro: (id: string, m: { nome?: string; descricao?: string; foto?: string }) =>
+  mudarMembro: (
+    id: string,
+    m: { nome?: string; descricao?: string; foto?: string; mascote?: boolean }
+  ) =>
     pedir<Membro>(`/membros/${id}`, { method: 'PATCH', body: JSON.stringify(m) }),
   apagarMembro: (id: string) => pedir<{ ok: boolean }>(`/membros/${id}`, { method: 'DELETE' }),
 

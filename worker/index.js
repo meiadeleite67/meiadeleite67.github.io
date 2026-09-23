@@ -581,6 +581,7 @@ export default {
           nome,
           descricao: texto(veio?.descricao, 200),
           temFoto: false,
+          mascote: false,
           ordem: lista.length
         };
         const guardou = await guardarFoto(env, membro.id, veio?.foto);
@@ -622,6 +623,11 @@ export default {
       const m = lista[onde];
       if (texto(veio?.nome, 40)) m.nome = texto(veio.nome, 40);
       if (typeof veio?.descricao === 'string') m.descricao = texto(veio.descricao, 200);
+      /* Mascote ha uma so: aclamar uma tira o titulo a anterior. */
+      if (typeof veio?.mascote === 'boolean') {
+        for (const outro of lista) outro.mascote = false;
+        m.mascote = veio.mascote;
+      }
       if (veio?.foto) {
         const guardou = await guardarFoto(env, m.id, veio.foto);
         if (guardou === 'grande')

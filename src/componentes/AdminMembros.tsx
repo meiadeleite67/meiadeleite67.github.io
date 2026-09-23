@@ -208,6 +208,15 @@ function Linha({
     }
   }
 
+  async function aclamar(sim: boolean) {
+    try {
+      await api.mudarMembro(membro.id, { mascote: sim });
+      recarregar();
+    } catch (e) {
+      aoFalhar(e, sim ? 'Nao deu para aclamar.' : 'Nao deu para tirar o titulo.');
+    }
+  }
+
   async function apagar() {
     if (!window.confirm(`Tirar ${membro.nome} da lista?`)) return;
     try {
@@ -258,6 +267,14 @@ function Linha({
           />
           <button className="btn claro mini" type="button" onClick={() => campo.current?.click()}>
             {membro.temFoto ? 'Trocar foto' : 'Pôr foto'}
+          </button>
+          <button
+            className={`btn mini${membro.mascote ? '' : ' claro'}`}
+            type="button"
+            title={membro.mascote ? 'Deixa de ser a mascote' : 'Passa a ser a mascote do grupo'}
+            onClick={() => aclamar(!membro.mascote)}
+          >
+            {membro.mascote ? 'E a mascote' : 'Aclamar mascote'}
           </button>
           <button className="btn claro mini" type="button" onClick={() => setAEditar(true)}>
             Editar
