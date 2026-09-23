@@ -186,7 +186,17 @@ export function Trofeu() {
               <span className="titulo">XXI Pixel d&apos;Ouro</span>
             </div>
           </div>
-          <div className="face tras" />
+          {/* O gravado está dentro do acrílico, por isso vê-se também de trás,
+              ao contrário e mais apagado por causa do vidro pelo meio. Sem
+              isto, dar meia volta ao troféu mostrava uma placa lisa. */}
+          <div className="face tras">
+            <div className="ao-contrario">
+              <PontoDeCruz />
+              <div className="gravado">
+                <span className="titulo">XXI Pixel d&apos;Ouro</span>
+              </div>
+            </div>
+          </div>
           <div className="bordo cima" />
           <div className="bordo baixo" />
           <div className="bordo esquerdo" />

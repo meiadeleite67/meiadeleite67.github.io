@@ -9,6 +9,7 @@ import { Admin } from './componentes/Admin';
 import { Rodape } from './componentes/Rodape';
 import { api } from './lib/api';
 import { PAGINAS, TODAS_AS_PAGINAS } from './lib/dados';
+import { alternarSom, somEstaLigado } from './lib/som';
 import type { Estado, Pagina } from './lib/tipos';
 
 const VAZIO: Estado = { agenda: [], insta: [], ranking: [], membros: [] };
@@ -26,6 +27,7 @@ export default function App() {
   const [pagina, setPagina] = useState<Pagina>(paginaDoEndereco);
   const [estado, setEstado] = useState<Estado>(VAZIO);
   const [menuAberto, setMenuAberto] = useState(false);
+  const [comSom, setComSom] = useState(somEstaLigado);
   const { fase, entornar } = useEntornar();
 
   const recarregar = useCallback(async () => {
@@ -97,6 +99,33 @@ export default function App() {
               <b>Meia de Leite</b>
               <small>@_meiadeleite_</small>
             </span>
+          </button>
+
+          <button
+            className="som"
+            type="button"
+            aria-label={comSom ? 'Desligar o som' : 'Ligar o som'}
+            aria-pressed={comSom}
+            title={comSom ? 'Desligar o som' : 'Ligar o som'}
+            onClick={() => setComSom(alternarSom())}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M4 9.5 h3.4 L12 5.4 v13.2 L7.4 14.5 H4 Z"
+                fill="currentColor"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinejoin="round"
+              />
+              {comSom ? (
+                <>
+                  <path d="M15.6 9.4a3.6 3.6 0 0 1 0 5.2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                  <path d="M18.2 7a7 7 0 0 1 0 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </>
+              ) : (
+                <path d="M16 9.5 L21 14.5 M21 9.5 L16 14.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              )}
+            </svg>
           </button>
 
           {/* no telemóvel o menu é uma gaveta que abre de lado */}

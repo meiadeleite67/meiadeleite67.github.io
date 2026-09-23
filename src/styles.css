@@ -1,44 +1,28 @@
+/* O site tem uma cara só, e é esta: café escuro, como o balcão a que ele
+   pertence. Não há versão clara de propósito. O acrílico do troféu, o feltro
+   da mesa e o vidro do mural são todos pensados para viver sobre escuro, e
+   sobre um fundo claro desfaziam-se. */
 :root {
-  --leite: #fbf5ea;
-  --leite-2: #f2e7d5;
-  --papel: #fffdf8;
-  --tinta: #23150f;
-  --tinta-2: #5e4a3e;
-  --tinta-3: #8e7a6c;
-  --crema: #c07734;
-  --crema-2: #e7c08a;
-  --azulejo: #1f4e79;
-  --feltro: #14503c;
-  --feltro-2: #0c3527;
-  --vinho: #a32b2b;
-  --verde: #2e7d5b;
-  --linha: #e2d4bf;
-  --sombra: 0 1px 0 rgba(35, 21, 15, 0.05), 0 10px 26px -16px rgba(35, 21, 15, 0.5);
+  --leite: #17100c;
+  --leite-2: #1f160f;
+  --papel: #241a13;
+  --tinta: #f7ebda;
+  --tinta-2: #c7b09b;
+  --tinta-3: #93806f;
+  --crema: #e09e59;
+  --crema-2: #7a5630;
+  --azulejo: #82b4e0;
+  --feltro: #114434;
+  --feltro-2: #0a2c22;
+  --vinho: #d96a6a;
+  --verde: #5cbf92;
+  --linha: #3a2a1e;
+  --sombra: 0 1px 0 rgba(0, 0, 0, 0.4), 0 12px 30px -18px #000;
   --disp: 'Fraunces', Georgia, 'Times New Roman', serif;
   --corpo: 'Karla', 'Segoe UI', system-ui, sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, 'Courier New', monospace;
   --r: 12px;
-  color-scheme: light dark;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --leite: #17100c;
-    --leite-2: #1f160f;
-    --papel: #241a13;
-    --tinta: #f7ebda;
-    --tinta-2: #c7b09b;
-    --tinta-3: #93806f;
-    --crema: #e09e59;
-    --crema-2: #7a5630;
-    --azulejo: #82b4e0;
-    --feltro: #114434;
-    --feltro-2: #0a2c22;
-    --vinho: #d96a6a;
-    --verde: #5cbf92;
-    --linha: #3a2a1e;
-    --sombra: 0 1px 0 rgba(0, 0, 0, 0.4), 0 12px 30px -18px #000;
-  }
+  color-scheme: dark;
 }
 
 * {
@@ -230,13 +214,9 @@ section + section {
 .btn.azul {
   background: var(--azulejo);
   border-color: var(--azulejo);
-  color: #fff;
+  color: #0d1b26;
 }
-@media (prefers-color-scheme: dark) {
-  .btn.azul {
-    color: #0d1b26;
-  }
-}
+
 .btn:disabled {
   opacity: 0.38;
   cursor: not-allowed;
@@ -331,17 +311,13 @@ label .rotulo {
   align-items: center;
   gap: 8px;
   background: var(--crema-2);
-  color: #3a230d;
+  color: #f7ebda;
   border-radius: 999px;
   padding: 5px 13px 5px 8px;
   font-size: 13px;
   font-weight: 700;
 }
-@media (prefers-color-scheme: dark) {
-  .medalha {
-    color: #f7ebda;
-  }
-}
+
 
 /* ============================ blackjack ============================ */
 .mesa {
@@ -1777,6 +1753,28 @@ footer {
    O menu passa a gaveta, a mesa encolhe para caber num ecrã, e o rodapé
    deixa de tentar alinhar coisas à direita quando não há largura. */
 
+/* o botão de silenciar, ao lado do menu */
+.som {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #b79b80;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  flex: 0 0 auto;
+  transition: color 0.15s, background 0.15s;
+}
+.som:hover {
+  background: #2c1b12;
+  color: #f7ebda;
+}
+.som[aria-pressed='true'] {
+  color: var(--crema);
+}
+
 .hamburguer {
   display: none;
   width: 42px;
@@ -2056,7 +2054,27 @@ footer {
 }
 .placa .tras {
   transform: translateZ(calc(var(--espessura) * -1)) rotateY(180deg);
-  background: linear-gradient(140deg, rgba(255, 255, 255, 0.07), rgba(214, 233, 255, 0.05));
+  background: linear-gradient(
+    140deg,
+    rgba(255, 255, 255, 0.2) 0%,
+    rgba(226, 240, 255, 0.09) 30%,
+    rgba(214, 233, 255, 0.16) 55%,
+    rgba(255, 255, 255, 0.19) 100%
+  );
+  box-shadow: inset 0 0 0 1px rgba(232, 244, 255, 0.6), inset 0 0 30px rgba(190, 220, 255, 0.18);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+/* visto de trás, o gravado lê-se ao contrário e mais apagado */
+.placa .tras .ao-contrario {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 16px 14px;
+  transform: scaleX(-1);
+  opacity: 0.45;
 }
 /* os bordos são o que denuncia que aquilo é um bloco e não um papel */
 .placa .bordo {
