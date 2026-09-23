@@ -9,7 +9,7 @@
  *
  * Esta lista tem de acompanhar as PAGINAS em src/lib/dados.ts.
  */
-import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const PAGINAS = ['membros', 'blackjack', 'instagram', 'agenda', 'admin', 'jogo'];
@@ -28,3 +28,35 @@ for (const pagina of PAGINAS) {
 }
 
 console.log(`404.html criado, e uma pasta para cada pagina: ${PAGINAS.join(', ')}`);
+
+/**
+ * O service worker leva agora a lista do que tem de guardar mal seja
+ * instalado. Ele sozinho nao a podia saber: os ficheiros do build trazem o
+ * codigo no nome, que muda a cada publicacao. E sem a lista so ficava
+ * guardado o que passasse por ele depois de a pagina abrir, o que deixava de
+ * fora o proprio JavaScript e a folha de estilo. Dai o site nao existir sem
+ * rede a primeira visita.
+ */
+const sw = 'dist/sw.js';
+if (existsSync(sw)) {
+  const bens = readdirSync('dist/assets').map((f) => `/assets/${f}`);
+  const essenciais = [
+    '/',
+    ...PAGINAS.map((p) => `/${p}/`),
+    ...bens,
+    '/favicon.svg',
+    '/conteudo/config.json',
+    '/conteudo/estado.json'
+  ];
+  // a versao vem dos proprios nomes: publicacao nova, guardado novo
+  const versao = bens.join('|').replace(/[^a-zA-Z0-9]/g, '').slice(-16) || 'sem-nome';
+
+  const escrito = readFileSync(sw, 'utf8')
+    .replace("const CACHE = 'mdl-por-publicar';", `const CACHE = 'mdl-${versao}';`)
+    .replace(
+      "const ESSENCIAIS = ['/', '/jogo/', '/favicon.svg'];",
+      `const ESSENCIAIS = ${JSON.stringify(essenciais)};`
+    );
+  writeFileSync(sw, escrito);
+  console.log(`sw.js com ${essenciais.length} ficheiros para guardar, versao mdl-${versao}`);
+}

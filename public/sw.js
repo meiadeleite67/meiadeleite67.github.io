@@ -19,7 +19,14 @@
  *                recente.
  */
 
-const CACHE = 'mdl-v1';
+/* Estas duas linhas sao reescritas pelo build, em scripts/pos-build.mjs: a
+   lista passa a trazer os ficheiros todos do site, com os nomes que o build
+   lhes deu, e a versao muda a cada publicacao para o guardado antigo sair.
+
+   Sem isso, so ficava guardado o que passasse por aqui depois de a pagina
+   abrir, e o JavaScript e o folha de estilo sao pedidos antes disso: na
+   primeira visita nao ficavam guardados e o site nao existia sem rede. */
+const CACHE = 'mdl-por-publicar';
 const ESSENCIAIS = ['/', '/jogo/', '/favicon.svg'];
 
 self.addEventListener('install', (e) => {
@@ -43,7 +50,7 @@ self.addEventListener('activate', (e) => {
 
 function guardar(pedido, resposta) {
   if (!resposta) return;
-  const nossa = resposta.ok && resposta.type === 'basic';
+  const nossa = resposta.ok && (resposta.type === 'basic' || resposta.type === 'cors');
   /* As fotos dos membros vêm do servidor da agenda, que é outra origem: a
      resposta chega fechada e não dá para ver se correu bem. Guarda-se na
      mesma, porque é o que põe as caras no jogo quando não há rede. */
@@ -68,18 +75,33 @@ self.addEventListener('fetch', (e) => {
 
   const url = new URL(pedido.url);
   if (url.origin !== self.location.origin) {
-    if (pedido.destination !== 'image') return;
+    /* As fotos dos membros nunca mudam depois de postas, por isso sai do
+       guardado e fica-se por aí. */
+    if (pedido.destination === 'image') {
+      e.respondWith(
+        caches.match(pedido).then(
+          (guardada) =>
+            guardada ||
+            fetch(pedido)
+              .then((r) => {
+                guardar(pedido, r.clone());
+                return r;
+              })
+              .catch(() => Response.error())
+        )
+      );
+      return;
+    }
+    /* O resto do servidor do grupo, que e a agenda, os membros e o quadro:
+       rede primeiro, e sem rede vale a ultima resposta que ficou. E o que
+       poe as caras no jogo quando a net falta. */
     e.respondWith(
-      caches.match(pedido).then(
-        (guardada) =>
-          guardada ||
-          fetch(pedido)
-            .then((r) => {
-              guardar(pedido, r.clone());
-              return r;
-            })
-            .catch(() => Response.error())
-      )
+      fetch(pedido)
+        .then((r) => {
+          guardar(pedido, r.clone());
+          return r;
+        })
+        .catch(() => doQueHa(pedido, null))
     );
     return;
   }

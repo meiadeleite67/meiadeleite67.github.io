@@ -53,7 +53,12 @@ type Obstaculo = {
 };
 
 /** Quem está a correr nesta jogada. */
-type Corredor = { nome: string; iniciais: string; foto: HTMLImageElement | null };
+type Corredor = {
+  nome: string;
+  iniciais: string;
+  endereco: string;
+  foto: HTMLImageElement | null;
+};
 
 type Fase = 'parado' | 'a-jogar' | 'acabou';
 
@@ -73,7 +78,7 @@ type Jogo = {
   corredor: Corredor;
 };
 
-const NINGUEM: Corredor = { nome: 'um de nós', iniciais: 'ML', foto: null };
+const NINGUEM: Corredor = { nome: 'um de nós', iniciais: 'ML', endereco: '', foto: null };
 
 const jogoNovo = (recorde: number, corredor: Corredor): Jogo => ({
   fase: 'parado',
@@ -91,6 +96,7 @@ const jogoNovo = (recorde: number, corredor: Corredor): Jogo => ({
 });
 
 const pontosDe = (distancia: number) => Math.floor(distancia / PASSO_DO_PONTO);
+const cinco = (n: number) => String(n).padStart(5, '0');
 
 const iniciaisDe = (nome: string) =>
   nome
@@ -102,8 +108,43 @@ const iniciaisDe = (nome: string) =>
 
 /* ======================= o desenho ======================= */
 
+/** O balcão lá ao fundo: a luz do candeeiro e a prateleira a passar devagar.
+ *  Anda a um quinto da velocidade do chão, que é o que dá a ideia de estar
+ *  longe sem ser preciso desenhar nada em condições. */
+function desenharFundo(c: CanvasRenderingContext2D, j: Jogo) {
+  const luz = c.createRadialGradient(LARGURA * 0.5, -40, 20, LARGURA * 0.5, -40, 250);
+  luz.addColorStop(0, 'rgba(224, 158, 89, 0.20)');
+  luz.addColorStop(1, 'rgba(224, 158, 89, 0)');
+  c.fillStyle = luz;
+  c.fillRect(0, 0, LARGURA, CHAO);
+
+  const volta = 118;
+  const desvio = (j.chao * 0.2) % volta;
+  c.fillStyle = '#2b1e15';
+  c.fillRect(0, 62, LARGURA, 3);
+  for (let i = -1; i < LARGURA / volta + 1; i++) {
+    const x = i * volta - desvio;
+    // garrafas e copos na prateleira, sempre os mesmos e sempre a fugir
+    c.fillRect(x + 12, 44, 8, 18);
+    c.fillRect(x + 14, 38, 4, 6);
+    c.fillRect(x + 28, 48, 10, 14);
+    c.fillRect(x + 46, 41, 7, 21);
+    c.fillRect(x + 62, 50, 12, 12);
+    c.fillRect(x + 84, 46, 8, 16);
+  }
+}
+
 function desenharChao(c: CanvasRenderingContext2D, j: Jogo) {
-  c.strokeStyle = '#4a3627';
+  // mosaico do chão, às tiras, a passar à velocidade a sério
+  const volta = 68;
+  const desvio = j.chao % volta;
+  for (let i = -1; i < LARGURA / volta + 1; i++) {
+    const x = i * volta - desvio;
+    c.fillStyle = i % 2 === 0 ? 'rgba(255, 244, 227, 0.035)' : 'rgba(255, 244, 227, 0.015)';
+    c.fillRect(x, CHAO + 3, volta, ALTURA - CHAO - 3);
+  }
+
+  c.strokeStyle = '#5a4231';
   c.lineWidth = 2;
   c.beginPath();
   c.moveTo(0, CHAO + 1);
@@ -112,18 +153,24 @@ function desenharChao(c: CanvasRenderingContext2D, j: Jogo) {
 
   /* migalhas espalhadas pelo chão, sempre nas mesmas distâncias mas a correr:
      é o que faz ver que o boneco anda em vez de estar a marcar passo */
-  c.fillStyle = '#6b5240';
+  c.fillStyle = '#7b5f49';
   for (let i = 0; i < 26; i++) {
     const base = i * 61.3;
-    const volta = LARGURA + 60;
-    const x = (((base - j.chao) % volta) + volta) % volta - 30;
+    const passo = LARGURA + 60;
+    const x = (((base - j.chao) % passo) + passo) % passo - 30;
     const alto = i % 3 === 0;
-    c.fillRect(x, CHAO + (alto ? 5 : 9), alto ? 7 : 4, 2);
+    c.fillRect(x, CHAO + (alto ? 7 : 11), alto ? 7 : 4, 2);
   }
 }
 
 /** A cabeça: a foto recortada num círculo, ou as iniciais se não houver foto. */
-function desenharCabeca(c: CanvasRenderingContext2D, corredor: Corredor, cx: number, cy: number, raio: number) {
+function desenharCabeca(
+  c: CanvasRenderingContext2D,
+  corredor: Corredor,
+  cx: number,
+  cy: number,
+  raio: number
+) {
   const foto = corredor.foto;
   if (foto && foto.complete && foto.naturalWidth > 0) {
     /* a foto raramente é quadrada: corta-se o quadrado do meio, senão a cara
@@ -162,6 +209,13 @@ function desenharBoneco(c: CanvasRenderingContext2D, j: Jogo) {
   const noAr = j.altura > 0.5;
   // com os pés no chão as pernas alternam; no ar ficam esticadas
   const passada = noAr ? -1 : Math.floor(j.tempo * 11) % 2;
+
+  // a sombra encolhe com o salto, que é o que diz a que altura ele vai
+  const perto = Math.max(0.2, 1 - j.altura / 120);
+  c.fillStyle = `rgba(0, 0, 0, ${0.38 * perto})`;
+  c.beginPath();
+  c.ellipse(x + 11, CHAO + 2, 14 * perto, 3.4 * perto, 0, 0, Math.PI * 2);
+  c.fill();
 
   c.lineCap = 'round';
 
@@ -224,14 +278,23 @@ function desenharBoneco(c: CanvasRenderingContext2D, j: Jogo) {
 
 function desenharObstaculo(c: CanvasRenderingContext2D, o: Obstaculo, tempo: number) {
   const base = CHAO - o.voo;
+
   if (o.cubos > 0) {
+    c.fillStyle = 'rgba(0, 0, 0, 0.32)';
+    c.beginPath();
+    c.ellipse(o.x + o.largura / 2, CHAO + 2, o.largura * 0.55, 3, 0, 0, Math.PI * 2);
+    c.fill();
+
     for (let i = 0; i < o.cubos; i++) {
       const largura = o.largura / o.cubos;
       const x = o.x + i * largura;
-      c.fillStyle = '#ece3d6';
+      // o torrão: um cubo com o lado iluminado e o de baixo na sombra
+      c.fillStyle = '#f3ebdf';
       c.fillRect(x, base - o.altura, largura - 2, o.altura);
-      c.fillStyle = '#c3b4a0';
-      c.fillRect(x, base - 3, largura - 2, 3);
+      c.fillStyle = '#d3c6b3';
+      c.fillRect(x, base - o.altura, largura - 2, 3);
+      c.fillStyle = '#b8a894';
+      c.fillRect(x, base - 4, largura - 2, 4);
       c.strokeStyle = '#8d7c68';
       c.lineWidth = 1;
       c.strokeRect(x + 0.5, base - o.altura + 0.5, largura - 3, o.altura - 1);
@@ -241,7 +304,7 @@ function desenharObstaculo(c: CanvasRenderingContext2D, o: Obstaculo, tempo: num
 
   /* o guardanapo vai a abanar, e é o abanar que se vê de longe */
   const aba = Math.sin(tempo * 13) * 3;
-  c.fillStyle = '#ded2c0';
+  c.fillStyle = '#ede2d0';
   c.beginPath();
   c.moveTo(o.x, base - o.altura + aba);
   c.lineTo(o.x + o.largura, base - o.altura - aba);
@@ -265,7 +328,9 @@ export function Jogo({ estado, semRede }: { estado: Estado; semRede: boolean }) 
   const [fase, setFase] = useState<Fase>('parado');
   const [pontos, setPontos] = useState(0);
   const [recorde, setRecorde] = useState(jogo.current.recorde);
-  const [quem, setQuem] = useState(NINGUEM.nome);
+  const [cara, setCara] = useState<Corredor>(NINGUEM);
+  /** Quanto fez na jogada que acabou de acabar. */
+  const [feitos, setFeitos] = useState(0);
 
   const membros = estado.membros;
 
@@ -276,17 +341,20 @@ export function Jogo({ estado, semRede }: { estado: Estado; semRede: boolean }) 
     const corredor: Corredor = {
       nome: membro.nome,
       iniciais: iniciaisDe(membro.nome),
+      endereco: '',
       foto: null
     };
     if (!membro.temFoto) return corredor;
+
+    const endereco = fotoDoMembro(membro.id);
+    if (!endereco) return corredor;
+    corredor.endereco = endereco;
 
     const guardada = fotos.current.get(membro.id);
     if (guardada) {
       corredor.foto = guardada;
       return corredor;
     }
-    const endereco = fotoDoMembro(membro.id);
-    if (!endereco) return corredor;
     const img = new Image();
     img.src = endereco;
     fotos.current.set(membro.id, img);
@@ -302,7 +370,7 @@ export function Jogo({ estado, semRede }: { estado: Estado; semRede: boolean }) 
     jogo.current.fase = 'a-jogar';
     setFase('a-jogar');
     setPontos(0);
-    setQuem(corredor.nome);
+    setCara(corredor);
   }, [sortearCorredor]);
 
   /* antes de a primeira jogada começar já se vê quem é que vai correr */
@@ -310,7 +378,7 @@ export function Jogo({ estado, semRede }: { estado: Estado; semRede: boolean }) 
     if (jogo.current.fase !== 'parado') return;
     const corredor = sortearCorredor();
     jogo.current.corredor = corredor;
-    setQuem(corredor.nome);
+    setCara(corredor);
   }, [sortearCorredor]);
 
   const saltar = useCallback(() => {
@@ -408,14 +476,18 @@ export function Jogo({ estado, semRede }: { estado: Estado; semRede: boolean }) 
 
         if (bateu(j)) {
           j.fase = 'acabou';
-          const feitos = pontosDe(j.distancia);
-          if (feitos > j.recorde) {
-            j.recorde = feitos;
-            guardar(RECORDE, String(feitos));
-            setRecorde(feitos);
+          const fez = pontosDe(j.distancia);
+          if (fez > j.recorde) {
+            j.recorde = fez;
+            guardar(RECORDE, String(fez));
+            setRecorde(fez);
           }
+          setFeitos(fez);
           setFase('acabou');
         }
+      } else {
+        // parado, o cenário continua a passar devagarinho por trás
+        j.chao += 26 * dt;
       }
 
       // o placard só mexe quando o número muda, não a cada imagem
@@ -423,6 +495,7 @@ export function Jogo({ estado, semRede }: { estado: Estado; semRede: boolean }) 
       setPontos((p) => (p === agoraPontos ? p : agoraPontos));
 
       c.clearRect(0, 0, LARGURA, ALTURA);
+      desenharFundo(c, j);
       desenharChao(c, j);
       for (const o of j.obstaculos) desenharObstaculo(c, o, j.tempo);
       desenharBoneco(c, j);
@@ -431,6 +504,8 @@ export function Jogo({ estado, semRede }: { estado: Estado; semRede: boolean }) 
     pedido = requestAnimationFrame(imagem);
     return () => cancelAnimationFrame(pedido);
   }, []);
+
+  const eRecorde = fase === 'acabou' && feitos > 0 && feitos >= recorde;
 
   return (
     <section className="jogo">
@@ -442,26 +517,53 @@ export function Jogo({ estado, semRede }: { estado: Estado; semRede: boolean }) 
           : 'Salta os torrões, baixa-te aos guardanapos, e vê quanto é que ele aguenta.'}
       </p>
 
-      <div className="jogo-placard">
-        <span>
-          A correr <b>{quem}</b>
-        </span>
-        <span>
-          Pontos <b>{String(pontos).padStart(5, '0')}</b>
-        </span>
-        <span>
-          Recorde <b>{String(recorde).padStart(5, '0')}</b>
-        </span>
+      <div className="jogo-barra">
+        <div className="jogo-quem">
+          <span className="jogo-cara">
+            {cara.endereco ? (
+              <img src={cara.endereco} alt="" width={40} height={40} />
+            ) : (
+              <b>{cara.iniciais}</b>
+            )}
+          </span>
+          <span className="jogo-etiqueta">
+            <small>A correr</small>
+            <b>{cara.nome}</b>
+          </span>
+        </div>
+
+        <div className="jogo-marcas">
+          <span className="jogo-etiqueta">
+            <small>Pontos</small>
+            <b className="num">{cinco(pontos)}</b>
+          </span>
+          <span className="jogo-etiqueta">
+            <small>Recorde</small>
+            <b className="num">{cinco(recorde)}</b>
+          </span>
+        </div>
       </div>
 
       <div className="jogo-tela" onPointerDown={saltar}>
         <canvas ref={tela} style={{ aspectRatio: `${LARGURA} / ${ALTURA}` }} />
         {fase !== 'a-jogar' && (
           <div className="jogo-aviso">
-            <p>{fase === 'acabou' ? 'Foi ao chão.' : 'Vai sair à rua um de nós.'}</p>
-            <button className="btn claro" type="button" onClick={comecar}>
-              {fase === 'acabou' ? 'Outra vez, com outra cara' : 'Começar'}
-            </button>
+            <div className="jogo-cartao">
+              {fase === 'acabou' ? (
+                <>
+                  <p className="jogo-titulo">Foi ao chão.</p>
+                  <p className="jogo-conta">
+                    {eRecorde ? 'Recorde novo, ' : 'Ficou-se pelos '}
+                    <b>{cinco(feitos)}</b>
+                  </p>
+                </>
+              ) : (
+                <p className="jogo-titulo">Vai sair à rua {cara.nome}.</p>
+              )}
+              <button className="btn claro" type="button" onClick={comecar}>
+                {fase === 'acabou' ? 'Outra vez, com outra cara' : 'Começar'}
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -490,9 +592,10 @@ export function Jogo({ estado, semRede }: { estado: Estado; semRede: boolean }) 
           Baixar
         </button>
       </div>
+
       <p className="notas jogo-ajuda">
-        Espaço ou seta para cima para saltar, seta para baixo para te baixares. A cada jogada sai
-        outra cara.
+        <b>Espaço</b> ou <b>seta para cima</b> para saltar, <b>seta para baixo</b> para te
+        baixares. A cada jogada sai outra cara, e o recorde fica guardado neste telemóvel.
       </p>
     </section>
   );
@@ -525,7 +628,12 @@ function bateu(j: Jogo): boolean {
 
   for (const o of j.obstaculos) {
     const ob = CHAO - o.voo;
-    if (ed > o.x + folga && ex < o.x + o.largura - folga && eb > ob - o.altura + folga && et < ob - folga) {
+    if (
+      ed > o.x + folga &&
+      ex < o.x + o.largura - folga &&
+      eb > ob - o.altura + folga &&
+      et < ob - folga
+    ) {
       return true;
     }
   }
