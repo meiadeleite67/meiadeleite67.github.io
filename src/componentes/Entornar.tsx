@@ -2,9 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 type Fase = 'nada' | 'correr';
 
-/** Quanto tempo dura tudo, e em que instante a página troca por trás. */
-const TUDO = 1350;
-const TROCA = 600;
+/* Quanto tempo dura tudo, e em que instante a página troca por trás.
+   Isto já foi 1350 e 600, e a troca em si acontecia a horas: media-se 631
+   milissegundos do clique até à página nova aparecer, contra os 600
+   marcados. O que se sentia como lentidão era a animação inteira, que só
+   saía da frente passado mais de um segundo. Encurtou-se um terço, e a
+   proporção entre as duas mantém-se, para o ecrã continuar tapado no
+   instante da troca. */
+const TUDO = 900;
+const TROCA = 400;
 
 /**
  * A meia de leite a ser entornada entre páginas.
