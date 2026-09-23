@@ -20,7 +20,7 @@
  */
 
 const CACHE = 'mdl-v1';
-const ESSENCIAIS = ['/', '/jogo', '/favicon.svg'];
+const ESSENCIAIS = ['/', '/jogo/', '/favicon.svg'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
