@@ -3,36 +3,55 @@ import { useEffect, useRef, useState } from 'react';
 /**
  * O Pixel d'Ouro, em três dimensões e sem biblioteca nenhuma.
  *
- * O troféu é uma placa de acrílico transparente sobre uma base escura, o que
- * é geometria simples: faz-se com as transformações 3D do próprio CSS, com
- * uma face à frente, outra atrás e quatro bordos finos a fazer a espessura.
- * Zero bytes de biblioteca.
+ * O troféu é uma placa de acrílico trapezoidal, mais larga em cima do que em
+ * baixo, encaixada numa lâmina de vidro igualmente transparente. Isso é
+ * geometria simples: faz-se com as transformações 3D do próprio CSS, uma face
+ * à frente, outra atrás e os bordos a fazer a espessura. Zero bytes de
+ * biblioteca.
  *
- * O P é bordado a ponto de cruz na placa verdadeira, e ponto de cruz é uma
- * grelha: desenha-se marcando as casas de uma matriz. Não é decalque do
- * original, é a mesma ideia com a mesma técnica.
+ * O P não foi desenhado a olho. A foto do troféu foi passada por um filtro
+ * que separa os pontos azuis da madeira da mesa, e a grelha abaixo é o que
+ * saiu de lá, casa a casa. Por isso é um P manuscrito e não um P de imprensa:
+ * é o que está bordado na placa verdadeira.
  */
 
 const P_EM_PONTO_DE_CRUZ = [
-  '................',
-  '...XXXXXXXXX....',
-  '...XXXXXXXXXX...',
-  '...XX.......XX..',
-  '...XX........XX.',
-  '...XX........XX.',
-  '...XX........XX.',
-  '...XX.......XX..',
-  '...XXXXXXXXXX...',
-  '...XXXXXXXXX....',
-  '...XX...........',
-  '...XX...........',
-  '...XX...........',
-  '...XX...........',
-  '..XXXXXX........',
-  '..XXXXXX........'
+  '....................XXXXXXXX.....',
+  '................XXXXXXXXXXXXXXX..',
+  '..............XXXXXX....XXXXXXX..',
+  '.............XXX........XXXXXXXX.',
+  '..........XXX..........XXXXXXXXX.',
+  '.........XXX.........XXX....XXXXX',
+  '........XXX.........XXX.....XXXXX',
+  '......XXXX.........XXX......XXXXX',
+  '.....XXXX.........XXXX......XXXX.',
+  '.....XXX.........XXXXX......XXXX.',
+  '....XXX..........XXXX......XXXXX.',
+  '...XXXX.........XXXX......XXXXX..',
+  '...XXX..........XXXX......XXXX...',
+  '...XXX..........XXXX.....XXXX....',
+  '..XXXX.........XXXXX.XXXXXX......',
+  '..XXXX........XXXXX..XXX.........',
+  '...XXXX.....XXXXXXX..............',
+  '...XXXXX...XXXXXXXX..............',
+  '....XXXXXXXXXXXXXXX..............',
+  '.....XXXXXX.XXXXXX...............',
+  '.............XXXX................',
+  '............XXXXX................',
+  '............XXXX.................',
+  '............XXXX.................',
+  '.XX........XXXX..................',
+  'XXXX......XXXX...................',
+  'XXXXX...XXX......................',
+  '.XXXXXXXX........................'
 ];
 
 const CELA = 9;
+const COLUNAS = P_EM_PONTO_DE_CRUZ[0].length;
+const LINHAS = P_EM_PONTO_DE_CRUZ.length;
+
+/** A banda de pontos que corre ao longo do bordo de cima da placa. */
+const PONTOS_DA_BANDA = 34;
 
 /** Onde é que a rotação automática vai neste instante, para quem lhe pega
  *  continuar de onde ela estava e o troféu não dar um salto. */
@@ -44,34 +63,74 @@ function anguloDeAgora(cena: HTMLElement): number {
   return graus ? Number(graus[1]) : 0;
 }
 
+/** Um ponto de cruz: duas linhas em xis dentro da sua casa da grelha. */
+function cruz(x: number, y: number, margem = 1.4): string {
+  const cx = x * CELA;
+  const cy = y * CELA;
+  const a = `M${cx + margem} ${cy + margem} L${cx + CELA - margem} ${cy + CELA - margem}`;
+  const b = `M${cx + CELA - margem} ${cy + margem} L${cx + margem} ${cy + CELA - margem}`;
+  return `${a} ${b}`;
+}
+
 function PontoDeCruz() {
   const marcas: JSX.Element[] = [];
   P_EM_PONTO_DE_CRUZ.forEach((linha, y) => {
     [...linha].forEach((c, x) => {
-      if (c !== 'X') return;
-      const cx = x * CELA;
-      const cy = y * CELA;
-      const m = 1.4;
-      marcas.push(
-        <path
-          key={`${x}-${y}`}
-          d={`M${cx + m} ${cy + m} L${cx + CELA - m} ${cy + CELA - m} M${cx + CELA - m} ${cy + m} L${cx + m} ${cy + CELA - m}`}
-        />
-      );
+      if (c === 'X') marcas.push(<path key={`${x}-${y}`} d={cruz(x, y)} />);
     });
   });
   return (
     <svg
       className="ponto-de-cruz"
-      viewBox={`0 0 ${16 * CELA} ${16 * CELA}`}
+      viewBox={`0 0 ${COLUNAS * CELA} ${LINHAS * CELA}`}
       aria-hidden="true"
-      stroke="#8FAEDE"
-      strokeWidth="2.1"
+      stroke="#a3c2ea"
+      strokeWidth="2.2"
       strokeLinecap="round"
       fill="none"
     >
       {marcas}
     </svg>
+  );
+}
+
+/** A mesma linha bordada que percorre o topo do troféu verdadeiro. */
+function Banda() {
+  const marcas: JSX.Element[] = [];
+  for (let x = 0; x < PONTOS_DA_BANDA; x++) marcas.push(<path key={x} d={cruz(x, x % 2)} />);
+  return (
+    <svg
+      className="banda"
+      viewBox={`0 0 ${PONTOS_DA_BANDA * CELA} ${2 * CELA}`}
+      preserveAspectRatio="none"
+      aria-hidden="true"
+      stroke="#cfe0f4"
+      strokeWidth="2"
+      strokeLinecap="round"
+      fill="none"
+    >
+      {marcas}
+    </svg>
+  );
+}
+
+/** O fio de luz que corre pela aresta do acrilico. Desenhado como contorno e
+ *  nao como fundo: um fundo pintava a placa toda e ela e transparente. */
+function Aresta() {
+  return (
+    <svg className="aresta" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <polygon points="0,0 100,0 84.2,100 15.8,100" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+function CaraDaPlaca() {
+  return (
+    <>
+      <Aresta />
+      <PontoDeCruz />
+      <span className="gravado">XXI Pixel d&apos;Ouro</span>
+    </>
   );
 }
 
@@ -181,36 +240,32 @@ export function Trofeu() {
       <div className={`trofeu${aMao ? ' a-mao' : ''}`}>
         <div className="placa">
           <div className="face frente">
-            <PontoDeCruz />
-            <div className="gravado">
-              <span className="titulo">XXI Pixel d&apos;Ouro</span>
-            </div>
+            <CaraDaPlaca />
           </div>
-          {/* O gravado está dentro do acrílico, por isso vê-se também de trás,
+          {/* O bordado está dentro do acrílico, por isso vê-se também de trás,
               ao contrário e mais apagado por causa do vidro pelo meio. Sem
               isto, dar meia volta ao troféu mostrava uma placa lisa. */}
           <div className="face tras">
             <div className="ao-contrario">
-              <PontoDeCruz />
-              <div className="gravado">
-                <span className="titulo">XXI Pixel d&apos;Ouro</span>
-              </div>
+              <CaraDaPlaca />
             </div>
           </div>
-          <div className="bordo cima" />
-          <div className="bordo baixo" />
-          <div className="bordo esquerdo" />
-          <div className="bordo direito" />
+          <div className="bordo cima">
+            <Banda />
+          </div>
+          <div className="lado esquerdo" />
+          <div className="lado direito" />
           <div className="brilho" />
         </div>
 
         <div className="base">
-          {/* o texto vai no plano inclinado logo por baixo da placa, que é
-              onde ele está no troféu verdadeiro */}
-          <div className="base-topo">
+          <div className="base-face base-tras" />
+          <div className="base-face base-lado esq" />
+          <div className="base-face base-lado dir" />
+          <div className="base-face base-topo" />
+          <div className="base-face base-frente">
             <span>Grupo do Ano</span>
           </div>
-          <div className="base-frente" />
         </div>
 
         <div className="sombra" />

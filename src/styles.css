@@ -1966,31 +1966,47 @@ footer {
 }
 
 /* ======================= o troféu do Pixel d'Ouro =======================
-   Uma placa de acrílico sobre uma base escura, feita com as transformações
-   3D do próprio CSS: uma face à frente, outra atrás e quatro bordos finos a
-   fazer a espessura. Sem biblioteca nenhuma. */
+   Uma placa de acrílico trapezoidal, mais larga em cima do que em baixo,
+   encaixada numa lâmina de vidro igualmente transparente. Tudo com as
+   transformações 3D do próprio CSS: face à frente, face atrás, os bordos a
+   fazer a espessura e cinco faces para a base. Sem biblioteca nenhuma.
+
+   As medidas saíram da foto e do vídeo do troféu verdadeiro: a base da placa
+   tem cerca de dois terços da largura do topo, e a altura anda pelos três
+   quartos dessa largura de cima. Daí o ar largo e baixo, que é o que ele
+   tem. */
 
 .trofeu-cena {
   /* o arrasto na horizontal roda o troféu; o vertical continua a deslizar a
      página, senão ninguém conseguia passar por ele no telemóvel */
   touch-action: pan-y;
   cursor: grab;
-  --espessura: 7px;
-  --largura: 224px;
-  --altura: 282px;
-  --base-altura: 34px;
-  --base-fundura: 36px;
-  --encaixe: 16px;
-  perspective: 1100px;
-  perspective-origin: 50% 42%;
+  --topo: 280px;
+  --fundo: 191px;
+  --altura: 230px;
+  --espessura: 10px;
+  --meia: calc(var(--espessura) / 2);
+  /* quanto é que cada lado se fecha do topo até ao fundo */
+  --recuo: calc((var(--topo) - var(--fundo)) / 2);
+  --lado-altura: 234px;
+  --lado-angulo: 11.9deg;
+  --base-largura: 215px;
+  --base-altura: 48px;
+  --base-fundura: 62px;
+  --encaixe: 11px;
+  /* o trapézio, uma vez só, para a frente, as costas e o reflexo usarem
+     todos exatamente o mesmo recorte */
+  --corte: polygon(0% 0%, 100% 0%, calc(100% - var(--recuo)) 100%, var(--recuo) 100%);
+  perspective: 1200px;
+  perspective-origin: 50% 45%;
   display: grid;
   place-items: center;
-  min-height: calc(var(--altura) + 96px);
+  min-height: calc(var(--altura) + var(--base-altura) + 72px);
   user-select: none;
 }
 .trofeu {
   position: relative;
-  width: var(--largura);
+  width: var(--topo);
   height: calc(var(--altura) + var(--base-altura) - var(--encaixe));
   transform-style: preserve-3d;
   transform: rotateX(var(--inclina-x, 0deg)) rotateY(var(--inclina-y, 0deg));
@@ -2026,108 +2042,123 @@ footer {
   height: var(--altura);
   transform-style: preserve-3d;
 }
-.placa .face,
-.placa .bordo {
-  position: absolute;
-  backface-visibility: hidden;
-}
+/* O vidro são duas camadas: o recorte de fora faz de aresta acesa e o de
+   dentro, um pouco mais pequeno, faz o corpo transparente. É o que dá o fio
+   de luz à volta sem precisar de um contorno, que o recorte cortaria. */
 .placa .face {
+  position: absolute;
   inset: 0;
-  border-radius: 3px;
-  /* o acrílico: quase nada de cor, um reflexo em diagonal e o bordo aceso */
+  clip-path: var(--corte);
+  backface-visibility: hidden;
   background: linear-gradient(
     140deg,
-    rgba(255, 255, 255, 0.26) 0%,
-    rgba(226, 240, 255, 0.12) 28%,
-    rgba(214, 233, 255, 0.2) 52%,
-    rgba(226, 240, 255, 0.1) 74%,
-    rgba(255, 255, 255, 0.24) 100%
+    rgba(255, 255, 255, 0.11) 0%,
+    rgba(210, 232, 255, 0.03) 32%,
+    rgba(200, 226, 255, 0.08) 58%,
+    rgba(255, 255, 255, 0.1) 100%
   );
-  box-shadow: inset 0 0 0 1px rgba(232, 244, 255, 0.72), inset 0 0 30px rgba(190, 220, 255, 0.22);
+}
+/* a aresta e um contorno, por isso segue o trapezio e nao a caixa */
+.placa .aresta {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: rgba(236, 246, 255, 0.72);
+  stroke-width: 2.4;
 }
 .placa .frente {
-  transform: translateZ(var(--espessura));
+  transform: translateZ(var(--meia));
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 20px 16px 14px;
+  padding: 58px 12px 12px;
+}
+/* o bordado e o gravado ficam por cima do corpo de vidro, não por baixo */
+.placa .frente > *,
+.placa .tras > * {
+  position: relative;
+  z-index: 1;
+}
+.placa .aresta {
+  position: absolute;
+  z-index: 0;
+}
+.placa .tras .aresta {
+  stroke: rgba(236, 246, 255, 0.5);
 }
 .placa .tras {
-  transform: translateZ(calc(var(--espessura) * -1)) rotateY(180deg);
-  background: linear-gradient(
-    140deg,
-    rgba(255, 255, 255, 0.2) 0%,
-    rgba(226, 240, 255, 0.09) 30%,
-    rgba(214, 233, 255, 0.16) 55%,
-    rgba(255, 255, 255, 0.19) 100%
-  );
-  box-shadow: inset 0 0 0 1px rgba(232, 244, 255, 0.6), inset 0 0 30px rgba(190, 220, 255, 0.18);
+  transform: translateZ(calc(var(--meia) * -1)) rotateY(180deg);
   display: flex;
   align-items: stretch;
   justify-content: center;
 }
-/* visto de trás, o gravado lê-se ao contrário e mais apagado */
+/* visto de trás, o bordado lê-se ao contrário e mais apagado */
 .placa .tras .ao-contrario {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 20px 16px 14px;
+  padding: 15px 10px 9px;
   transform: scaleX(-1);
-  opacity: 0.45;
+  opacity: 0.4;
 }
-/* os bordos são o que denuncia que aquilo é um bloco e não um papel */
-.placa .bordo {
+
+/* o bordo de cima é o que se vê mesmo, e é lá que corre a linha bordada */
+.placa .bordo.cima {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: var(--espessura);
+  transform-origin: center top;
+  transform: translateZ(var(--meia)) rotateX(-90deg);
+  background: linear-gradient(180deg, rgba(242, 250, 255, 0.92), rgba(176, 208, 238, 0.62));
+  overflow: hidden;
+}
+.placa .bordo.cima .banda {
+  width: 100%;
+  height: 100%;
+  opacity: 0.5;
+}
+/* os lados acompanham a inclinação do trapézio: uma tira em pé, virada de
+   lado e torcida no ângulo dos cantos */
+.placa .lado {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--espessura);
+  height: var(--lado-altura);
+  margin-top: calc(var(--lado-altura) / -2);
+  margin-left: calc(var(--espessura) / -2);
+  backface-visibility: hidden;
   background: linear-gradient(
     90deg,
-    rgba(236, 246, 255, 0.75),
-    rgba(150, 185, 225, 0.5),
-    rgba(236, 246, 255, 0.75)
+    rgba(242, 250, 255, 0.85),
+    rgba(163, 198, 234, 0.55),
+    rgba(242, 250, 255, 0.85)
   );
 }
-.placa .bordo.esquerdo,
-.placa .bordo.direito {
-  top: 0;
-  width: calc(var(--espessura) * 2);
-  height: 100%;
+.placa .lado.esquerdo {
+  transform: translateX(calc((var(--topo) - var(--recuo)) / -2)) rotateZ(calc(var(--lado-angulo) * -1))
+    rotateY(90deg);
 }
-.placa .bordo.esquerdo {
-  left: 0;
-  transform: rotateY(-90deg);
-  transform-origin: left center;
-}
-.placa .bordo.direito {
-  right: 0;
-  transform: rotateY(90deg);
-  transform-origin: right center;
-}
-.placa .bordo.cima,
-.placa .bordo.baixo {
-  left: 0;
-  width: 100%;
-  height: calc(var(--espessura) * 2);
-}
-.placa .bordo.cima {
-  top: 0;
-  transform: rotateX(90deg);
-  transform-origin: center top;
-}
-.placa .bordo.baixo {
-  bottom: 0;
-  transform: rotateX(-90deg);
-  transform-origin: center bottom;
+.placa .lado.direito {
+  transform: translateX(calc((var(--topo) - var(--recuo)) / 2)) rotateZ(var(--lado-angulo))
+    rotateY(90deg);
 }
 /* um reflexo que passa devagar, como luz a bater no acrílico */
 .placa .brilho {
   position: absolute;
   inset: 0;
-  border-radius: 3px;
-  transform: translateZ(calc(var(--espessura) + 1px));
+  clip-path: var(--corte);
+  transform: translateZ(calc(var(--meia) + 1px));
   background: linear-gradient(
     115deg,
     transparent 38%,
-    rgba(255, 255, 255, 0.22) 47%,
-    rgba(255, 255, 255, 0.06) 53%,
+    rgba(255, 255, 255, 0.2) 47%,
+    rgba(255, 255, 255, 0.05) 53%,
     transparent 62%
   );
   animation: passar-a-luz 7s ease-in-out infinite;
@@ -2146,112 +2177,136 @@ footer {
 }
 
 .ponto-de-cruz {
-  width: 144px;
-  height: 144px;
-  margin-top: auto;
-  filter: drop-shadow(0 1px 1px rgba(30, 50, 80, 0.35));
+  width: 168px;
+  height: 143px;
+  flex: 0 0 auto;
+  margin: 0 auto;
+  filter: drop-shadow(0 1px 2px rgba(18, 38, 68, 0.5));
+}
+/* as letras do troféu são douradas, e o dourado não é uma cor, é um
+   degradé: daí vir por trás do texto e ser o texto a recortá-lo */
+.frente .gravado,
+.base-frente span {
+  font-family: var(--disp);
+  font-weight: 600;
+  white-space: nowrap;
+  background: linear-gradient(180deg, #f8e7b6 0%, #d6ac59 52%, #f3deaa 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 1px 1px rgba(38, 24, 0, 0.6));
 }
 .frente .gravado {
   margin-top: auto;
-  text-align: center;
-}
-.frente .titulo {
-  font-family: var(--disp);
-  font-size: 19px;
-  font-weight: 600;
-  color: #f4efe6;
-  text-shadow: 0 1px 2px rgba(20, 30, 50, 0.5);
-  white-space: nowrap;
+  font-style: italic;
+  font-size: 11px;
+  letter-spacing: 0.01em;
 }
 
-/* a base escura: um bloco a sério, com tampo e frente, onde a placa encaixa.
-   A frente vem mais para cá do que a placa, que é o que faz a placa parecer
-   enfiada lá dentro e não pousada em cima. */
+/* a base é uma lâmina de vidro transparente, baixa e um pouco mais funda do
+   que a placa, com a frente direita e o nome gravado nela */
 .base {
   position: absolute;
   left: 50%;
   bottom: 0;
-  width: calc(var(--largura) + 34px);
+  width: var(--base-largura);
   height: var(--base-altura);
   transform: translateX(-50%);
   transform-style: preserve-3d;
 }
-.base-topo {
+.base-face {
   position: absolute;
+}
+.base-frente {
+  inset: 0;
+  transform: translateZ(calc(var(--base-fundura) / 2));
+  border-radius: 2px;
+  background: linear-gradient(
+    180deg,
+    rgba(234, 245, 255, 0.13) 0%,
+    rgba(196, 222, 248, 0.06) 46%,
+    rgba(238, 247, 255, 0.17) 100%
+  );
+  box-shadow: inset 0 0 0 1px rgba(238, 247, 255, 0.55), inset 0 -6px 12px rgba(150, 190, 225, 0.14);
+  display: grid;
+  place-items: center;
+}
+.base-frente span {
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+.base-tras {
+  inset: 0;
+  transform: translateZ(calc(var(--base-fundura) / -2));
+  background: rgba(210, 232, 252, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(226, 242, 255, 0.35);
+}
+.base-topo {
   left: 0;
   right: 0;
   top: 0;
   height: var(--base-fundura);
-  /* deitado para trás, mas não de todo: é esse ângulo que deixa ler o que
-     lá está gravado, como num atril */
-  transform: translateZ(calc(var(--base-fundura) / 2)) rotateX(64deg);
   transform-origin: center top;
-  background: linear-gradient(180deg, #4e4e54 0%, #3a3a3e 46%, #262629 100%);
-  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45);
-  border-radius: 2px 2px 0 0;
-  display: grid;
-  place-items: center;
+  transform: translateZ(calc(var(--base-fundura) / 2)) rotateX(-90deg);
+  background: linear-gradient(180deg, rgba(240, 249, 255, 0.2), rgba(178, 210, 242, 0.08));
 }
-.base-topo span {
-  font-family: var(--disp);
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-  color: #f1ebe0;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2), 0 -1px 2px rgba(0, 0, 0, 0.85);
+.base-lado {
+  top: 0;
+  width: var(--base-fundura);
+  height: 100%;
+  background: rgba(214, 235, 255, 0.09);
 }
-.base-frente {
-  position: absolute;
-  inset: 0;
-  transform: translateZ(calc(var(--base-fundura) / 2));
-  border-radius: 3px;
-  background: linear-gradient(176deg, #44444a 0%, #2c2c31 46%, #17171b 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -10px 18px rgba(0, 0, 0, 0.5),
-    0 18px 26px -16px rgba(0, 0, 0, 0.95);
-  display: grid;
-  place-items: center;
+.base-lado.esq {
+  left: 0;
+  transform-origin: left center;
+  transform: translateZ(calc(var(--base-fundura) / 2)) rotateY(90deg);
+}
+.base-lado.dir {
+  right: 0;
+  transform-origin: right center;
+  transform: translateZ(calc(var(--base-fundura) / 2)) rotateY(-90deg);
 }
 
 .trofeu .sombra {
   position: absolute;
   left: 50%;
-  bottom: -7px;
-  width: 86%;
-  height: 20px;
+  bottom: -6px;
+  width: 78%;
+  height: 22px;
   transform: translateX(-50%) rotateX(84deg);
   background: radial-gradient(50% 50%, rgba(0, 0, 0, 0.5), transparent 70%);
-  filter: blur(7px);
+  filter: blur(8px);
 }
 
 /* sem largura para ficar ao lado do título, o troféu passa para baixo dele,
    mais pequeno, para não empurrar a página toda para longe */
 @media (max-width: 899px) {
   .trofeu-cena {
-    --largura: 168px;
-    --altura: 208px;
-    --espessura: 5px;
-    --base-altura: 26px;
-    --base-fundura: 27px;
-    --encaixe: 12px;
-    min-height: calc(var(--altura) + 70px);
-    margin-top: 26px;
+    --topo: 210px;
+    --fundo: 143px;
+    --altura: 172px;
+    --espessura: 8px;
+    --lado-altura: 176px;
+    --base-largura: 161px;
+    --base-altura: 36px;
+    --base-fundura: 47px;
+    --encaixe: 9px;
+    min-height: calc(var(--altura) + var(--base-altura) + 54px);
+    margin-top: 22px;
   }
-  .trofeu .placa .frente {
-    padding: 14px 10px 10px;
+  .trofeu .placa .frente,
+  .trofeu .placa .tras .ao-contrario {
+    padding: 42px 9px 8px;
   }
   .trofeu .ponto-de-cruz {
-    width: 108px;
-    height: 108px;
+    width: 126px;
+    height: 107px;
   }
-  .trofeu .frente .titulo {
-    font-size: 14px;
+  .trofeu .frente .gravado {
+    font-size: 9px;
   }
-  .trofeu .base {
-    width: calc(var(--largura) + 26px);
-  }
-  .trofeu .base-topo span {
-    font-size: 13px;
+  .trofeu .base-frente span {
+    font-size: 9px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
