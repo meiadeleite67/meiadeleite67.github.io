@@ -80,11 +80,14 @@ function Cartao({ post, abrir }: { post: Post; abrir: () => void }) {
  *  Instagram: é ele que trata dos slides e de pôr o vídeo a andar. */
 function Janela({ post, fechar }: { post: Post; fechar: () => void }) {
   const [slide, setSlide] = useState(1);
+  /* Se a foto que temos guardada nao aparecer, por o que for, mostra-se a
+     publicacao pelo proprio Instagram em vez de uma caixa vazia. */
+  const [semFoto, setSemFoto] = useState(false);
 
   /* As fotos que temos guardadas abrem no visualizador do site, onde as setas
      do teclado funcionam. Os reels abrem no leitor do Instagram, que é o único
      sítio onde o vídeo toca. */
-  const nossas = post.formato !== 'reel' && post.slides > 0;
+  const nossas = post.formato !== 'reel' && post.slides > 0 && !semFoto;
 
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
@@ -125,7 +128,7 @@ function Janela({ post, fechar }: { post: Post; fechar: () => void }) {
 
         {nossas ? (
           <div className="album">
-            <img src={slideDe(post, slide)} alt="" />
+            <img src={slideDe(post, slide)} alt="" onError={() => setSemFoto(true)} />
             {post.slides > 1 && (
               <>
                 <button

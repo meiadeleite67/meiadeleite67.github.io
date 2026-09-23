@@ -47,21 +47,32 @@ export default function App() {
      fim do mes. Quando volta a estar a vista, pergunta logo. */
   useEffect(() => {
     let t = 0;
-    const perguntar = () => {
-      if (document.visibilityState !== 'visible') return;
-      recarregar();
-    };
-    const comecar = () => {
+    const parar = () => {
       clearInterval(t);
-      if (document.visibilityState !== 'visible') return;
-      recarregar();
-      t = window.setInterval(perguntar, 30000);
+      t = 0;
     };
-    comecar();
-    document.addEventListener('visibilitychange', comecar);
+    const andar = () => {
+      parar();
+      t = window.setInterval(() => {
+        if (document.visibilityState === 'visible') recarregar();
+      }, 30000);
+    };
+
+    /* A primeira leitura e sempre, escondido ou nao: uma pagina aberta num
+       separador atras tem de ter o que mostrar quando alguem la chegar. O que
+       para enquanto esta escondida e so a pergunta de meio em meio minuto. */
+    recarregar();
+    if (document.visibilityState === 'visible') andar();
+
+    const aoMudar = () => {
+      if (document.visibilityState !== 'visible') return parar();
+      recarregar();
+      andar();
+    };
+    document.addEventListener('visibilitychange', aoMudar);
     return () => {
-      clearInterval(t);
-      document.removeEventListener('visibilitychange', comecar);
+      parar();
+      document.removeEventListener('visibilitychange', aoMudar);
     };
   }, [recarregar]);
 
