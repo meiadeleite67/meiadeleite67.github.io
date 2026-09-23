@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, temServidor } from '../lib/api';
 import { AdminMembros } from './AdminMembros';
 import { MESES_INTEIROS, TIPOS, dataCurta, hoje } from '../lib/dados';
-import type { Estado, TipoEvento } from '../lib/tipos';
+import type { Estado, Pontuacao, TipoEvento } from '../lib/tipos';
 
 export function Admin({ estado, recarregar }: { estado: Estado; recarregar: () => void }) {
   const [codigo, setCodigo] = useState('');
@@ -284,14 +284,7 @@ function Cozinha({
             <p className="vazio">Ninguém jogou ainda.</p>
           ) : (
             estado.ranking.map((r) => (
-              <div className="linha-admin" key={r.nome}>
-                <div className="corpo">
-                  <b>{r.nome}</b>
-                  <small>
-                    {r.torroes} torrões · máximo {r.pico} · {r.maos} mãos
-                  </small>
-                </div>
-              </div>
+              <LinhaDoQuadro key={r.nome} linha={r} recarregar={recarregar} />
             ))
           )}
 
@@ -299,6 +292,48 @@ function Cozinha({
         </div>
       </section>
     </>
+  );
+}
+
+/** Uma linha do quadro, com o botão de a tirar de lá. */
+function LinhaDoQuadro({ linha, recarregar }: { linha: Pontuacao; recarregar: () => void }) {
+  const [aConfirmar, setAConfirmar] = useState(false);
+  const [aApagar, setAApagar] = useState(false);
+
+  async function apagar() {
+    setAApagar(true);
+    try {
+      await api.apagarDoQuadro(linha.nome);
+      recarregar();
+    } finally {
+      setAApagar(false);
+      setAConfirmar(false);
+    }
+  }
+
+  return (
+    <div className="linha-admin">
+      <div className="corpo">
+        <b>{linha.nome}</b>
+        <small>
+          {linha.torroes} torrões · máximo {linha.pico} · {linha.maos} mãos
+        </small>
+      </div>
+      {aConfirmar ? (
+        <div className="acoes">
+          <button className="btn mini" type="button" onClick={apagar} disabled={aApagar}>
+            {aApagar ? 'A tirar...' : 'Tirar mesmo'}
+          </button>
+          <button className="btn claro mini" type="button" onClick={() => setAConfirmar(false)}>
+            Não
+          </button>
+        </div>
+      ) : (
+        <button className="btn claro mini" type="button" onClick={() => setAConfirmar(true)}>
+          Tirar do quadro
+        </button>
+      )}
+    </div>
   );
 }
 

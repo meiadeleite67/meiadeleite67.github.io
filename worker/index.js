@@ -10,6 +10,7 @@
  *   POST   /quadro/apostar    tira a aposta do saldo, antes de haver cartas
  *   POST   /quadro/jogada     paga (ou não) o que saiu de cada mão
  *   POST   /quadro/emprestimo os cem do costume, para quem está sem nada
+ *   POST   /quadro/apagar     tira um nome do quadro (precisa da chave)
  *   POST   /quadro/limpar     deita o quadro abaixo (precisa da chave)
  *   GET    /agenda          a agenda
  *   GET    /membros         os membros do grupo
@@ -352,6 +353,25 @@ export default {
           linha.maos++;
         }
       });
+    }
+
+    /* Apagar um nome do quadro. Vai no corpo e nao no caminho porque ha
+       nomes com barras la dentro, e uma barra num caminho e outra coisa. */
+    if (caminho === '/quadro/apagar' && metodo === 'POST') {
+      if (!(await temChave(request, env)))
+        return responder({ erro: 'Precisas de entrar outra vez.' }, request, 401);
+      let veio;
+      try {
+        veio = await request.json();
+      } catch {
+        return responder({ erro: 'Corpo inválido.' }, request, 400);
+      }
+      const nome = texto(veio?.nome, 24);
+      const guardado = await ler(env, 'quadro', {});
+      if (!nome || !guardado[nome]) return responder({ erro: 'Esse nome não está lá.' }, request, 404);
+      delete guardado[nome];
+      await env.QUADRO.put('quadro', JSON.stringify(guardado));
+      return responder({ ok: true, nome }, request);
     }
 
     /* Deitar o quadro abaixo. So o admin, e nao ha volta a dar. */

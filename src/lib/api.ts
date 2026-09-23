@@ -111,6 +111,13 @@ export const api = {
     talvez<Pontuacao>('/quadro/jogada', { nome, maos }),
   emprestimo: (nome: string) => talvez<Pontuacao>('/quadro/emprestimo', { nome }),
 
+  /** Tira um nome do quadro. Precisa da chave de admin. */
+  apagarDoQuadro: (nome: string) =>
+    pedir<{ ok: boolean; nome: string }>('/quadro/apagar', {
+      method: 'POST',
+      body: JSON.stringify({ nome })
+    }),
+
   /** Deita o quadro de honra abaixo. Precisa da chave de admin. */
   limparQuadro: () => pedir<{ ok: boolean; quantos: number }>('/quadro/limpar', { method: 'POST' }),
 
