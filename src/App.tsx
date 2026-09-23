@@ -8,6 +8,7 @@ import { Agenda } from './componentes/Agenda';
 import { Admin } from './componentes/Admin';
 import { Jogo } from './componentes/Jogo';
 import { JogoDoCusco } from './componentes/JogoDoCusco';
+import { Colherada } from './componentes/Colherada';
 import { Rodape } from './componentes/Rodape';
 import { api } from './lib/api';
 import { JOGOS, MENU, TODAS_AS_PAGINAS, eJogo } from './lib/dados';
@@ -262,6 +263,7 @@ export default function App() {
         {pagina === 'admin' && <Admin estado={estado} recarregar={recarregar} />}
         {pagina === 'jogo' && <Jogo estado={estado} semRede={semRede} />}
         {pagina === 'cusco' && <JogoDoCusco />}
+        {pagina === 'colherada' && <Colherada estado={estado} />}
 
         <Rodape irPara={irPara} />
       </main>

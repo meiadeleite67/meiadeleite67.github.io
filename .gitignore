@@ -14,3 +14,6 @@ worker/.dev.vars
 # dele em worker/wrangler.toml, por isso este nao serve nada e so leva
 # um "wrangler deploy" distraido a publicar a coisa errada.
 wrangler.jsonc
+
+# A configuracao local do Claude Code (servidor de pre-visualizacao)
+.claude/

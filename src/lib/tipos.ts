@@ -104,4 +104,5 @@ export type Pagina =
   | 'agenda'
   | 'admin'
   | 'jogo'
-  | 'cusco';
+  | 'cusco'
+  | 'colherada';

@@ -11,6 +11,7 @@ export const PAGINAS: { id: Pagina; nome: string }[] = [
 export const JOGOS: { id: Pagina; nome: string; nota: string }[] = [
   { id: 'blackjack', nome: 'Blackjack', nota: 'Cartas a torrões de açúcar' },
   { id: 'cusco', nome: 'O Cusco', nota: 'Faz-lhe uma meia de leite' },
+  { id: 'colherada', nome: 'À colherada', nota: 'A toupeira da feira, com um de nós' },
   { id: 'jogo', nome: 'A fuga do balcão', nota: 'O que aparece quando falta a net' }
 ];
 

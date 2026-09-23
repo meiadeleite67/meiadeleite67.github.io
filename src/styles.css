@@ -3773,3 +3773,305 @@ footer {
     padding: 9px 12px;
   }
 }
+
+/* ============================ À colherada ============================
+   A toupeira da feira: nove chávenas em cima do balcão, e de dentro delas
+   sai um de nós. A cara nasce por trás da superfície do café e a loiça da
+   frente tapa-lhe o queixo, que é o que faz parecer que vem lá de dentro. */
+
+.colherada {
+  max-width: 760px;
+  margin: 0 auto;
+  text-align: center;
+}
+.colherada h1 {
+  font-size: clamp(26px, 4.4vw, 38px);
+}
+.colherada .lead {
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 56ch;
+}
+
+.colherada-escolha {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  margin-top: 22px;
+}
+.colherada-membros {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+.colherada-membro {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  padding: 12px 6px 10px;
+  border: 1px solid var(--linha);
+  border-radius: var(--r);
+  background: var(--papel);
+  color: var(--tinta-2);
+  font-size: 13px;
+  line-height: 1.25;
+  transition: border-color 0.15s, color 0.15s, transform 0.15s;
+}
+.colherada-membro .retrato.pequeno {
+  width: 56px;
+  height: 56px;
+}
+.colherada-membro:hover {
+  color: var(--tinta);
+  transform: translateY(-2px);
+}
+.colherada-membro.escolhido {
+  border-color: var(--crema);
+  color: var(--tinta);
+  box-shadow: 0 0 0 1px var(--crema), 0 10px 26px -16px var(--crema);
+}
+.colherada-comecar {
+  margin-top: 6px;
+  padding: 14px 26px;
+  font-size: 16px;
+}
+
+.colherada-placard {
+  justify-content: center;
+}
+.colherada-vidas {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.colherada-vidas i {
+  width: 13px;
+  height: 13px;
+  border: 1px solid var(--tinta-3);
+  border-radius: 3px;
+  transition: background 0.2s, border-color 0.2s;
+}
+.colherada-vidas i:first-of-type {
+  margin-left: 6px;
+}
+.colherada-vidas i.cheio {
+  background: #f4ead9;
+  border-color: #f4ead9;
+  box-shadow: inset -2px -2px 0 rgba(0, 0, 0, 0.12);
+}
+
+.colherada-balcao {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px 14px;
+  max-width: 540px;
+  margin: 4px auto 0;
+  padding: 14px 16px 10px;
+  border: 1px solid var(--linha);
+  border-radius: var(--r);
+  background:
+    linear-gradient(180deg, rgba(255, 244, 227, 0.05), rgba(255, 244, 227, 0.012)),
+    repeating-linear-gradient(90deg, #2a1d14 0 38px, #2e2016 38px 76px);
+  box-shadow: var(--sombra);
+  /* um toque é uma colherada, e não um zoom nem um texto a escolher */
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.colherada-balcao.parado {
+  opacity: 0.6;
+}
+
+.chavena {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1.02;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.chavena > * {
+  pointer-events: none;
+}
+
+/* o espaço acima da borda, de onde a cara espreita */
+.chavena-boca {
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  top: 0;
+  height: 58%;
+  overflow: hidden;
+  z-index: 2;
+}
+.colherada-cara.retrato {
+  position: absolute;
+  left: 11%;
+  bottom: 0;
+  width: 78%;
+  height: auto;
+  aspect-ratio: 1;
+  margin: 0;
+  border: 2px solid rgba(35, 21, 15, 0.55);
+  transform: translateY(112%);
+  transition: transform 0.13s ease-out;
+}
+.colherada-cara .iniciais {
+  font-size: clamp(18px, 5vw, 30px);
+}
+.chavena.fora .colherada-cara {
+  transform: translateY(16%);
+}
+.chavena.levou .colherada-cara {
+  animation: levou 0.38s ease-in forwards;
+}
+@keyframes levou {
+  0% {
+    transform: translateY(16%) scale(1.1, 0.78);
+  }
+  35% {
+    transform: translateY(22%) scale(1.14, 0.7) rotate(-7deg);
+  }
+  100% {
+    transform: translateY(112%) scale(0.94);
+  }
+}
+
+/* a loiça da frente, com o café à boca */
+.chavena-corpo {
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  top: 58%;
+  height: 26%;
+  z-index: 3;
+  border-radius: 0 0 50% 50% / 0 0 85% 85%;
+  background: linear-gradient(90deg, #cdb89d 0%, #f3e7d5 38%, #efe0cb 62%, #bfa98d 100%);
+}
+.chavena-cafe {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  aspect-ratio: 5 / 1;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 40%, #a36f41 0%, #6e4223 55%, #4c2c17 100%);
+  box-shadow: 0 0 0 3px #f3e7d5, 0 0 0 4px rgba(0, 0, 0, 0.18);
+}
+.chavena-asa {
+  position: absolute;
+  right: 3%;
+  top: 60%;
+  width: 16%;
+  aspect-ratio: 1 / 1.15;
+  z-index: 2;
+  border: 5px solid #ddc9ae;
+  border-left-color: transparent;
+  border-radius: 50%;
+}
+.chavena-pires {
+  position: absolute;
+  left: 3%;
+  right: 3%;
+  bottom: 5%;
+  aspect-ratio: 6 / 1;
+  z-index: 1;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 35%, #f1e4d1 0%, #cbb498 70%, #a58e72 100%);
+  box-shadow: 0 6px 10px -6px #000;
+}
+
+/* a colher de pau: cai de cima para a chávena onde se carregou */
+.colher {
+  position: absolute;
+  left: 46%;
+  bottom: 34%;
+  width: 20%;
+  height: 72%;
+  z-index: 5;
+  transform-origin: 50% 100%;
+  background: no-repeat center / contain
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 120'%3E%3Cellipse cx='20' cy='22' rx='16' ry='21' fill='%23c08a50'/%3E%3Cellipse cx='20' cy='23' rx='10.5' ry='14.5' fill='%23925f30'/%3E%3Crect x='16' y='40' width='8' height='78' rx='4' fill='%23c08a50'/%3E%3C/svg%3E");
+  filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.45));
+  animation: colherada 0.26s ease-in forwards;
+}
+@keyframes colherada {
+  0% {
+    transform: rotate(58deg);
+    opacity: 1;
+  }
+  55% {
+    transform: rotate(-22deg);
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(-14deg);
+    opacity: 0;
+  }
+}
+
+.colherada-grito {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -4%;
+  z-index: 6;
+  font-family: var(--disp);
+  font-weight: 800;
+  font-size: clamp(14px, 3.4vw, 20px);
+  color: var(--crema);
+  text-shadow: 0 2px 0 #1b100b;
+  animation: grito 0.45s ease-out forwards;
+}
+@keyframes grito {
+  from {
+    transform: translateY(8px) scale(0.8);
+    opacity: 0;
+  }
+  30% {
+    transform: translateY(0) scale(1.08);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-14px) scale(1);
+    opacity: 0;
+  }
+}
+
+.colherada-fim .acoes {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.colherada-ajuda {
+  margin-top: 14px;
+}
+
+@media (hover: none) {
+  .colherada-ajuda {
+    display: none;
+  }
+}
+@media (max-width: 560px) {
+  .colherada-balcao {
+    gap: 2px 6px;
+    padding: 10px 8px 6px;
+  }
+  .colherada-membros {
+    grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+  }
+  .chavena-asa {
+    border-width: 3px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .colherada-cara.retrato {
+    transition: none;
+  }
+}
