@@ -124,7 +124,6 @@ function CaraDaPlaca() {
 }
 
 export function Trofeu() {
-  const [inclinacao, setInclinacao] = useState({ x: 0, y: 0 });
   /** Ângulo posto à mão. Nulo quer dizer que o troféu roda sozinho. */
   const [aMao, setAMao] = useState<{ x: number; y: number } | null>(null);
   const cena = useRef<HTMLDivElement>(null);
@@ -144,9 +143,9 @@ export function Trofeu() {
     setAMao(v);
   };
 
-  /* Com rato, o troféu segue o cursor quando ele anda por perto. Com dedo não
-     há cursor nenhum, por isso roda-se arrastando: é o que dá a sensação de
-     ser um objeto e não um desenho. */
+  /* Roda-se arrastando, com o rato ou com o dedo, e para onde se quiser.
+     Seguir o cursor por perto ficava agitado e nunca deixava ninguém pousar
+     o troféu no ângulo que queria. */
   useEffect(() => {
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
     const elemento = cena.current;
@@ -162,26 +161,15 @@ export function Trofeu() {
       a.rx = atual.x;
       a.ry = atual.y;
       porAMao(atual);
-      setInclinacao({ x: 0, y: 0 });
       elemento.setPointerCapture?.(e.pointerId);
     };
 
     const aoMexer = (e: PointerEvent) => {
       const a = arrasto.current;
-      if (a.ativo) {
-        porAMao({
-          x: Math.max(-26, Math.min(26, a.rx - (e.clientY - a.y) * 0.35)),
-          y: a.ry + (e.clientX - a.x) * 0.6
-        });
-        return;
-      }
-      if (e.pointerType !== 'mouse') return;
-      const c = elemento.getBoundingClientRect();
-      const dx = (e.clientX - (c.left + c.width / 2)) / c.width;
-      const dy = (e.clientY - (c.top + c.height / 2)) / c.height;
-      setInclinacao({
-        x: Math.max(-1, Math.min(1, dy)) * -9,
-        y: Math.max(-1, Math.min(1, dx)) * 22
+      if (!a.ativo) return;
+      porAMao({
+        x: Math.max(-34, Math.min(34, a.rx - (e.clientY - a.y) * 0.35)),
+        y: a.ry + (e.clientX - a.x) * 0.6
       });
     };
 
@@ -192,22 +180,16 @@ export function Trofeu() {
       voltarSozinho.current = window.setTimeout(() => porAMao(null), 3500);
     };
 
-    const aoSair = () => {
-      if (!arrasto.current.ativo) setInclinacao({ x: 0, y: 0 });
-    };
-
     elemento.addEventListener('pointerdown', aoPegar);
     window.addEventListener('pointermove', aoMexer);
     window.addEventListener('pointerup', aoLargar);
     window.addEventListener('pointercancel', aoLargar);
-    elemento.addEventListener('pointerleave', aoSair);
     return () => {
       clearTimeout(voltarSozinho.current);
       elemento.removeEventListener('pointerdown', aoPegar);
       window.removeEventListener('pointermove', aoMexer);
       window.removeEventListener('pointerup', aoLargar);
       window.removeEventListener('pointercancel', aoLargar);
-      elemento.removeEventListener('pointerleave', aoSair);
     };
   }, []);
 
@@ -219,8 +201,6 @@ export function Trofeu() {
       role="img"
       style={
         {
-          '--inclina-x': `${inclinacao.x}deg`,
-          '--inclina-y': `${inclinacao.y}deg`,
           '--gira-x': `${aMao?.x ?? 0}deg`,
           '--gira-y': `${aMao?.y ?? 0}deg`
         } as React.CSSProperties

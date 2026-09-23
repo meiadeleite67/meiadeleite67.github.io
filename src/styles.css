@@ -1958,15 +1958,15 @@ footer {
      página, senão ninguém conseguia passar por ele no telemóvel */
   touch-action: pan-y;
   cursor: grab;
-  --largura: 256px;
+  --largura: 190px;
   --altura: 228px;
   --espessura: 10px;
   --meia: calc(var(--espessura) / 2);
-  --base-largura: 264px;
+  --base-largura: 198px;
   --base-altura: 30px;
   --base-fundura: 58px;
   --encaixe: 9px;
-  --pousa: -26deg;
+  --pousa: -18deg;
   perspective: 1200px;
   perspective-origin: 50% 22%;
   display: grid;
@@ -1979,7 +1979,7 @@ footer {
   width: var(--largura);
   height: calc(var(--altura) + var(--base-altura) - var(--encaixe));
   transform-style: preserve-3d;
-  transform: rotateX(calc(var(--pousa) + var(--inclina-x, 0deg))) rotateY(var(--inclina-y, 0deg));
+  transform: rotateX(var(--pousa));
   transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.3, 1);
   animation: rodar-trofeu 16s ease-in-out infinite;
 }
@@ -2036,7 +2036,7 @@ footer {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 30px 12px 20px;
+  padding: 30px 10px 20px;
 }
 .placa .tras {
   transform: translateZ(calc(var(--meia) * -1)) rotateY(180deg);
@@ -2051,7 +2051,7 @@ footer {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 30px 12px 20px;
+  padding: 30px 10px 20px;
   transform: scaleX(-1);
   opacity: 0.4;
 }
@@ -2199,7 +2199,7 @@ footer {
   padding-bottom: 5px;
 }
 .base-topo span {
-  font-size: 15px;
+  font-size: 17px;
   letter-spacing: 0.03em;
 }
 .base-lado {
@@ -2234,10 +2234,10 @@ footer {
    mais pequeno, para não empurrar a página toda para longe */
 @media (max-width: 899px) {
   .trofeu-cena {
-    --largura: 193px;
+    --largura: 145px;
     --altura: 172px;
     --espessura: 8px;
-    --base-largura: 199px;
+    --base-largura: 151px;
     --base-altura: 23px;
     --base-fundura: 45px;
     --encaixe: 7px;
@@ -2259,7 +2259,7 @@ footer {
     padding-bottom: 4px;
   }
   .trofeu .base-topo span {
-    font-size: 12px;
+    font-size: 13px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
