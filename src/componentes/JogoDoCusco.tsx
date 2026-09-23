@@ -11,7 +11,8 @@ import { guardar, lido } from '../lib/dados';
  * fazer: vai para o Cusco e ele que decida.
  *
  * A receita certa é um quinto de café para quatro quintos de leite, com uma
- * folga de cinco pontos para cada lado que nunca é dita a ninguém.
+ * folga de cinco pontos para cada lado que nunca é dita a ninguém. Fora dessa
+ * folga não há meio termo: ou sai bem, ou o Cusco rebenta.
  */
 
 const CAPACIDADE = 100;
@@ -26,7 +27,8 @@ const COR_LEITE = [242, 230, 210];
 const RECORDE = 'mdl.cusco.certas';
 
 type Fase = 'a-encher' | 'a-entregar' | 'acabou';
-type Fim = 'perfeita' | 'nojo' | 'rebentou' | null;
+/** Quando rebenta, ainda interessa saber porquê: é o que ele diz a seguir. */
+type Fim = 'perfeita' | 'lactose' | 'receita' | null;
 
 const misturar = (a: number[], b: number[], t: number) =>
   `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(', ')})`;
@@ -84,15 +86,11 @@ export function JogoDoCusco() {
     setFase('a-entregar');
 
     const perfeita = Math.abs(pctCafe - CAFE_CERTO) <= FOLGA;
-    /* Quanto mais leite acima do que ele aguenta, maior a probabilidade de a
-       barriga dele se manifestar. */
-    const risco = Math.min(0.85, ((pctLeite - LEITE_A_MAIS) / 15) * 0.85);
-    const rebenta = !perfeita && pctLeite > LEITE_A_MAIS && Math.random() < risco;
 
     daqui(900, () => {
       setPose('bebe');
-      // so esvazia o que ele chega a beber
-      if (perfeita || rebenta) setABeber(true);
+      // ele bebe sempre: o que muda e o que acontece a seguir
+      setABeber(true);
     });
     daqui(2300, () => {
       if (perfeita) {
@@ -103,12 +101,10 @@ export function JogoDoCusco() {
           guardar(RECORDE, String(novo));
           return novo;
         });
-      } else if (rebenta) {
-        setPose('rebenta');
-        setFim('rebentou');
       } else {
-        setPose('nojo');
-        setFim('nojo');
+        // fora da folga nao ha meio termo: rebenta sempre
+        setPose('rebenta');
+        setFim(pctLeite > LEITE_A_MAIS ? 'lactose' : 'receita');
       }
       setFase('acabou');
     });
@@ -175,8 +171,8 @@ export function JogoDoCusco() {
         <Cusco pose={pose} />
         <div className={`cusco-balao${fim ? ' visivel' : ''}`}>
           {fim === 'perfeita' && 'Isto é que é uma meia de leite!'}
-          {fim === 'nojo' && 'Mas o que é que me deste?'}
-          {fim === 'rebentou' && 'Leite a mais... não aguento...'}
+          {fim === 'lactose' && 'Leite a mais... não aguento...'}
+          {fim === 'receita' && 'Mas o que é que me deste?'}
         </div>
       </div>
 
@@ -201,7 +197,7 @@ export function JogoDoCusco() {
 
         <div
           className={`copo${fase === 'a-encher' ? '' : ' entregue'}${aBeber ? ' a-beber' : ''}${
-            fim === 'rebentou' ? ' caiu' : ''
+            fim && fim !== 'perfeita' ? ' caiu' : ''
           }`}
           data-verter={aVerter ?? ''}
         >
@@ -235,8 +231,8 @@ export function JogoDoCusco() {
         <div className="cusco-fim">
           <p className="cusco-veredito">
             {fim === 'perfeita' && 'Perfeita. Ele bebeu tudo e ainda lambeu o copo.'}
-            {fim === 'nojo' && 'Não era isto. Ele cheirou, virou a cara e foi-se deitar.'}
-            {fim === 'rebentou' && 'Leite a mais. O Cusco é intolerante à lactose, e isso viu-se.'}
+            {fim === 'lactose' && 'Leite a mais. O Cusco é intolerante à lactose, e isso viu-se.'}
+            {fim === 'receita' && 'Isso não era uma meia de leite. O estômago dele não perdoa.'}
           </p>
           <p className="cusco-conta">
             Deste-lhe <b>{receita.cafe}</b> de café para <b>{receita.leite}</b> de leite.

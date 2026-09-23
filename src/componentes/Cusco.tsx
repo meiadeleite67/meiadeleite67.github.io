@@ -13,11 +13,10 @@ import { useMemo, type CSSProperties } from 'react';
  *   parado    respira e abana a cauda
  *   bebe      baixa a cabeça ao copo e lambe
  *   feliz     salta e abana a cauda depressa
- *   nojo      vira a cara e estremece
  *   rebenta   cada peça sai para o seu lado e desaparece
  */
 
-export type Pose = 'parado' | 'bebe' | 'feliz' | 'nojo' | 'rebenta';
+export type Pose = 'parado' | 'bebe' | 'feliz' | 'rebenta';
 
 const PELO = '#c87a3c';
 const PELO_CLARO = '#e2a96a';

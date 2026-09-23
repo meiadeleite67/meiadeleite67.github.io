@@ -3322,9 +3322,6 @@ footer {
 .cusco[data-pose='feliz'] .cauda {
   animation: cusco-abana 0.24s linear infinite;
 }
-.cusco[data-pose='nojo'] {
-  animation: cusco-nojo 2.4s ease-in-out forwards;
-}
 .cusco[data-pose='rebenta'] .caixa {
   animation: cusco-rebenta 0.9s cubic-bezier(0.15, 0.75, 0.3, 1) var(--atraso, 0ms) forwards;
 }
@@ -3365,20 +3362,6 @@ footer {
   }
   45% {
     transform: translateX(var(--meio)) rotateX(-10deg) rotateY(-28deg) translateY(-26px) scale(var(--escala, 1.15));
-  }
-}
-@keyframes cusco-nojo {
-  0% {
-    transform: translateX(var(--meio)) rotateX(-10deg) rotateY(-28deg) scale(var(--escala, 1.15));
-  }
-  18% {
-    transform: translateX(calc(var(--meio) - 8px)) rotateX(-10deg) rotateY(-28deg) scale(var(--escala, 1.15));
-  }
-  30% {
-    transform: translateX(calc(var(--meio) + 8px)) rotateX(-10deg) rotateY(-28deg) scale(var(--escala, 1.15));
-  }
-  100% {
-    transform: translateX(calc(var(--meio) - 14px)) rotateX(-10deg) rotateY(-148deg) scale(var(--escala, 1.15));
   }
 }
 /* cada peca sai para o lado que lhe calhou, roda e desaparece */
