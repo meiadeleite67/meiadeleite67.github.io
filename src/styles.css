@@ -1958,15 +1958,15 @@ footer {
      página, senão ninguém conseguia passar por ele no telemóvel */
   touch-action: pan-y;
   cursor: grab;
-  --largura: 238px;
-  --altura: 230px;
+  --largura: 256px;
+  --altura: 228px;
   --espessura: 10px;
   --meia: calc(var(--espessura) / 2);
-  --base-largura: 209px;
-  --base-altura: 42px;
-  --base-fundura: 52px;
-  --encaixe: 11px;
-  --pousa: -15deg;
+  --base-largura: 264px;
+  --base-altura: 30px;
+  --base-fundura: 58px;
+  --encaixe: 9px;
+  --pousa: -26deg;
   perspective: 1200px;
   perspective-origin: 50% 22%;
   display: grid;
@@ -2036,7 +2036,7 @@ footer {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 34px 12px 18px;
+  padding: 30px 12px 20px;
 }
 .placa .tras {
   transform: translateZ(calc(var(--meia) * -1)) rotateY(180deg);
@@ -2051,7 +2051,7 @@ footer {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 34px 12px 18px;
+  padding: 30px 12px 20px;
   transform: scaleX(-1);
   opacity: 0.4;
 }
@@ -2126,8 +2126,8 @@ footer {
 }
 
 .ponto-de-cruz {
-  width: 169px;
-  height: 143px;
+  width: 140px;
+  height: 119px;
   flex: 0 0 auto;
   margin: 0 auto;
   filter: drop-shadow(0 1px 2px rgba(18, 38, 68, 0.5));
@@ -2160,7 +2160,7 @@ footer {
   bottom: 0;
   width: var(--base-largura);
   height: var(--base-altura);
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateZ(12px);
   transform-style: preserve-3d;
 }
 .base-face {
@@ -2196,10 +2196,10 @@ footer {
   justify-content: center;
   /* encostado a frente da base, que e a parte que a placa nao tapa */
   align-items: flex-end;
-  padding-bottom: 6px;
+  padding-bottom: 5px;
 }
 .base-topo span {
-  font-size: 13px;
+  font-size: 15px;
   letter-spacing: 0.03em;
 }
 .base-lado {
@@ -2234,32 +2234,32 @@ footer {
    mais pequeno, para não empurrar a página toda para longe */
 @media (max-width: 899px) {
   .trofeu-cena {
-    --largura: 179px;
+    --largura: 193px;
     --altura: 172px;
     --espessura: 8px;
-    --base-largura: 157px;
-    --base-altura: 32px;
-    --base-fundura: 40px;
-    --encaixe: 9px;
+    --base-largura: 199px;
+    --base-altura: 23px;
+    --base-fundura: 45px;
+    --encaixe: 7px;
     min-height: calc(var(--altura) + var(--base-altura) + 54px);
     margin-top: 22px;
   }
   .trofeu .placa .frente,
   .trofeu .placa .tras .ao-contrario {
-    padding: 26px 9px 13px;
+    padding: 23px 9px 15px;
   }
   .trofeu .ponto-de-cruz {
-    width: 127px;
-    height: 108px;
+    width: 106px;
+    height: 90px;
   }
   .trofeu .frente .gravado {
     font-size: 9px;
   }
   .trofeu .base-topo {
-    padding-bottom: 5px;
+    padding-bottom: 4px;
   }
   .trofeu .base-topo span {
-    font-size: 10px;
+    font-size: 12px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
