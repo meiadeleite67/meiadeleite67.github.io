@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { derramar as tocarDerrame } from '../lib/som';
 
 type Fase = 'nada' | 'correr';
 
@@ -28,7 +27,6 @@ export function useEntornar() {
     }
     if (ocupado.current) return;
     ocupado.current = true;
-    tocarDerrame();
     setFase('correr');
     relogios.current.push(
       window.setTimeout(() => {

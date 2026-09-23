@@ -1753,28 +1753,6 @@ footer {
    O menu passa a gaveta, a mesa encolhe para caber num ecrã, e o rodapé
    deixa de tentar alinhar coisas à direita quando não há largura. */
 
-/* o botão de silenciar, ao lado do menu */
-.som {
-  width: 36px;
-  height: 36px;
-  border-radius: 9px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: #b79b80;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  flex: 0 0 auto;
-  transition: color 0.15s, background 0.15s;
-}
-.som:hover {
-  background: #2c1b12;
-  color: #f7ebda;
-}
-.som[aria-pressed='true'] {
-  color: var(--crema);
-}
-
 .hamburguer {
   display: none;
   width: 42px;
