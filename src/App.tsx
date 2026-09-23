@@ -10,7 +10,7 @@ import { Jogo } from './componentes/Jogo';
 import { JogoDoCusco } from './componentes/JogoDoCusco';
 import { Rodape } from './componentes/Rodape';
 import { api } from './lib/api';
-import { PAGINAS, TODAS_AS_PAGINAS } from './lib/dados';
+import { JOGOS, MENU, TODAS_AS_PAGINAS, eJogo } from './lib/dados';
 import type { Estado, Pagina } from './lib/tipos';
 
 const VAZIO: Estado = { agenda: [], insta: [], ranking: [], membros: [] };
@@ -29,6 +29,9 @@ export default function App() {
   const [estado, setEstado] = useState<Estado>(VAZIO);
   const [menuAberto, setMenuAberto] = useState(false);
   const [semRede, setSemRede] = useState(() => navigator.onLine === false);
+  /** A lista dos jogos, aberta ou fechada. Na gaveta do telemóvel está sempre
+   *  aberta, que aí há espaço para ela. */
+  const [jogosAbertos, setJogosAbertos] = useState(false);
   const { fase, entornar } = useEntornar();
 
   const recarregar = useCallback(async () => {
@@ -115,6 +118,16 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [semRede]);
 
+  /* a lista dos jogos fecha-se com Escape, como tudo o resto que abre por cima */
+  useEffect(() => {
+    if (!jogosAbertos) return;
+    const fechar = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setJogosAbertos(false);
+    };
+    window.addEventListener('keydown', fechar);
+    return () => window.removeEventListener('keydown', fechar);
+  }, [jogosAbertos]);
+
   useEffect(() => {
     if (!menuAberto) return;
     const tecla = (e: KeyboardEvent) => {
@@ -172,21 +185,71 @@ export default function App() {
           </button>
 
           <nav className={menuAberto ? 'aberta' : ''} aria-label="Secções">
-            {PAGINAS.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => {
-                  setMenuAberto(false);
-                  irPara(p.id);
-                }}
-                aria-current={p.id === pagina ? 'page' : undefined}
-              >
-                {p.nome}
-              </button>
-            ))}
+            {MENU.map((item) =>
+              'jogos' in item ? (
+                <div
+                  key="jogos"
+                  className="menu-jogos"
+                  data-aberto={jogosAbertos ? 'sim' : 'nao'}
+                >
+                  <button
+                    type="button"
+                    className="jogos-botao"
+                    aria-expanded={jogosAbertos}
+                    aria-current={eJogo(pagina) ? 'page' : undefined}
+                    onClick={() => setJogosAbertos((v) => !v)}
+                  >
+                    Jogos
+                    <svg width="10" height="7" viewBox="0 0 10 7" aria-hidden="true">
+                      <path
+                        d="M1 1.5 L5 5.5 L9 1.5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+
+                  <div className="jogos-lista">
+                    {JOGOS.map((j) => (
+                      <button
+                        key={j.id}
+                        type="button"
+                        aria-current={j.id === pagina ? 'page' : undefined}
+                        onClick={() => {
+                          setJogosAbertos(false);
+                          setMenuAberto(false);
+                          irPara(j.id);
+                        }}
+                      >
+                        <b>{j.nome}</b>
+                        <small>{j.nota}</small>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setJogosAbertos(false);
+                    setMenuAberto(false);
+                    irPara(item.id);
+                  }}
+                  aria-current={item.id === pagina ? 'page' : undefined}
+                >
+                  {item.nome}
+                </button>
+              )
+            )}
           </nav>
           {menuAberto && <div className="gaveta-fundo" onClick={() => setMenuAberto(false)} />}
+          {jogosAbertos && (
+            <div className="jogos-fundo" onClick={() => setJogosAbertos(false)} aria-hidden="true" />
+          )}
         </div>
       </header>
 

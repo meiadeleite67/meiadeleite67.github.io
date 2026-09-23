@@ -3,15 +3,35 @@ import type { Pagina, TipoEvento } from './tipos';
 export const PAGINAS: { id: Pagina; nome: string }[] = [
   { id: 'inicio', nome: 'Início' },
   { id: 'membros', nome: 'Membros' },
-  { id: 'blackjack', nome: 'Blackjack' },
   { id: 'instagram', nome: 'Instagram' },
   { id: 'agenda', nome: 'Agenda' }
 ];
 
-/** A de admin e a do jogo nao estao na barra de propósito: a de admin porque
- *  nao deve estar, a do jogo porque ela aparece sozinha quando falta a net.
- *  Chega-se as duas pelo endereco. */
-export const TODAS_AS_PAGINAS: Pagina[] = [...PAGINAS.map((p) => p.id), 'admin', 'jogo', 'cusco'];
+/** Os jogos todos vivem debaixo de "Jogos", no cabeçalho e na gaveta. */
+export const JOGOS: { id: Pagina; nome: string; nota: string }[] = [
+  { id: 'blackjack', nome: 'Blackjack', nota: 'Cartas a torrões de açúcar' },
+  { id: 'cusco', nome: 'O Cusco', nota: 'Faz-lhe uma meia de leite' },
+  { id: 'jogo', nome: 'A fuga do balcão', nota: 'O que aparece quando falta a net' }
+];
+
+/** O menu como ele aparece, com os jogos no meio, onde estava o blackjack. */
+export const MENU: ({ id: Pagina; nome: string } | { jogos: true })[] = [
+  PAGINAS[0],
+  PAGINAS[1],
+  { jogos: true },
+  PAGINAS[2],
+  PAGINAS[3]
+];
+
+export const eJogo = (p: Pagina) => JOGOS.some((j) => j.id === p);
+
+/** A de admin não está em sítio nenhum de propósito: chega-se lá pelo
+ *  endereço. */
+export const TODAS_AS_PAGINAS: Pagina[] = [
+  ...PAGINAS.map((p) => p.id),
+  ...JOGOS.map((j) => j.id),
+  'admin'
+];
 
 export const TIPOS: Record<TipoEvento, { nome: string; cls: string; cor: string }> = {
   copos: { nome: 'Copos', cls: 't-copos', cor: 'var(--crema)' },

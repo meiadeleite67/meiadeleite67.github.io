@@ -1,4 +1,4 @@
-import { PAGINAS } from '../lib/dados';
+import { JOGOS, PAGINAS } from '../lib/dados';
 import type { Pagina } from '../lib/tipos';
 
 function IconeInstagram() {
@@ -44,7 +44,7 @@ export function Rodape({ irPara }: { irPara: (p: Pagina) => void }) {
         <div>
           <h4>Andar por aqui</h4>
           <ul>
-            {PAGINAS.map((p) => (
+            {[...PAGINAS, ...JOGOS].map((p) => (
               <li key={p.id}>
                 <button type="button" onClick={() => irPara(p.id)}>
                   {p.nome}

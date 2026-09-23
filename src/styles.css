@@ -3651,3 +3651,106 @@ footer {
     animation: none !important;
   }
 }
+
+/* ======================= o menu dos jogos =======================
+   No computador e uma lista que cai por baixo do botao; na gaveta do
+   telemovel fica sempre aberta, encostada para dentro, que ai ha espaco. */
+
+.menu-jogos {
+  position: relative;
+}
+.jogos-botao {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.jogos-botao svg {
+  transition: transform 0.18s;
+}
+.menu-jogos[data-aberto='sim'] .jogos-botao svg {
+  transform: rotate(180deg);
+}
+.jogos-fundo {
+  position: fixed;
+  inset: 0;
+  z-index: 44;
+}
+.jogos-lista {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 45;
+  width: 260px;
+  padding: 7px;
+  border: 1px solid var(--linha);
+  border-radius: 14px;
+  background: #1b100b;
+  box-shadow: 0 18px 40px -18px #000;
+}
+.menu-jogos[data-aberto='sim'] .jogos-lista {
+  display: block;
+  animation: entrar 0.16s ease-out;
+}
+.jogos-lista button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px 11px;
+  border-radius: 10px;
+}
+.jogos-lista button b {
+  display: block;
+  font-size: 14px;
+}
+.jogos-lista button small {
+  display: block;
+  margin-top: 1px;
+  font-family: var(--corpo);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--tinta-3);
+}
+.jogos-lista button:hover small,
+.jogos-lista button[aria-current='page'] small {
+  color: inherit;
+  opacity: 0.75;
+}
+
+@media (max-width: 899px) {
+  /* na gaveta nao ha lista a cair: os jogos ficam sempre a vista, so mais
+     para dentro, para se perceber que pertencem ao grupo */
+  .jogos-fundo {
+    display: none;
+  }
+  .jogos-lista,
+  .menu-jogos[data-aberto='nao'] .jogos-lista {
+    display: block;
+    position: static;
+    width: auto;
+    padding: 0 0 0 12px;
+    margin: 2px 0 6px;
+    border: 0;
+    border-left: 1px solid var(--linha);
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    animation: none;
+  }
+  .jogos-botao svg {
+    display: none;
+  }
+  /* na gaveta a lista esta a vista, por isso nao vale a pena acender tambem o
+     botao do grupo: bastava acender o jogo onde se esta */
+  .jogos-botao[aria-current='page'] {
+    background: transparent;
+    border-color: transparent;
+    color: var(--crema);
+  }
+  .jogos-lista button {
+    font-size: 15px;
+    padding: 9px 12px;
+  }
+}
