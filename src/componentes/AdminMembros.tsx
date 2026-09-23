@@ -21,7 +21,7 @@ const LADO_DA_GALERIA = 1800;
  *
  * Os videos passam ao lado: encolher video no browser e outra historia.
  */
-function encolherParaGaleria(ficheiro: File): Promise<File> {
+export function encolherParaGaleria(ficheiro: File): Promise<File> {
   if (!ficheiro.type.startsWith('image/')) return Promise.resolve(ficheiro);
   return new Promise((resolve, reject) => {
     const endereco = URL.createObjectURL(ficheiro);

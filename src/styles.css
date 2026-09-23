@@ -3189,3 +3189,19 @@ footer {
   color: var(--tinta-3);
   margin-right: auto;
 }
+
+/* por uma publicacao no mural, no painel de admin */
+.por-no-mural {
+  display: grid;
+  gap: 8px;
+}
+.por-no-mural-linha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.por-no-mural-linha input[type='date'],
+.por-no-mural-linha select {
+  flex: 0 0 auto;
+}

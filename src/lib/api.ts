@@ -4,6 +4,7 @@ import type {
   ItemDaGaleria,
   Membro,
   Pontuacao,
+  Post,
   RespostaDaMesa
 } from './tipos';
 
@@ -91,14 +92,26 @@ export const api = {
     const agendaDoFicheiro = Array.isArray(doFicheiro?.agenda) ? doFicheiro.agenda : [];
     if (!base) return { ...VAZIO, insta, agenda: agendaDoFicheiro };
 
-    const [doServidor, ranking, membros] = await Promise.all([
+    const [doServidor, ranking, membros, doMural] = await Promise.all([
       pedir<{ definida: boolean; agenda: Evento[] }>('/agenda').catch(() => null),
       pedir<Pontuacao[]>('/quadro').catch(() => [] as Pontuacao[]),
-      pedir<Membro[]>('/membros').catch(() => [] as Membro[])
+      pedir<Membro[]>('/membros').catch(() => [] as Membro[]),
+      pedir<Post[]>('/mural').catch(() => [] as Post[])
     ]);
 
+    /* O mural sao duas coisas juntas: as publicacoes que vivem no ficheiro do
+       site e as que foram postas pelo painel de admin. Se a mesma aparecer nos
+       dois sitios, manda a do painel, que e a mais recente. */
+    const daNuvem = Array.isArray(doMural) ? doMural : [];
+    const juntas: Post[] = [
+      ...daNuvem,
+      ...insta.filter((p: Post) => !daNuvem.some((n) => n.id === p.id))
+    ].sort(
+      (a, b) => (a.data < b.data ? 1 : a.data > b.data ? -1 : 0)
+    );
+
     return {
-      insta,
+      insta: juntas,
       // a agenda do servidor manda; sem ela, fica a do ficheiro
       agenda: doServidor?.definida ? doServidor.agenda : agendaDoFicheiro,
       ranking: Array.isArray(ranking) ? ranking : [],
@@ -120,6 +133,35 @@ export const api = {
   jogar: (nome: string, chave: string, acao: string, passo: number) =>
     naMesa('/mesa/jogar', { nome, chave, acao, passo }),
   emprestimo: (nome: string, chave: string) => naMesa('/quadro/emprestimo', { nome, chave }),
+
+  /* ---- o mural do Instagram ---- */
+
+  tirarDoMural: (id: string) => pedir<{ ok: boolean }>(`/mural/${id}`, { method: 'DELETE' }),
+
+  /** O botao de ir buscar as que faltam. So anda com um token da Meta posto
+   *  nos segredos do Worker; sem ele devolve o porque. */
+  sincronizarMural: () => pedir<{ ok: boolean; postas: number }>('/mural/sincronizar', { method: 'POST' }),
+
+  /** Poe uma publicacao no mural. A capa vai em bruto, como na galeria. */
+  async acrescentarAoMural(
+    dados: { url: string; legenda: string; data: string; formato: string },
+    capa: File
+  ): Promise<Post> {
+    const base = await endereco();
+    if (!base) throw new Error('O site ainda nao esta ligado ao servidor do grupo.');
+    const p = new URLSearchParams(dados).toString();
+    const r = await fetch(`${base}/mural?${p}`, {
+      method: 'POST',
+      headers: { 'Content-Type': capa.type, Authorization: `Bearer ${chave}` },
+      body: capa
+    });
+    const corpo = await r.json().catch(() => null);
+    if (!r.ok) {
+      if (r.status === 401) chave = '';
+      throw new Error((corpo && corpo.erro) || 'Nao deu para por a publicacao no mural.');
+    }
+    return corpo as Post;
+  },
 
   /* ---- a galeria da mascote ---- */
 
@@ -207,5 +249,16 @@ export const enderecoDoMedia = (item: { id: string; mime: string }) =>
 export const fotoDoMembro = (id: string) => (servidor ? `${servidor}/membros/${id}/foto` : '');
 
 /** Onde estão as fotos do mural, servidas como ficheiros do próprio site. */
-export const capaDe = (id: string) => `/media/${id}.jpg`;
-export const slideDe = (id: string, n: number) => `/media/${id}-${n}.jpg`;
+/* As publicacoes do ficheiro trazem as fotos no proprio site; as postas pelo
+   painel de admin trazem-nas do servidor. Daqui sai o endereco certo para
+   cada uma sem quem desenha ter de saber a diferenca. */
+const doServidorOuDaqui = (post: Post, daqui: string) =>
+  post.daNuvem
+    ? servidor
+      ? `${servidor}/media/insta-${post.id}?tipo=${encodeURIComponent(post.mime || 'image/jpeg')}`
+      : ''
+    : daqui;
+
+export const capaDe = (post: Post) => doServidorOuDaqui(post, `/media/${post.id}.jpg`);
+export const slideDe = (post: Post, n: number) =>
+  doServidorOuDaqui(post, `/media/${post.id}-${n}.jpg`);

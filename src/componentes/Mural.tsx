@@ -49,7 +49,7 @@ function Cartao({ post, abrir }: { post: Post; abrir: () => void }) {
     <button className="post" type="button" onClick={abrir}>
       <div className="capa">
         {post.temImagem ? (
-          <img src={capaDe(post.id)} alt="" loading="lazy" />
+          <img src={capaDe(post)} alt="" loading="lazy" />
         ) : (
           <div className="ring" />
         )}
@@ -125,7 +125,7 @@ function Janela({ post, fechar }: { post: Post; fechar: () => void }) {
 
         {nossas ? (
           <div className="album">
-            <img src={slideDe(post.id, slide)} alt="" />
+            <img src={slideDe(post, slide)} alt="" />
             {post.slides > 1 && (
               <>
                 <button

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, temServidor } from '../lib/api';
-import { AdminMembros } from './AdminMembros';
+import { AdminMembros, encolherParaGaleria } from './AdminMembros';
 import { MESES_INTEIROS, TIPOS, dataCurta, hoje } from '../lib/dados';
-import type { Estado, Pontuacao, TipoEvento } from '../lib/tipos';
+import type { Estado, Pontuacao, Post, TipoEvento } from '../lib/tipos';
 
 export function Admin({ estado, recarregar }: { estado: Estado; recarregar: () => void }) {
   const [codigo, setCodigo] = useState('');
@@ -277,6 +277,8 @@ function Cozinha({
 
       <AdminMembros membros={estado.membros} recarregar={recarregar} />
 
+      <MuralDoAdmin estado={estado} recarregar={recarregar} />
+
       <section>
         <h2 style={{ fontSize: 22, marginBottom: 12 }}>Leaderboard</h2>
         <div className="painel">
@@ -387,5 +389,151 @@ function LimparQuadro({ quantos, recarregar }: { quantos: number; recarregar: ()
       )}
       {recado && <p className="recado">{recado}</p>}
     </div>
+  );
+}
+
+/**
+ * O mural do Instagram, aqui no painel.
+ *
+ * O Instagram fechou as portas a quem quer ler um perfil de fora: nem o
+ * servidor nem o browser conseguem ir la buscar as publicacoes sozinhos. Ha
+ * duas maneiras de as ter aqui, e estao as duas neste sitio: a automatica, que
+ * e a via oficial da Meta e precisa de um token, e a de as por a mao, que
+ * funciona sempre.
+ */
+function MuralDoAdmin({ estado, recarregar }: { estado: Estado; recarregar: () => void }) {
+  const [endereco, setEndereco] = useState('');
+  const [legenda, setLegenda] = useState('');
+  const [data, setData] = useState(hoje());
+  const [formato, setFormato] = useState('foto');
+  const [aEnviar, setAEnviar] = useState(false);
+  const [recado, setRecado] = useState('');
+  const campo = useRef<HTMLInputElement>(null);
+
+  const postas = estado.insta.filter((p: Post) => p.daNuvem);
+
+  async function sincronizar() {
+    setRecado('');
+    setAEnviar(true);
+    try {
+      const r = await api.sincronizarMural();
+      setRecado(
+        r.postas > 0
+          ? `Foram buscar ${r.postas} publicações novas.`
+          : 'Não havia nenhuma por trazer.'
+      );
+      recarregar();
+    } catch (e) {
+      setRecado(e instanceof Error ? e.message : 'Não deu.');
+    } finally {
+      setAEnviar(false);
+    }
+  }
+
+  async function acrescentar(ficheiro: File | undefined) {
+    if (!ficheiro) return;
+    setRecado('');
+    setAEnviar(true);
+    try {
+      const capa = await encolherParaGaleria(ficheiro);
+      await api.acrescentarAoMural({ url: endereco.trim(), legenda: legenda.trim(), data, formato }, capa);
+      setEndereco('');
+      setLegenda('');
+      recarregar();
+      setRecado('Está no mural.');
+    } catch (e) {
+      setRecado(e instanceof Error ? e.message : 'Não deu.');
+    } finally {
+      setAEnviar(false);
+      if (campo.current) campo.current.value = '';
+    }
+  }
+
+  async function tirar(post: Post) {
+    if (!window.confirm(`Tirar esta publicação do mural?`)) return;
+    try {
+      await api.tirarDoMural(post.id);
+      recarregar();
+    } catch (e) {
+      setRecado(e instanceof Error ? e.message : 'Não deu para tirar.');
+    }
+  }
+
+  return (
+    <section>
+      <h2 style={{ fontSize: 22, marginBottom: 12 }}>Mural do Instagram</h2>
+      <div className="painel">
+        <p className="notas" style={{ marginTop: 0 }}>
+          O Instagram não deixa o site ir buscar as publicações sozinho. O botão aqui ao lado só
+          funciona depois de haver um token da Meta; até lá, põem-se à mão aqui em baixo.
+        </p>
+
+        <div className="acoes" style={{ marginBottom: 16 }}>
+          <button className="btn claro mini" type="button" disabled={aEnviar} onClick={sincronizar}>
+            Ir buscar as que faltam
+          </button>
+        </div>
+
+        <div className="por-no-mural">
+          <input
+            type="text"
+            value={endereco}
+            placeholder="https://www.instagram.com/p/..."
+            onChange={(e) => setEndereco(e.target.value)}
+          />
+          <input
+            type="text"
+            maxLength={2200}
+            value={legenda}
+            placeholder="a legenda da publicação"
+            onChange={(e) => setLegenda(e.target.value)}
+          />
+          <div className="por-no-mural-linha">
+            <input type="date" value={data} onChange={(e) => setData(e.target.value)} />
+            <select value={formato} onChange={(e) => setFormato(e.target.value)}>
+              <option value="foto">Foto</option>
+              <option value="album">Álbum</option>
+              <option value="reel">Reel</option>
+            </select>
+            <input
+              type="file"
+              accept="image/*"
+              ref={campo}
+              style={{ display: 'none' }}
+              onChange={(e) => acrescentar(e.target.files?.[0])}
+            />
+            <button
+              className="btn mini"
+              type="button"
+              disabled={aEnviar || endereco.trim().length < 10}
+              onClick={() => campo.current?.click()}
+            >
+              {aEnviar ? 'A enviar...' : 'Escolher a capa e pôr no mural'}
+            </button>
+          </div>
+        </div>
+
+        {recado && <p className="recado">{recado}</p>}
+
+        {postas.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            <p className="rotulo">Postas por aqui</p>
+            {postas.map((p: Post) => (
+              <div className="linha-admin" key={p.id}>
+                <div className="corpo">
+                  <b>{p.id}</b>
+                  <small>
+                    {dataCurta(p.data)} · {p.legenda.slice(0, 60) || 'sem legenda'}
+                  </small>
+                </div>
+                <button className="btn claro mini" type="button" onClick={() => tirar(p)}>
+                  Tirar do mural
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

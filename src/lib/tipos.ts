@@ -21,6 +21,9 @@ export type Post = {
   temImagem: boolean;
   /** Quantas fotos temos guardadas desta publicacao (albuns tem varias). */
   slides: number;
+  /** Posta pelo painel de admin: a capa dela vive no servidor e nao no site. */
+  daNuvem?: boolean;
+  mime?: string;
 };
 
 export type Membro = {

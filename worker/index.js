@@ -16,6 +16,10 @@
  *   GET    /agenda          a agenda
  *   GET    /membros         os membros do grupo
  *   GET    /membros/<id>/foto   a fotografia de um membro
+ *   GET    /mural            as publicacoes postas por aqui
+ *   POST   /mural            poe uma publicacao no mural (precisa da chave)
+ *   DELETE /mural/<id>       tira do mural (precisa da chave)
+ *   POST   /mural/sincronizar  vai busca-las a Meta, se houver token
  *   GET    /galeria/<id>      a galeria da mascote
  *   POST   /galeria/<id>      poe la uma foto ou um video (precisa da chave)
  *   DELETE /galeria/<id>/<item>  tira de la (precisa da chave)
@@ -67,6 +71,7 @@ const MAX_FOTO = 400_000; // caracteres de base64, uns 300 kB de imagem
    vez que fosse pedido. */
 const MAX_MEDIA = 8 * 1024 * 1024;
 const MAX_NA_GALERIA = 40;
+const MAX_NO_MURAL = 60;
 const TIPOS_DE_MEDIA = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm', 'video/quicktime'];
 
 /* O saldo do blackjack vive aqui e nao no browser de quem joga. Antes o site
@@ -110,6 +115,12 @@ const novoId = () => crypto.randomUUID().slice(0, 8);
 const ler = async (env, chave, porOmissao) => {
   const guardado = await env.QUADRO.get(chave);
   return guardado ? JSON.parse(guardado) : porOmissao;
+};
+
+/** O codigo de uma publicacao, tirado do endereco dela. */
+const codigoDoInsta = (endereco) => {
+  const m = /instagram\.com\/(?:[^/]+\/)?(?:p|reel|tv)\/([A-Za-z0-9_-]{5,20})/.exec(String(endereco || ''));
+  return m ? m[1] : '';
 };
 
 const linhaNova = (nome) => ({
@@ -651,6 +662,149 @@ export default {
       }
       await env.QUADRO.put('membros', JSON.stringify(lista));
       return responder(m, request);
+    }
+
+    /* ---- o mural do Instagram ----
+
+       O Instagram fechou as portas a quem quer ler um perfil sem estar la
+       dentro: nem daqui nem do browser se consegue ir buscar as publicacoes a
+       bruta. O que ha e a via oficial, a API da Meta, que precisa de uma
+       conta de empresa e de um token; sem ele, as publicacoes poem-se a mao
+       pelo painel de admin, que e o que estas rotas fazem. */
+
+    if (caminho === '/mural') {
+      const lista = await ler(env, 'mural', []);
+
+      if (metodo === 'GET') return responder(lista, request);
+
+      if (metodo === 'POST') {
+        if (!(await temChave(request, env)))
+          return responder({ erro: 'Precisas de entrar outra vez.' }, request, 401);
+        if (lista.length >= MAX_NO_MURAL)
+          return responder({ erro: 'O mural está cheio.' }, request, 409);
+
+        const id = codigoDoInsta(url.searchParams.get('url'));
+        if (!id) return responder({ erro: 'Esse link não parece de uma publicação.' }, request, 400);
+        if (lista.some((x) => x.id === id))
+          return responder({ erro: 'Essa publicação já está no mural.' }, request, 409);
+
+        const mime = (request.headers.get('Content-Type') || '').split(';')[0].trim();
+        if (!TIPOS_DE_MEDIA.includes(mime) || mime.startsWith('video/'))
+          return responder({ erro: 'A capa tem de ser uma imagem.' }, request, 415);
+
+        const bytes = await request.arrayBuffer();
+        if (bytes.byteLength === 0) return responder({ erro: 'A capa veio vazia.' }, request, 400);
+        if (bytes.byteLength > MAX_MEDIA)
+          return responder({ erro: 'Essa capa é demasiado pesada.' }, request, 413);
+
+        const formato = ['foto', 'album', 'reel'].includes(url.searchParams.get('formato'))
+          ? url.searchParams.get('formato')
+          : 'foto';
+        const data = eData(url.searchParams.get('data'))
+          ? url.searchParams.get('data')
+          : new Date().toISOString().slice(0, 10);
+
+        await env.QUADRO.put(`media:insta-${id}`, bytes);
+        const post = {
+          id,
+          data,
+          url: `https://www.instagram.com/p/${id}/`,
+          legenda: texto(url.searchParams.get('legenda'), 2200),
+          temImagem: true,
+          formato,
+          slides: 1,
+          mime,
+          daNuvem: true
+        };
+        lista.unshift(post);
+        lista.sort((a, b) => (a.data < b.data ? 1 : a.data > b.data ? -1 : 0));
+        await env.QUADRO.put('mural', JSON.stringify(lista));
+        return responder(post, request);
+      }
+    }
+
+    const doMural = /^\/mural\/([A-Za-z0-9_-]{1,40})$/.exec(caminho);
+    if (doMural && metodo === 'DELETE') {
+      if (!(await temChave(request, env)))
+        return responder({ erro: 'Precisas de entrar outra vez.' }, request, 401);
+      const lista = await ler(env, 'mural', []);
+      const onde = lista.findIndex((x) => x.id === doMural[1]);
+      if (onde < 0) return responder({ erro: 'Essa não está no mural.' }, request, 404);
+      await env.QUADRO.delete(`media:insta-${lista[onde].id}`);
+      lista.splice(onde, 1);
+      await env.QUADRO.put('mural', JSON.stringify(lista));
+      return responder({ ok: true }, request);
+    }
+
+    /* O botao de ir buscar as que faltam. So funciona com um token da API da
+       Meta guardado nos segredos do Worker (INSTAGRAM_TOKEN); sem ele nao ha
+       maneira nenhuma de um servidor ler o perfil, e o mais honesto e dizer
+       isso em vez de fingir que se tentou. */
+    if (caminho === '/mural/sincronizar' && metodo === 'POST') {
+      if (!(await temChave(request, env)))
+        return responder({ erro: 'Precisas de entrar outra vez.' }, request, 401);
+      if (!env.INSTAGRAM_TOKEN)
+        return responder(
+          {
+            erro: 'Falta o token da Meta. Sem ele o Instagram não deixa ninguém ler o perfil de fora, e as publicações têm de ser postas à mão aqui ao lado.'
+          },
+          request,
+          501
+        );
+
+      const campos = 'id,caption,media_type,media_url,permalink,thumbnail_url,timestamp';
+      let vindas;
+      try {
+        const r = await fetch(
+          `https://graph.instagram.com/me/media?fields=${campos}&limit=25&access_token=${env.INSTAGRAM_TOKEN}`
+        );
+        vindas = await r.json();
+        if (!r.ok) throw new Error(vindas?.error?.message || 'a Meta recusou');
+      } catch (e) {
+        return responder({ erro: 'A Meta não respondeu: ' + e.message }, request, 502);
+      }
+
+      const lista = await ler(env, 'mural', []);
+      const jaLa = new Set(lista.map((x) => x.id));
+      let postas = 0;
+
+      for (const v of vindas.data || []) {
+        const id = codigoDoInsta(v.permalink);
+        if (!id || jaLa.has(id)) continue;
+
+        /* Dos videos guarda-se a miniatura: o video em si vive no Instagram e
+           e de la que o mural o mostra. */
+        const capa = v.media_type === 'VIDEO' ? v.thumbnail_url : v.media_url;
+        if (!capa) continue;
+        let bytes;
+        try {
+          const r = await fetch(capa);
+          if (!r.ok) continue;
+          bytes = await r.arrayBuffer();
+        } catch {
+          continue;
+        }
+        if (bytes.byteLength === 0 || bytes.byteLength > MAX_MEDIA) continue;
+
+        await env.QUADRO.put(`media:insta-${id}`, bytes);
+        lista.push({
+          id,
+          data: String(v.timestamp || '').slice(0, 10),
+          url: v.permalink,
+          legenda: texto(v.caption, 2200),
+          temImagem: true,
+          formato: v.media_type === 'VIDEO' ? 'reel' : v.media_type === 'CAROUSEL_ALBUM' ? 'album' : 'foto',
+          slides: 1,
+          mime: 'image/jpeg',
+          daNuvem: true
+        });
+        jaLa.add(id);
+        postas++;
+      }
+
+      lista.sort((a, b) => (a.data < b.data ? 1 : a.data > b.data ? -1 : 0));
+      await env.QUADRO.put('mural', JSON.stringify(lista.slice(0, MAX_NO_MURAL)));
+      return responder({ ok: true, postas }, request);
     }
 
     /* ---- a galeria da mascote ----
