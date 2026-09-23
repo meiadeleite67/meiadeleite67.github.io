@@ -6,7 +6,11 @@
  * da entrada na página de admin com o código do Google Authenticator.
  *
  *   GET    /quadro          o quadro de honra
- *   PUT    /quadro          grava a pontuação de um nome
+ *   POST   /quadro/sentar     entra na mesa e devolve o saldo de quem joga
+ *   POST   /quadro/apostar    tira a aposta do saldo, antes de haver cartas
+ *   POST   /quadro/jogada     paga (ou não) o que saiu de cada mão
+ *   POST   /quadro/emprestimo os cem do costume, para quem está sem nada
+ *   POST   /quadro/limpar     deita o quadro abaixo (precisa da chave)
  *   GET    /agenda          a agenda
  *   GET    /membros         os membros do grupo
  *   GET    /membros/<id>/foto   a fotografia de um membro
@@ -37,6 +41,16 @@ const MAX_EVENTOS = 300;
 const MAX_NOMES = 200;
 const MAX_MEMBROS = 60;
 const MAX_FOTO = 400_000; // caracteres de base64, uns 300 kB de imagem
+
+/* O saldo do blackjack vive aqui e nao no browser de quem joga. Antes o site
+   mandava o saldo ja feito e este Worker acreditava, o que dava para pôr o
+   numero que se quisesse e fazer uma aposta pequena para o gravar. Agora o
+   cliente so diz o que apostou e o que lhe saiu, e as contas sao daqui. */
+const SALDO_INICIAL = 250;
+const EMPRESTIMO = 100;
+const SALDO_PARA_EMPRESTAR = 5;
+const MAX_MAOS_POR_JOGADA = 4;
+const RESULTADOS = ['blackjack', 'ganhou', 'empate', 'perdeu', 'rebentou'];
 
 /* ============================ utilidades ============================ */
 
@@ -70,6 +84,48 @@ const ler = async (env, chave, porOmissao) => {
   const guardado = await env.QUADRO.get(chave);
   return guardado ? JSON.parse(guardado) : porOmissao;
 };
+
+const linhaNova = (nome) => ({
+  nome,
+  torroes: SALDO_INICIAL,
+  maos: 0,
+  vitorias: 0,
+  bjs: 0,
+  pico: SALDO_INICIAL,
+  pendente: 0,
+  atualizado: new Date().toISOString()
+});
+
+/**
+ * Tudo o que mexe no quadro passa por aqui: le o nome, vai buscar a linha de
+ * quem joga, deixa o trabalho mudá-la e grava. O trabalho devolve uma queixa
+ * em texto quando a jogada nao presta, e nesse caso nao se grava nada.
+ */
+async function comOQuadro(request, env, trabalho) {
+  let veio;
+  try {
+    veio = await request.json();
+  } catch {
+    return responder({ erro: 'Corpo inválido.' }, request, 400);
+  }
+  const nome = texto(veio?.nome, 24);
+  if (nome.length < 2) return responder({ erro: 'Falta o nome.' }, request, 400);
+
+  const quadro = await ler(env, 'quadro', {});
+  if (!quadro[nome] && Object.keys(quadro).length >= MAX_NOMES)
+    return responder({ erro: 'O quadro está cheio.' }, request, 409);
+
+  const linha = { ...linhaNova(nome), ...(quadro[nome] || {}) };
+  const queixa = trabalho(linha, veio);
+  if (queixa) return responder({ erro: queixa }, request, 400);
+
+  linha.torroes = numero(linha.torroes);
+  if (linha.torroes > linha.pico) linha.pico = linha.torroes;
+  linha.atualizado = new Date().toISOString();
+  quadro[nome] = linha;
+  await env.QUADRO.put('quadro', JSON.stringify(quadro));
+  return responder(linha, request);
+}
 
 /* ====================== o código do autenticador ====================== */
 
@@ -223,43 +279,97 @@ export default {
 
     /* ---- quadro de honra ---- */
 
-    if (caminho === '/quadro' || caminho === '/') {
+    if ((caminho === '/quadro' || caminho === '/') && metodo === 'GET') {
       const guardado = await ler(env, 'quadro', {});
+      return responder(
+        Object.values(guardado)
+          .map(({ pendente, ...resto }) => resto)
+          .sort((a, b) => b.torroes - a.torroes),
+        request
+      );
+    }
 
-      if (metodo === 'GET')
-        return responder(
-          Object.values(guardado).sort((a, b) => b.torroes - a.torroes),
-          request
-        );
+    /* Sentar-se a mesa: quem ja jogou volta com o que tinha, quem e novo
+       comeca com os torroes do costume. Uma aposta deixada a meio de uma
+       jogada anterior fica perdida, senao bastava fechar a pagina para
+       desfazer uma mao que corria mal. */
+    if (caminho === '/quadro/sentar' && metodo === 'POST') {
+      return comOQuadro(request, env, (linha) => {
+        linha.pendente = 0;
+      });
+    }
 
-      if (metodo === 'PUT') {
-        let veio;
-        try {
-          veio = await request.json();
-        } catch {
-          return responder({ erro: 'Corpo inválido.' }, request, 400);
+    /* A aposta sai do saldo aqui, antes de haver cartas. */
+    if (caminho === '/quadro/apostar' && metodo === 'POST') {
+      return comOQuadro(request, env, (linha, veio) => {
+        const aposta = numero(veio?.aposta);
+        if (aposta < 1) return 'Aposta inválida.';
+        if (aposta > linha.torroes) return 'Não tens torrões que cheguem.';
+        linha.torroes -= aposta;
+        linha.pendente = aposta;
+      });
+    }
+
+    /* E o pagamento acontece aqui, com o servidor a fazer as contas a partir
+       do que aconteceu a cada mao. O cliente diz o que lhe saiu; quanto e que
+       isso vale e connosco. */
+    if (caminho === '/quadro/jogada' && metodo === 'POST') {
+      return comOQuadro(request, env, (linha, veio) => {
+        const maos = Array.isArray(veio?.maos) ? veio.maos : [];
+        if (maos.length < 1 || maos.length > MAX_MAOS_POR_JOGADA) return 'Jogada inválida.';
+
+        const limpas = [];
+        let total = 0;
+        for (const m of maos) {
+          const aposta = numero(m?.aposta);
+          const resultado = texto(m?.resultado, 12);
+          if (aposta < 1 || !RESULTADOS.includes(resultado)) return 'Jogada inválida.';
+          total += aposta;
+          limpas.push({ aposta, resultado });
         }
-        const nome = texto(veio?.nome, 24);
-        if (!nome) return responder({ erro: 'Falta o nome.' }, request, 400);
-        if (!guardado[nome] && Object.keys(guardado).length >= MAX_NOMES)
-          return responder({ erro: 'O quadro está cheio.' }, request, 409);
 
-        const antes = guardado[nome];
-        const linha = {
-          nome,
-          torroes: numero(veio?.torroes),
-          maos: numero(veio?.maos),
-          vitorias: numero(veio?.vitorias),
-          bjs: numero(veio?.bjs),
-          pico: numero(veio?.pico),
-          atualizado: new Date().toISOString()
-        };
-        if (antes && antes.pico > linha.pico) linha.pico = antes.pico;
+        /* O que foi apostado a mais do que o combinado no inicio e o que veio
+           de dobrar ou de dividir, e tem de caber no que sobra. */
+        const aMais = total - (linha.pendente || 0);
+        if (aMais < 0) return 'Jogada inválida.';
+        if (aMais > linha.torroes) return 'Não tens torrões que cheguem.';
+        linha.torroes -= aMais;
+        linha.pendente = 0;
 
-        guardado[nome] = linha;
-        await env.QUADRO.put('quadro', JSON.stringify(guardado));
-        return responder(linha, request);
-      }
+        for (const m of limpas) {
+          // blackjack a serio so existe na mao de origem, nunca depois de dividir
+          const r = m.resultado === 'blackjack' && limpas.length > 1 ? 'ganhou' : m.resultado;
+          if (r === 'blackjack') {
+            linha.torroes += Math.round(m.aposta * 2.5);
+            linha.vitorias++;
+            linha.bjs++;
+          } else if (r === 'ganhou') {
+            linha.torroes += m.aposta * 2;
+            linha.vitorias++;
+          } else if (r === 'empate') {
+            linha.torroes += m.aposta;
+          }
+          linha.maos++;
+        }
+      });
+    }
+
+    /* Deitar o quadro abaixo. So o admin, e nao ha volta a dar. */
+    if (caminho === '/quadro/limpar' && metodo === 'POST') {
+      if (!(await temChave(request, env)))
+        return responder({ erro: 'Precisas de entrar outra vez.' }, request, 401);
+      const guardado = await ler(env, 'quadro', {});
+      const quantos = Object.keys(guardado).length;
+      await env.QUADRO.put('quadro', JSON.stringify({}));
+      return responder({ ok: true, quantos }, request);
+    }
+
+    /* Os cem emprestados: so para quem esta mesmo sem nada. */
+    if (caminho === '/quadro/emprestimo' && metodo === 'POST') {
+      return comOQuadro(request, env, (linha) => {
+        if (linha.torroes >= SALDO_PARA_EMPRESTAR) return 'Ainda tens torrões.';
+        linha.torroes += EMPRESTIMO;
+      });
     }
 
     /* ---- entrada na página de admin ---- */

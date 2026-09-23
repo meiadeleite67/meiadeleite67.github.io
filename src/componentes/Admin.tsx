@@ -294,8 +294,63 @@ function Cozinha({
               </div>
             ))
           )}
+
+          <LimparQuadro quantos={estado.ranking.length} recarregar={recarregar} />
         </div>
       </section>
     </>
+  );
+}
+
+/** Deitar o quadro abaixo. Como não há volta a dar, pergunta primeiro. */
+function LimparQuadro({ quantos, recarregar }: { quantos: number; recarregar: () => void }) {
+  const [aConfirmar, setAConfirmar] = useState(false);
+  const [aLimpar, setALimpar] = useState(false);
+  const [recado, setRecado] = useState('');
+
+  async function limpar() {
+    setALimpar(true);
+    setRecado('');
+    try {
+      const r = await api.limparQuadro();
+      setAConfirmar(false);
+      setRecado(`Quadro limpo. Saíram ${r.quantos} nomes.`);
+      recarregar();
+    } catch (e) {
+      setRecado(e instanceof Error ? e.message : 'Não deu.');
+    } finally {
+      setALimpar(false);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 18, borderTop: '1px solid var(--linha)', paddingTop: 14 }}>
+      {aConfirmar ? (
+        <>
+          <p className="notas" style={{ marginTop: 0 }}>
+            Isto apaga os {quantos} nomes do quadro e os torrões de toda a gente. Não há volta a
+            dar.
+          </p>
+          <div className="acoes">
+            <button className="btn" type="button" onClick={limpar} disabled={aLimpar}>
+              {aLimpar ? 'A limpar...' : 'Sim, limpa tudo'}
+            </button>
+            <button className="btn claro" type="button" onClick={() => setAConfirmar(false)}>
+              Deixa estar
+            </button>
+          </div>
+        </>
+      ) : (
+        <button
+          className="btn claro mini"
+          type="button"
+          onClick={() => setAConfirmar(true)}
+          disabled={quantos === 0}
+        >
+          Limpar o quadro
+        </button>
+      )}
+      {recado && <p className="recado">{recado}</p>}
+    </div>
   );
 }

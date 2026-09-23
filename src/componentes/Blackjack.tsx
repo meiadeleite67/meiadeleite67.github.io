@@ -20,7 +20,7 @@ import {
   tirarFichas
 } from '../lib/blackjack';
 import type { Carta, Mao, Mesa, Resultado } from '../lib/blackjack';
-import type { Estado } from '../lib/tipos';
+import type { Estado, Pontuacao } from '../lib/tipos';
 
 const LARGURA_CARTA = 64;
 
@@ -33,19 +33,45 @@ const DIZ: Record<Resultado, string> = {
 };
 
 export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: () => void }) {
-  const [mesa, setMesa] = useState<Mesa>(() => {
-    const g = lido('mdl.torroes.v2');
-    return mesaNova(g !== null && Number.isFinite(Number(g)) ? Number(g) : 250);
-  });
+  /* O saldo nao nasce daqui: nasce do servidor, mal se saiba o nome. O que
+     esta mesa leva agora e so o ponto de partida de quem joga sem servidor
+     nenhum, que nao conta para o quadro. */
+  const [mesa, setMesa] = useState<Mesa>(() => mesaNova());
   const [nome, setNome] = useState(() => lido('mdl.nome') || '');
   const [aPedirNome, setAPedirNome] = useState(() => !(lido('mdl.nome') || '').trim());
   const [rascunho, setRascunho] = useState(() => lido('mdl.nome') || '');
 
   const campoNome = useRef<HTMLInputElement>(null);
 
+  /* Os pedidos ao quadro vao em fila e nunca ao mesmo tempo: sao todos
+     leituras e escritas da mesma linha, e dois a andar juntos perdiam-se um ao
+     outro. */
+  const fila = useRef<Promise<unknown>>(Promise.resolve());
+  function naFila(trabalho: () => Promise<Pontuacao | null>) {
+    fila.current = fila.current.then(trabalho).then(sincronizar, () => null);
+  }
+
+  /** O servidor e que sabe o saldo. Isto traz de la a verdade. */
+  function sincronizar(linha: Pontuacao | null) {
+    if (!linha) return;
+    setMesa((m) => ({
+      ...m,
+      saldo: linha.torroes,
+      jogadas: linha.maos,
+      vitorias: linha.vitorias,
+      bjs: linha.bjs,
+      pico: linha.pico
+    }));
+    recarregar();
+  }
+
+  /* quem chega com o nome ja posto senta-se sozinho */
   useEffect(() => {
-    guardar('mdl.torroes.v2', String(mesa.saldo));
-  }, [mesa.saldo]);
+    const posto = (lido('mdl.nome') || '').trim();
+    if (posto) naFila(() => api.sentar(posto));
+    // uma vez, ao entrar na mesa
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (aPedirNome) campoNome.current?.focus({ preventScroll: true });
@@ -57,41 +83,46 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
     const limpo = rascunho.trim();
     if (limpo.length < 2) return;
     if (limpo !== nome) {
+      /* Trocar de nickname e trocar de jogador. Quem ja esta no quadro volta
+         com os torroes que la tinha, e quem e novo comeca do principio: as
+         duas coisas vem do servidor. O que esta aqui e so para quem joga sem
+         servidor nenhum. */
       const jaJogou = estado.ranking.find((r) => r.nome === limpo);
-      setMesa(
-        jaJogou
-          ? {
-              ...mesaNova(jaJogou.torroes),
-              jogadas: jaJogou.maos,
-              vitorias: jaJogou.vitorias,
-              bjs: jaJogou.bjs,
-              pico: jaJogou.pico
-            }
-          : mesaNova()
-      );
+      setMesa(jaJogou ? mesaNova(jaJogou.torroes) : mesaNova());
+      naFila(() => api.sentar(limpo));
     }
     setNome(limpo);
     guardar('mdl.nome', limpo);
     setAPedirNome(false);
   }
 
-  /** Aplica a jogada e, quando a mão fecha, manda a pontuação para o quadro. */
-  function aplicar(m: Mesa, gravarJa = false) {
+  /** Aplica a jogada e, quando a mão fecha, diz ao servidor o que aconteceu.
+   *  Vai o que se apostou e o que saiu a cada mão; quanto é que isso vale em
+   *  torrões é conta do servidor, não daqui. */
+  function aplicar(m: Mesa) {
     setMesa(m);
-    if ((gravarJa || m.fase === 'fim') && nome.trim()) {
-      api
-        .pontuar({
-          nome: nome.trim(),
-          torroes: m.saldo,
-          maos: m.jogadas,
-          vitorias: m.vitorias,
-          bjs: m.bjs,
-          pico: m.pico
-        })
-        .then(recarregar)
-        .catch(() => {
-          /* sem servidor o jogo continua, só não entra no quadro */
-        });
+    if (m.fase !== 'fim' || !nome.trim()) return;
+    const quem = nome.trim();
+    const maos = m.maos.map((x) => ({ aposta: x.aposta, resultado: x.resultado ?? 'perdeu' }));
+    naFila(() => api.jogada(quem, maos));
+  }
+
+  /** Dar cartas: a aposta sai do saldo no servidor antes de haver cartas. */
+  function darCartas() {
+    const aposta = soma(mesa.fichas);
+    if (aposta <= 0 || aposta > mesa.saldo) return;
+    if (nome.trim()) {
+      const quem = nome.trim();
+      naFila(() => api.apostar(quem, aposta));
+    }
+    aplicar(distribuir(mesa));
+  }
+
+  function pedirEmprestado() {
+    setMesa(emprestimo(mesa));
+    if (nome.trim()) {
+      const quem = nome.trim();
+      naFila(() => api.emprestimo(quem));
     }
   }
 
@@ -244,7 +275,7 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
                   className="btn"
                   type="button"
                   disabled={naMesa === 0 || naMesa > b.saldo}
-                  onClick={() => aplicar(distribuir(b))}
+                  onClick={darCartas}
                 >
                   Dar cartas
                 </button>
@@ -257,7 +288,7 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
                   <button
                     className="btn claro"
                     type="button"
-                    onClick={() => aplicar(emprestimo(b), true)}
+                    onClick={pedirEmprestado}
                   >
                     Pedir 100 emprestados ao Amílcar
                   </button>

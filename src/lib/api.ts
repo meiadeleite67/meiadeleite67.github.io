@@ -41,6 +41,13 @@ async function endereco(): Promise<string> {
 
 export const temServidor = () => servidor !== null && servidor !== '';
 
+/** Para os pedidos do blackjack: sem servidor, ou com o servidor a recusar, o
+ *  jogo continua na mesma, só não conta para o quadro. */
+async function talvez<T>(rota: string, corpo: unknown): Promise<T | null> {
+  if (!(await endereco())) return null;
+  return pedir<T>(rota, { method: 'POST', body: JSON.stringify(corpo) }).catch(() => null);
+}
+
 async function pedir<T>(rota: string, opcoes?: RequestInit): Promise<T> {
   const base = await endereco();
   if (!base) throw new Error('O site ainda não está ligado ao servidor do grupo.');
@@ -93,10 +100,19 @@ export const api = {
     };
   },
 
-  async pontuar(p: Omit<Pontuacao, 'atualizado'>): Promise<void> {
-    if (!(await endereco())) return;
-    await pedir('/quadro', { method: 'PUT', body: JSON.stringify(p) }).catch(() => null);
-  },
+  /* ---- blackjack ----
+     Quem manda no saldo é o servidor. O site não lhe diz quantos torrões tem,
+     diz o que apostou e o que lhe saiu, e recebe de volta a linha certa. Sem
+     servidor, cada um joga no seu canto e o quadro não conta nada. */
+
+  sentar: (nome: string) => talvez<Pontuacao>('/quadro/sentar', { nome }),
+  apostar: (nome: string, aposta: number) => talvez<Pontuacao>('/quadro/apostar', { nome, aposta }),
+  jogada: (nome: string, maos: { aposta: number; resultado: string }[]) =>
+    talvez<Pontuacao>('/quadro/jogada', { nome, maos }),
+  emprestimo: (nome: string) => talvez<Pontuacao>('/quadro/emprestimo', { nome }),
+
+  /** Deita o quadro de honra abaixo. Precisa da chave de admin. */
+  limparQuadro: () => pedir<{ ok: boolean; quantos: number }>('/quadro/limpar', { method: 'POST' }),
 
   /* ---- página de admin ---- */
 
