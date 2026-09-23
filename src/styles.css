@@ -3046,8 +3046,14 @@ footer {
 .lupa-palco {
   grid-column: 2;
   grid-row: 2;
-  display: grid;
-  place-items: center;
+  /* Isto ja foi uma grelha, e nao podia ser: a linha de uma grelha cresce ate
+     ao tamanho natural do que la esta dentro, e uma foto de mil e quatrocentos
+     de altura fazia uma linha de mil e quatrocentos. A foto ficava centrada
+     nessa linha enorme em vez de ficar centrada no ecra, e por isso aparecia
+     muito abaixo do sitio dela. Em flex isso nao acontece. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
   height: 100%;
   /* Sem isto a linha do meio nao encolhe abaixo do tamanho da imagem: uma
