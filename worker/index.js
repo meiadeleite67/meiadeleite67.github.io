@@ -6,10 +6,11 @@
  * da entrada na página de admin com o código do Google Authenticator.
  *
  *   GET    /quadro          o quadro de honra
- *   POST   /quadro/sentar     entra na mesa e devolve o saldo de quem joga
- *   POST   /quadro/apostar    tira a aposta do saldo, antes de haver cartas
- *   POST   /quadro/jogada     paga (ou não) o que saiu de cada mão
+ *   POST   /quadro/sentar     entra na mesa, e é aqui que um nome fica de alguém
  *   POST   /quadro/emprestimo os cem do costume, para quem está sem nada
+ *   POST   /mesa              a mão que está a decorrer, se houver
+ *   POST   /mesa/apostar      aposta e dá cartas
+ *   POST   /mesa/jogar        pedir, ficar, dobrar ou dividir
  *   POST   /quadro/apagar     tira um nome do quadro (precisa da chave)
  *   POST   /quadro/limpar     deita o quadro abaixo (precisa da chave)
  *   GET    /agenda          a agenda
@@ -25,6 +26,20 @@
  * Worker (TOTP_SEGREDO), posto com `wrangler secret put`. Assim não anda no
  * repositório nem viaja pela internet.
  */
+
+import {
+  APOSTA_MAXIMA,
+  dividir,
+  dobrar,
+  ficar,
+  maoAtual,
+  mesaNova,
+  paga,
+  pedir,
+  podeDividir,
+  podeDobrar,
+  vista
+} from './blackjack.js';
 
 const CASAS = [
   'https://meiadeleite.pt',
@@ -93,16 +108,40 @@ const linhaNova = (nome) => ({
   vitorias: 0,
   bjs: 0,
   pico: SALDO_INICIAL,
-  pendente: 0,
+  /* O resumo da chave de quem joga com este nome. A chave em si nunca fica
+     guardada, nem aqui nem em lado nenhum: so este resumo, que serve para a
+     confirmar e nao para a descobrir. */
+  resumo: '',
   atualizado: new Date().toISOString()
 });
 
+/** O que pode sair daqui para fora. */
+const semSegredos = ({ resumo, pendente, ...resto }) => resto;
+
+const aoCalhasEmHex = (bytes) => {
+  const b = new Uint8Array(bytes);
+  crypto.getRandomValues(b);
+  return [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+};
+
+async function resumoDe(chave) {
+  const dados = new TextEncoder().encode('mdl:' + chave);
+  const digerido = await crypto.subtle.digest('SHA-256', dados);
+  return [...new Uint8Array(digerido)].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
+
+const chaveBate = async (chave, resumo) =>
+  typeof chave === 'string' && /^[a-f0-9]{32}$/.test(chave) && (await resumoDe(chave)) === resumo;
+
 /**
- * Tudo o que mexe no quadro passa por aqui: le o nome, vai buscar a linha de
- * quem joga, deixa o trabalho mudá-la e grava. O trabalho devolve uma queixa
- * em texto quando a jogada nao presta, e nesse caso nao se grava nada.
+ * Tudo o que e jogar passa por aqui: confirma que quem pede e mesmo o dono do
+ * nome, vai buscar a linha e a mao que estiver a decorrer, deixa o trabalho
+ * fazer o que tem a fazer e grava as duas coisas.
+ *
+ * O trabalho devolve a mesa nova, ou uma queixa em texto quando a jogada nao
+ * presta, e nesse caso nao se grava nada.
  */
-async function comOQuadro(request, env, trabalho) {
+async function comOJogador(request, env, trabalho) {
   let veio;
   try {
     veio = await request.json();
@@ -110,22 +149,43 @@ async function comOQuadro(request, env, trabalho) {
     return responder({ erro: 'Corpo inválido.' }, request, 400);
   }
   const nome = texto(veio?.nome, 24);
-  if (nome.length < 2) return responder({ erro: 'Falta o nome.' }, request, 400);
-
   const quadro = await ler(env, 'quadro', {});
-  if (!quadro[nome] && Object.keys(quadro).length >= MAX_NOMES)
-    return responder({ erro: 'O quadro está cheio.' }, request, 409);
+  const linha = quadro[nome];
+  if (!linha) return responder({ erro: 'Senta-te à mesa primeiro.' }, request, 401);
+  if (!(await chaveBate(veio?.chave, linha.resumo)))
+    return responder({ erro: 'Essa não é a tua chave.' }, request, 403);
 
-  const linha = { ...linhaNova(nome), ...(quadro[nome] || {}) };
-  const queixa = trabalho(linha, veio);
-  if (queixa) return responder({ erro: queixa }, request, 400);
+  const mesa = await ler(env, `mesa:${nome}`, null);
+  const feito = trabalho({ linha, mesa, veio });
+  if (typeof feito === 'string') return responder({ erro: feito }, request, 400);
+
+  /* O pagamento acontece uma unica vez por mao, marcado na propria mesa: se o
+     mesmo pedido chegar duas vezes, a segunda ja nao paga nada. */
+  if (feito && feito.fase === 'fim' && !feito.pago) {
+    for (const mao of feito.maos) {
+      linha.torroes += paga(mao);
+      linha.maos++;
+      if (mao.resultado === 'blackjack') {
+        linha.vitorias++;
+        linha.bjs++;
+      } else if (mao.resultado === 'ganhou') {
+        linha.vitorias++;
+      }
+    }
+    feito.pago = true;
+  }
 
   linha.torroes = numero(linha.torroes);
   if (linha.torroes > linha.pico) linha.pico = linha.torroes;
   linha.atualizado = new Date().toISOString();
   quadro[nome] = linha;
   await env.QUADRO.put('quadro', JSON.stringify(quadro));
-  return responder(linha, request);
+  if (feito) await env.QUADRO.put(`mesa:${nome}`, JSON.stringify(feito));
+
+  return responder(
+    { linha: semSegredos(linha), mesa: feito ? vista(feito, linha.torroes) : null },
+    request
+  );
 }
 
 /* ====================== o código do autenticador ====================== */
@@ -284,74 +344,106 @@ export default {
       const guardado = await ler(env, 'quadro', {});
       return responder(
         Object.values(guardado)
-          .map(({ pendente, ...resto }) => resto)
+          .map((l) => semSegredos(l))
           .sort((a, b) => b.torroes - a.torroes),
         request
       );
     }
 
-    /* Sentar-se a mesa: quem ja jogou volta com o que tinha, quem e novo
-       comeca com os torroes do costume. Uma aposta deixada a meio de uma
-       jogada anterior fica perdida, senao bastava fechar a pagina para
-       desfazer uma mao que corria mal. */
+    /* Sentar-se a mesa. Quem chega com um nome por estrear fica dono dele: o
+       servidor inventa uma chave, guarda so o resumo dela e devolve-a uma
+       unica vez, para o browser dessa pessoa a guardar. Sem essa chave mais
+       ninguem joga com esse nome.
+
+       Era este o outro buraco: bastava escrever o nickname de outra pessoa
+       para jogar com os torroes dela. */
     if (caminho === '/quadro/sentar' && metodo === 'POST') {
-      return comOQuadro(request, env, (linha) => {
-        linha.pendente = 0;
-      });
+      let veio;
+      try {
+        veio = await request.json();
+      } catch {
+        return responder({ erro: 'Corpo inválido.' }, request, 400);
+      }
+      const nome = texto(veio?.nome, 24);
+      if (nome.length < 2) return responder({ erro: 'Falta o nome.' }, request, 400);
+
+      const quadro = await ler(env, 'quadro', {});
+      if (!quadro[nome] && Object.keys(quadro).length >= MAX_NOMES)
+        return responder({ erro: 'O quadro está cheio.' }, request, 409);
+
+      const linha = { ...linhaNova(nome), ...(quadro[nome] || {}) };
+      let chaveNova = '';
+      if (!linha.resumo) {
+        // nome novo, ou de antes de isto existir: fica de quem se sentar primeiro
+        chaveNova = aoCalhasEmHex(16);
+        linha.resumo = await resumoDe(chaveNova);
+      } else if (!(await chaveBate(veio?.chave, linha.resumo))) {
+        return responder({ erro: 'Esse nome já é de alguém. Escolhe outro.' }, request, 403);
+      }
+
+      linha.atualizado = new Date().toISOString();
+      quadro[nome] = linha;
+      await env.QUADRO.put('quadro', JSON.stringify(quadro));
+
+      const mesa = await ler(env, `mesa:${nome}`, null);
+      return responder(
+        {
+          linha: semSegredos(linha),
+          chave: chaveNova || undefined,
+          mesa: mesa ? vista(mesa, linha.torroes) : null
+        },
+        request
+      );
     }
 
-    /* A aposta sai do saldo aqui, antes de haver cartas. */
-    if (caminho === '/quadro/apostar' && metodo === 'POST') {
-      return comOQuadro(request, env, (linha, veio) => {
+    /* ---- a mesa: e aqui que as cartas saem ----
+
+       As cartas sao dadas aqui e a carta tapada da casa nem chega a sair
+       daqui enquanto estiver tapada. O site so pede jogadas e mostra o que
+       recebe: nao tem como dizer que ganhou uma mao que perdeu, porque quem
+       decide isso e este lado. */
+
+    if (caminho === '/mesa' && metodo === 'POST') {
+      return comOJogador(request, env, ({ mesa }) => mesa);
+    }
+
+    if (caminho === '/mesa/apostar' && metodo === 'POST') {
+      return comOJogador(request, env, ({ linha, mesa, veio }) => {
+        /* Com uma mao a meio nao se aposta outra vez: senao bastava pedir
+           cartas novas para fugir a uma mao que corria mal. */
+        if (mesa && mesa.fase === 'jogo') return 'Ainda tens uma mão a meio.';
         const aposta = numero(veio?.aposta);
-        if (aposta < 1) return 'Aposta inválida.';
+        if (aposta < 1 || aposta > APOSTA_MAXIMA) return 'Aposta inválida.';
         if (aposta > linha.torroes) return 'Não tens torrões que cheguem.';
         linha.torroes -= aposta;
-        linha.pendente = aposta;
+        // o sapato da mao anterior continua, como numa mesa a serio
+        return mesaNova(aposta, mesa ? mesa.sapato : null);
       });
     }
 
-    /* E o pagamento acontece aqui, com o servidor a fazer as contas a partir
-       do que aconteceu a cada mao. O cliente diz o que lhe saiu; quanto e que
-       isso vale e connosco. */
-    if (caminho === '/quadro/jogada' && metodo === 'POST') {
-      return comOQuadro(request, env, (linha, veio) => {
-        const maos = Array.isArray(veio?.maos) ? veio.maos : [];
-        if (maos.length < 1 || maos.length > MAX_MAOS_POR_JOGADA) return 'Jogada inválida.';
+    if (caminho === '/mesa/jogar' && metodo === 'POST') {
+      return comOJogador(request, env, ({ linha, mesa, veio }) => {
+        if (!mesa || mesa.fase !== 'jogo') return 'Não há nenhuma mão a decorrer.';
+        /* O passo e o numero da jogada. Se nao bater certo e porque o pedido
+           vem repetido ou fora de horas, e uma carta a mais era uma carta a
+           mais. */
+        if (numero(veio?.passo) !== mesa.passo) return 'Essa jogada já foi feita.';
+        const acao = texto(veio?.acao, 10);
+        mesa.passo++;
 
-        const limpas = [];
-        let total = 0;
-        for (const m of maos) {
-          const aposta = numero(m?.aposta);
-          const resultado = texto(m?.resultado, 12);
-          if (aposta < 1 || !RESULTADOS.includes(resultado)) return 'Jogada inválida.';
-          total += aposta;
-          limpas.push({ aposta, resultado });
+        if (acao === 'pedir') return pedir(mesa);
+        if (acao === 'ficar') return ficar(mesa);
+        if (acao === 'dobrar') {
+          if (!podeDobrar(mesa, linha.torroes)) return 'Agora não dá para dobrar.';
+          linha.torroes -= maoAtual(mesa).aposta;
+          return dobrar(mesa);
         }
-
-        /* O que foi apostado a mais do que o combinado no inicio e o que veio
-           de dobrar ou de dividir, e tem de caber no que sobra. */
-        const aMais = total - (linha.pendente || 0);
-        if (aMais < 0) return 'Jogada inválida.';
-        if (aMais > linha.torroes) return 'Não tens torrões que cheguem.';
-        linha.torroes -= aMais;
-        linha.pendente = 0;
-
-        for (const m of limpas) {
-          // blackjack a serio so existe na mao de origem, nunca depois de dividir
-          const r = m.resultado === 'blackjack' && limpas.length > 1 ? 'ganhou' : m.resultado;
-          if (r === 'blackjack') {
-            linha.torroes += Math.round(m.aposta * 2.5);
-            linha.vitorias++;
-            linha.bjs++;
-          } else if (r === 'ganhou') {
-            linha.torroes += m.aposta * 2;
-            linha.vitorias++;
-          } else if (r === 'empate') {
-            linha.torroes += m.aposta;
-          }
-          linha.maos++;
+        if (acao === 'dividir') {
+          if (!podeDividir(mesa, linha.torroes)) return 'Agora não dá para dividir.';
+          linha.torroes -= maoAtual(mesa).aposta;
+          return dividir(mesa);
         }
+        return 'Jogada que não existe.';
       });
     }
 
@@ -371,6 +463,7 @@ export default {
       if (!nome || !guardado[nome]) return responder({ erro: 'Esse nome não está lá.' }, request, 404);
       delete guardado[nome];
       await env.QUADRO.put('quadro', JSON.stringify(guardado));
+      await env.QUADRO.delete(`mesa:${nome}`);
       return responder({ ok: true, nome }, request);
     }
 
@@ -386,9 +479,10 @@ export default {
 
     /* Os cem emprestados: so para quem esta mesmo sem nada. */
     if (caminho === '/quadro/emprestimo' && metodo === 'POST') {
-      return comOQuadro(request, env, (linha) => {
+      return comOJogador(request, env, ({ linha, mesa }) => {
         if (linha.torroes >= SALDO_PARA_EMPRESTAR) return 'Ainda tens torrões.';
         linha.torroes += EMPRESTIMO;
+        return mesa;
       });
     }
 

@@ -1,26 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { api, temServidor } from '../lib/api';
 import { guardar, lido } from '../lib/dados';
-import {
-  APOSTAS,
-  conta,
-  distribuir,
-  dividir,
-  dobrar,
-  emprestimo,
-  ficar,
-  mesaNova,
-  outraMao,
-  pedir,
-  podeDividir,
-  podeDobrar,
-  porFicha,
-  soma,
-  suave,
-  tirarFichas
-} from '../lib/blackjack';
+import { APOSTAS, conta, mesaNova, porFicha, soma, suave, tirarFichas } from '../lib/blackjack';
 import type { Carta, Mao, Mesa, Resultado } from '../lib/blackjack';
-import type { Estado, Pontuacao } from '../lib/tipos';
+import type { Estado, RespostaDaMesa } from '../lib/tipos';
 
 const LARGURA_CARTA = 64;
 
@@ -32,99 +15,142 @@ const DIZ: Record<Resultado, string> = {
   rebentou: 'Rebentou'
 };
 
+/** Uma carta qualquer para o lugar da tapada: dela so se mostra o verso, e a
+ *  verdadeira nem chega a sair do servidor enquanto estiver por virar. */
+const TAPADA: Carta = { v: 'A', n: '\u2660', verm: false };
+
+const CHAVES = 'mdl.chaves';
+
+/* A chave de cada nickname vive so neste browser. E ela que prova que o nome e
+   nosso; sem ela o servidor nao deixa jogar com ele. */
+function chavesGuardadas(): Record<string, string> {
+  try {
+    const g = JSON.parse(lido(CHAVES) || '{}');
+    return g && typeof g === 'object' ? g : {};
+  } catch {
+    return {};
+  }
+}
+const guardarChave = (nome: string, chave: string) =>
+  guardar(CHAVES, JSON.stringify({ ...chavesGuardadas(), [nome]: chave }));
+
 export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: () => void }) {
-  /* O saldo nao nasce daqui: nasce do servidor, mal se saiba o nome. O que
-     esta mesa leva agora e so o ponto de partida de quem joga sem servidor
-     nenhum, que nao conta para o quadro. */
-  const [mesa, setMesa] = useState<Mesa>(() => mesaNova());
+  /* Esta mesa e so o que se ve. Quem tem as cartas a serio e o servidor: aqui
+     nao ha sapato nenhum, nem contas de quem ganhou. */
+  const [mesa, setMesa] = useState<Mesa>(() => mesaNova(0));
   const [nome, setNome] = useState(() => lido('mdl.nome') || '');
   const [aPedirNome, setAPedirNome] = useState(() => !(lido('mdl.nome') || '').trim());
   const [rascunho, setRascunho] = useState(() => lido('mdl.nome') || '');
+  const [podem, setPodem] = useState({ dobrar: false, dividir: false });
+  const [passo, setPasso] = useState(0);
+  const [aEsperar, setAEsperar] = useState(false);
+  const [recado, setRecado] = useState('');
 
   const campoNome = useRef<HTMLInputElement>(null);
+  /* Um pedido de cada vez: dois a andar juntos davam uma carta a mais. */
+  const ocupado = useRef(false);
 
-  /* Os pedidos ao quadro vao em fila e nunca ao mesmo tempo: sao todos
-     leituras e escritas da mesma linha, e dois a andar juntos perdiam-se um ao
-     outro. */
-  const fila = useRef<Promise<unknown>>(Promise.resolve());
-  function naFila(trabalho: () => Promise<Pontuacao | null>) {
-    fila.current = fila.current.then(trabalho).then(sincronizar, () => null);
-  }
-
-  /** O servidor e que sabe o saldo. Isto traz de la a verdade. */
-  function sincronizar(linha: Pontuacao | null) {
-    if (!linha) return;
-    setMesa((m) => ({
-      ...m,
-      saldo: linha.torroes,
-      jogadas: linha.maos,
-      vitorias: linha.vitorias,
-      bjs: linha.bjs,
-      pico: linha.pico
-    }));
-    recarregar();
-  }
-
-  /* quem chega com o nome ja posto senta-se sozinho */
-  useEffect(() => {
-    const posto = (lido('mdl.nome') || '').trim();
-    if (posto) naFila(() => api.sentar(posto));
-    // uma vez, ao entrar na mesa
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const chaveDe = (quem: string) => chavesGuardadas()[quem] || '';
 
   useEffect(() => {
     if (aPedirNome) campoNome.current?.focus({ preventScroll: true });
   }, [aPedirNome]);
 
-  /** Trocar de nickname é trocar de jogador: quem já está no quadro volta com
-   *  os torrões que lá tinha, quem é novo começa do princípio. */
-  function sentar() {
-    const limpo = rascunho.trim();
-    if (limpo.length < 2) return;
-    if (limpo !== nome) {
-      /* Trocar de nickname e trocar de jogador. Quem ja esta no quadro volta
-         com os torroes que la tinha, e quem e novo comeca do principio: as
-         duas coisas vem do servidor. O que esta aqui e so para quem joga sem
-         servidor nenhum. */
-      const jaJogou = estado.ranking.find((r) => r.nome === limpo);
-      setMesa(jaJogou ? mesaNova(jaJogou.torroes) : mesaNova());
-      naFila(() => api.sentar(limpo));
+  /** Poe no ecra o que o servidor mandou, e mais nada. */
+  function mostrar(r: RespostaDaMesa) {
+    const v = r.mesa;
+    setPodem({ dobrar: v?.podeDobrar ?? false, dividir: v?.podeDividir ?? false });
+    setPasso(v?.passo ?? 0);
+    setMesa((antes) => ({
+      ...antes,
+      saldo: r.linha.torroes,
+      jogadas: r.linha.maos,
+      vitorias: r.linha.vitorias,
+      bjs: r.linha.bjs,
+      pico: r.linha.pico,
+      // a tapada entra aqui so para haver um verso desenhado no lugar dela
+      casa: v ? (v.tapada ? [...v.casa, TAPADA] : v.casa) : [],
+      maos: v ? v.maos.map((m) => ({ ...m, resultado: m.resultado as Resultado | null })) : [],
+      atual: v?.atual ?? 0,
+      revelar: v?.revelar ?? false,
+      fase: v ? (v.fase === 'fim' ? 'fim' : 'jogo') : 'aposta',
+      // as fichas ja foram para a mesa quando as cartas sairam
+      fichas: v ? [] : antes.fichas
+    }));
+  }
+
+  async function aoServidor(trabalho: () => Promise<RespostaDaMesa>) {
+    if (ocupado.current) return;
+    ocupado.current = true;
+    setAEsperar(true);
+    setRecado('');
+    try {
+      mostrar(await trabalho());
+      recarregar();
+    } catch (e) {
+      setRecado(e instanceof Error ? e.message : 'O servidor nao respondeu como devia.');
+    } finally {
+      ocupado.current = false;
+      setAEsperar(false);
     }
-    setNome(limpo);
-    guardar('mdl.nome', limpo);
-    setAPedirNome(false);
   }
 
-  /** Aplica a jogada e, quando a mão fecha, diz ao servidor o que aconteceu.
-   *  Vai o que se apostou e o que saiu a cada mão; quanto é que isso vale em
-   *  torrões é conta do servidor, não daqui. */
-  function aplicar(m: Mesa) {
-    setMesa(m);
-    if (m.fase !== 'fim' || !nome.trim()) return;
-    const quem = nome.trim();
-    const maos = m.maos.map((x) => ({ aposta: x.aposta, resultado: x.resultado ?? 'perdeu' }));
-    naFila(() => api.jogada(quem, maos));
+  /* quem chega com o nome e a chave ja postos volta a mesa onde a deixou */
+  useEffect(() => {
+    const posto = (lido('mdl.nome') || '').trim();
+    if (!posto) return;
+    const chave = chavesGuardadas()[posto] || '';
+    if (!chave) {
+      // nome sem chave, de antes de isto existir: pede-se outra vez
+      setRascunho(posto);
+      setAPedirNome(true);
+      return;
+    }
+    aoServidor(() => api.sentar(posto, chave));
+    // uma vez, ao entrar na mesa
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Sentar-se. Um nome por estrear fica nosso, e o servidor devolve a chave
+   *  dele uma unica vez; um nome que ja e de outra pessoa nao abre. */
+  async function sentar() {
+    const limpo = rascunho.trim();
+    if (limpo.length < 2 || ocupado.current) return;
+    ocupado.current = true;
+    setAEsperar(true);
+    setRecado('');
+    try {
+      const r = await api.sentar(limpo, chaveDe(limpo));
+      if (r.chave) guardarChave(limpo, r.chave);
+      setNome(limpo);
+      guardar('mdl.nome', limpo);
+      setMesa(mesaNova(r.linha.torroes));
+      mostrar(r);
+      setAPedirNome(false);
+      recarregar();
+    } catch (e) {
+      setRecado(e instanceof Error ? e.message : 'Nao deu para sentar.');
+    } finally {
+      ocupado.current = false;
+      setAEsperar(false);
+    }
   }
 
-  /** Dar cartas: a aposta sai do saldo no servidor antes de haver cartas. */
   function darCartas() {
     const aposta = soma(mesa.fichas);
     if (aposta <= 0 || aposta > mesa.saldo) return;
-    if (nome.trim()) {
-      const quem = nome.trim();
-      naFila(() => api.apostar(quem, aposta));
-    }
-    aplicar(distribuir(mesa));
+    aoServidor(() => api.apostarNaMesa(nome.trim(), chaveDe(nome.trim()), aposta));
   }
 
-  function pedirEmprestado() {
-    setMesa(emprestimo(mesa));
-    if (nome.trim()) {
-      const quem = nome.trim();
-      naFila(() => api.emprestimo(quem));
-    }
-  }
+  const jogar = (acao: string) =>
+    aoServidor(() => api.jogar(nome.trim(), chaveDe(nome.trim()), acao, passo));
+
+  const pedirEmprestado = () => aoServidor(() => api.emprestimo(nome.trim(), chaveDe(nome.trim())));
+
+  /** Limpar a mesa para a proxima aposta. So muda o que se ve: a mao anterior
+   *  ja esta fechada e paga do lado de la. */
+  const outraMao = () =>
+    setMesa((m) => ({ ...m, maos: [], casa: [], atual: 0, fase: 'aposta', revelar: false }));
 
   const b = mesa;
   const naMesa = soma(b.fichas);
@@ -274,13 +300,18 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
                 <button
                   className="btn"
                   type="button"
-                  disabled={naMesa === 0 || naMesa > b.saldo}
+                  disabled={aEsperar || naMesa === 0 || naMesa > b.saldo}
                   onClick={darCartas}
                 >
                   Dar cartas
                 </button>
                 {b.fichas.length > 0 && (
-                  <button className="btn claro" type="button" onClick={() => setMesa(tirarFichas(b))}>
+                  <button
+                    className="btn claro"
+                    type="button"
+                    disabled={aEsperar}
+                    onClick={() => setMesa(tirarFichas(b))}
+                  >
                     Tirar as fichas
                   </button>
                 )}
@@ -288,6 +319,7 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
                   <button
                     className="btn claro"
                     type="button"
+                    disabled={aEsperar}
                     onClick={pedirEmprestado}
                   >
                     Pedir 100 emprestados ao Amílcar
@@ -297,30 +329,52 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
             )}
             {b.fase === 'jogo' && (
               <>
-                <button className="btn" type="button" onClick={() => aplicar(pedir(b))}>
+                <button
+                  className="btn"
+                  type="button"
+                  disabled={aEsperar}
+                  onClick={() => jogar('pedir')}
+                >
                   Pedir
                 </button>
-                <button className="btn claro" type="button" onClick={() => aplicar(ficar(b))}>
+                <button
+                  className="btn claro"
+                  type="button"
+                  disabled={aEsperar}
+                  onClick={() => jogar('ficar')}
+                >
                   Ficar
                 </button>
-                {podeDobrar(b) && (
-                  <button className="btn claro" type="button" onClick={() => aplicar(dobrar(b))}>
+                {podem.dobrar && (
+                  <button
+                    className="btn claro"
+                    type="button"
+                    disabled={aEsperar}
+                    onClick={() => jogar('dobrar')}
+                  >
                     Dobrar
                   </button>
                 )}
-                {podeDividir(b) && (
-                  <button className="btn claro" type="button" onClick={() => aplicar(dividir(b))}>
+                {podem.dividir && (
+                  <button
+                    className="btn claro"
+                    type="button"
+                    disabled={aEsperar}
+                    onClick={() => jogar('dividir')}
+                  >
                     Dividir
                   </button>
                 )}
               </>
             )}
             {b.fase === 'fim' && (
-              <button className="btn" type="button" onClick={() => setMesa(outraMao(b))}>
+              <button className="btn" type="button" disabled={aEsperar} onClick={outraMao}>
                 Outra mão
               </button>
             )}
           </div>
+
+          {recado && <p className="recado mal">{recado}</p>}
 
           {nome.trim() && (
             <p className="a-jogar-como">
@@ -379,6 +433,7 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
             {rascunho.trim().length > 0 && rascunho.trim().length < 2 && (
               <p className="recado">Duas letras, pelo menos.</p>
             )}
+            {recado && <p className="recado mal">{recado}</p>}
           </form>
         </div>
       )}

@@ -41,6 +41,40 @@ export type Pontuacao = {
   atualizado: string;
 };
 
+/* O que o servidor deixa o site ver da mao que esta a decorrer. As cartas da
+   casa vem cortadas: enquanto a tapada estiver tapada, ela nem sai de la. */
+
+export type CartaVista = { v: string; n: string; verm: boolean };
+
+export type MaoVista = {
+  cartas: CartaVista[];
+  aposta: number;
+  fechada: boolean;
+  resultado: 'blackjack' | 'ganhou' | 'empate' | 'perdeu' | 'rebentou' | null;
+  deAses: boolean;
+};
+
+export type MesaVista = {
+  fase: 'jogo' | 'fim';
+  revelar: boolean;
+  atual: number;
+  /** O numero da jogada, que volta com cada acao para nao se repetirem. */
+  passo: number;
+  casa: CartaVista[];
+  /** Se a casa ainda tem uma carta por virar. */
+  tapada: boolean;
+  maos: MaoVista[];
+  podeDividir: boolean;
+  podeDobrar: boolean;
+};
+
+export type RespostaDaMesa = {
+  linha: Pontuacao;
+  /** So vem quando um nome e estreado: e a chave desse nome, e so aparece uma vez. */
+  chave?: string;
+  mesa: MesaVista | null;
+};
+
 export type Estado = {
   agenda: Evento[];
   insta: Post[];

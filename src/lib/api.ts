@@ -1,4 +1,4 @@
-import type { Estado, Evento, Membro, Pontuacao } from './tipos';
+import type { Estado, Evento, Membro, Pontuacao, RespostaDaMesa } from './tipos';
 
 /**
  * O site é servido pelo GitHub Pages, que só entrega ficheiros. Quem grava é
@@ -41,12 +41,11 @@ async function endereco(): Promise<string> {
 
 export const temServidor = () => servidor !== null && servidor !== '';
 
-/** Para os pedidos do blackjack: sem servidor, ou com o servidor a recusar, o
- *  jogo continua na mesma, só não conta para o quadro. */
-async function talvez<T>(rota: string, corpo: unknown): Promise<T | null> {
-  if (!(await endereco())) return null;
-  return pedir<T>(rota, { method: 'POST', body: JSON.stringify(corpo) }).catch(() => null);
-}
+/** Os pedidos da mesa devolvem sempre a mesma coisa: a linha de quem joga e a
+ *  mao que esta a decorrer, se houver. */
+const naMesa = (rota: string, corpo: unknown) =>
+  pedir<RespostaDaMesa>(rota, { method: 'POST', body: JSON.stringify(corpo) });
+
 
 async function pedir<T>(rota: string, opcoes?: RequestInit): Promise<T> {
   const base = await endereco();
@@ -101,15 +100,19 @@ export const api = {
   },
 
   /* ---- blackjack ----
-     Quem manda no saldo é o servidor. O site não lhe diz quantos torrões tem,
-     diz o que apostou e o que lhe saiu, e recebe de volta a linha certa. Sem
-     servidor, cada um joga no seu canto e o quadro não conta nada. */
+     As cartas saem do servidor e e ele que decide o que vale cada mao. O site
+     pede jogadas e mostra o que recebe: nao tem como dizer que ganhou, nem
+     como jogar com o nome de outra pessoa, que e para isso que serve a chave.
+     Sem servidor nao ha jogo, porque nao ha quem de as cartas. */
 
-  sentar: (nome: string) => talvez<Pontuacao>('/quadro/sentar', { nome }),
-  apostar: (nome: string, aposta: number) => talvez<Pontuacao>('/quadro/apostar', { nome, aposta }),
-  jogada: (nome: string, maos: { aposta: number; resultado: string }[]) =>
-    talvez<Pontuacao>('/quadro/jogada', { nome, maos }),
-  emprestimo: (nome: string) => talvez<Pontuacao>('/quadro/emprestimo', { nome }),
+  sentar: (nome: string, chave?: string) =>
+    naMesa('/quadro/sentar', { nome, chave: chave || undefined }),
+  mesa: (nome: string, chave: string) => naMesa('/mesa', { nome, chave }),
+  apostarNaMesa: (nome: string, chave: string, aposta: number) =>
+    naMesa('/mesa/apostar', { nome, chave, aposta }),
+  jogar: (nome: string, chave: string, acao: string, passo: number) =>
+    naMesa('/mesa/jogar', { nome, chave, acao, passo }),
+  emprestimo: (nome: string, chave: string) => naMesa('/quadro/emprestimo', { nome, chave }),
 
   /** Tira um nome do quadro. Precisa da chave de admin. */
   apagarDoQuadro: (nome: string) =>
