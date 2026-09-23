@@ -1,7 +1,7 @@
 # meiadeleite.pt
 
-Site do grupo **MEIadeLEIte**: blackjack a torrões de açúcar, mural do Instagram e agenda,
-com uma meia de leite a ser entornada a cada troca de página.
+Site do grupo **MEIadeLEIte**: blackjack e poker a torrões de açúcar, mural do Instagram e
+agenda, com uma meia de leite a ser entornada a cada troca de página.
 
 Feito em React com Vite. Está publicado no GitHub Pages: cada push para `main` constrói e
 publica sozinho.
@@ -118,6 +118,8 @@ os torrões ficam no browser de cada um e o `/admin` diz que não há por onde e
 | `PUT /quadro` | grava a pontuação de um nome |
 | `GET /agenda` | a agenda |
 | `GET /membros` | os membros, e `/membros/<id>/foto` a fotografia de cada um |
+| `GET /poker` | quanta gente está em cada mesa, com `?mesas=a,b,c` |
+| `GET /poker/<mesa>` | a ligação viva a uma mesa (WebSocket) |
 | `POST /admin/entrar` | troca um código de 6 dígitos por uma chave de sessão, que dura 8 horas |
 | `POST`, `PATCH`, `DELETE` em `/agenda` | marcar, mudar e apagar, com essa chave |
 | `POST`, `PATCH`, `DELETE` em `/membros` | o mesmo, para os membros |
@@ -130,6 +132,32 @@ que o Worker ainda não sabe responder:
 
 ```bash
 cd worker && npx wrangler deploy
+```
+
+### As mesas de poker
+
+Cada mesa é um **Durable Object**, e não uma chave no KV. O KV é consistente com o tempo: duas
+jogadas ao mesmo tempo podiam ler a mesa como ela estava há um instante e gravar uma por cima
+da outra, o que numa mesa com cinco pessoas era o suficiente para dar cartas a mais. Um Durable
+Object é um sítio só, a atender um pedido de cada vez, com as ligações de quem lá está agarradas
+a ele.
+
+Isso quer dizer que o Worker precisa do plano pago da Cloudflare. A ligação `[[durable_objects]]`
+e a migração estão no [`wrangler.toml`](worker/wrangler.toml) e publicam-se com o resto:
+
+```bash
+cd worker && npx wrangler deploy
+```
+
+As mesas são cinco, uma por membro, e o nome de cada uma é `m-<id do membro>`. Mudar a ordem dos
+membros muda a quem pertence cada mesa, e as fichas de uma mesa vivem nela: são compradas ali e
+não mexem no quadro de honra do blackjack.
+
+As regras do Hold'em estão em [`worker/poker.js`](worker/poker.js), sem saber nada de rede, e
+têm provas próprias:
+
+```bash
+node scripts/testes-poker.mjs
 ```
 
 ## O domínio
