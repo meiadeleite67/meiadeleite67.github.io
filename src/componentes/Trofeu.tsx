@@ -3,8 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 /**
  * O Pixel d'Ouro, em três dimensões e sem biblioteca nenhuma.
  *
- * O troféu é uma placa de acrílico trapezoidal, mais larga em cima do que em
- * baixo, encaixada numa lâmina de vidro igualmente transparente. Isso é
+ * O troféu é uma placa de acrílico encaixada numa lâmina de vidro igualmente
+ * transparente. Isso é
  * geometria simples: faz-se com as transformações 3D do próprio CSS, uma face
  * à frente, outra atrás e os bordos a fazer a espessura. Zero bytes de
  * biblioteca.
@@ -114,20 +114,9 @@ function Banda() {
   );
 }
 
-/** O fio de luz que corre pela aresta do acrilico. Desenhado como contorno e
- *  nao como fundo: um fundo pintava a placa toda e ela e transparente. */
-function Aresta() {
-  return (
-    <svg className="aresta" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-      <polygon points="0,0 100,0 84.2,100 15.8,100" vectorEffect="non-scaling-stroke" />
-    </svg>
-  );
-}
-
 function CaraDaPlaca() {
   return (
     <>
-      <Aresta />
       <PontoDeCruz />
       <span className="gravado">XXI Pixel d&apos;Ouro</span>
     </>
@@ -226,7 +215,7 @@ export function Trofeu() {
     <div
       className="trofeu-cena"
       ref={cena}
-      aria-label="O troféu do XXI Pixel d'Ouro, Grupo do Ano"
+      aria-label="O troféu do XXI Pixel d'Ouro, Grupo d'Ano"
       role="img"
       style={
         {
@@ -253,8 +242,8 @@ export function Trofeu() {
           <div className="bordo cima">
             <Banda />
           </div>
-          <div className="lado esquerdo" />
-          <div className="lado direito" />
+          <div className="bordo esquerdo" />
+          <div className="bordo direito" />
           <div className="brilho" />
         </div>
 
@@ -262,10 +251,10 @@ export function Trofeu() {
           <div className="base-face base-tras" />
           <div className="base-face base-lado esq" />
           <div className="base-face base-lado dir" />
-          <div className="base-face base-topo" />
-          <div className="base-face base-frente">
-            <span>Grupo do Ano</span>
+          <div className="base-face base-topo">
+            <span>Grupo d&apos;Ano</span>
           </div>
+          <div className="base-face base-frente" />
         </div>
 
         <div className="sombra" />
