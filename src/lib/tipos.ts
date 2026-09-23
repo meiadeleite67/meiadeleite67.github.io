@@ -48,4 +48,4 @@ export type Estado = {
   membros: Membro[];
 };
 
-export type Pagina = 'inicio' | 'membros' | 'blackjack' | 'instagram' | 'agenda' | 'admin';
+export type Pagina = 'inicio' | 'membros' | 'blackjack' | 'instagram' | 'agenda' | 'admin' | 'jogo';

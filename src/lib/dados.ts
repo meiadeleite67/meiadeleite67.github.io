@@ -8,8 +8,10 @@ export const PAGINAS: { id: Pagina; nome: string }[] = [
   { id: 'agenda', nome: 'Agenda' }
 ];
 
-/** A de admin nao esta na barra de propósito: chega-se la pelo endereco. */
-export const TODAS_AS_PAGINAS: Pagina[] = [...PAGINAS.map((p) => p.id), 'admin'];
+/** A de admin e a do jogo nao estao na barra de propósito: a de admin porque
+ *  nao deve estar, a do jogo porque ela aparece sozinha quando falta a net.
+ *  Chega-se as duas pelo endereco. */
+export const TODAS_AS_PAGINAS: Pagina[] = [...PAGINAS.map((p) => p.id), 'admin', 'jogo'];
 
 export const TIPOS: Record<TipoEvento, { nome: string; cls: string; cor: string }> = {
   copos: { nome: 'Copos', cls: 't-copos', cor: 'var(--crema)' },

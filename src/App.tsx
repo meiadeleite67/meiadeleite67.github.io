@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Entornar, useEntornar } from './componentes/Entornar';
 import { Inicio } from './componentes/Inicio';
 import { Membros } from './componentes/Membros';
@@ -6,6 +6,7 @@ import { Blackjack } from './componentes/Blackjack';
 import { Mural } from './componentes/Mural';
 import { Agenda } from './componentes/Agenda';
 import { Admin } from './componentes/Admin';
+import { Jogo } from './componentes/Jogo';
 import { Rodape } from './componentes/Rodape';
 import { api } from './lib/api';
 import { PAGINAS, TODAS_AS_PAGINAS } from './lib/dados';
@@ -26,6 +27,7 @@ export default function App() {
   const [pagina, setPagina] = useState<Pagina>(paginaDoEndereco);
   const [estado, setEstado] = useState<Estado>(VAZIO);
   const [menuAberto, setMenuAberto] = useState(false);
+  const [semRede, setSemRede] = useState(() => navigator.onLine === false);
   const { fase, entornar } = useEntornar();
 
   const recarregar = useCallback(async () => {
@@ -55,6 +57,32 @@ export default function App() {
     },
     [pagina, entornar]
   );
+
+  /* Quando a rede cai, o site manda jogar, que e o que o browser faria com o
+     dinossauro dele se nao tivessemos nada guardado. So uma vez por falha:
+     quem sair do jogo estando ainda sem rede nao volta la parar sozinho. */
+  const jaMandouJogar = useRef(false);
+  useEffect(() => {
+    const caiu = () => setSemRede(true);
+    const voltou = () => {
+      setSemRede(false);
+      jaMandouJogar.current = false;
+    };
+    window.addEventListener('offline', caiu);
+    window.addEventListener('online', voltou);
+    return () => {
+      window.removeEventListener('offline', caiu);
+      window.removeEventListener('online', voltou);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!semRede || jaMandouJogar.current) return;
+    jaMandouJogar.current = true;
+    irPara('jogo');
+    // so depende da rede: o irPara muda a cada navegacao e nao deve reativar isto
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [semRede]);
 
   useEffect(() => {
     if (!menuAberto) return;
@@ -138,6 +166,7 @@ export default function App() {
         {pagina === 'instagram' && <Mural estado={estado} />}
         {pagina === 'agenda' && <Agenda estado={estado} />}
         {pagina === 'admin' && <Admin estado={estado} recarregar={recarregar} />}
+        {pagina === 'jogo' && <Jogo estado={estado} semRede={semRede} />}
 
         <Rodape irPara={irPara} />
       </main>

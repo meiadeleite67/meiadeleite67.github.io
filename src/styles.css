@@ -2271,3 +2271,87 @@ footer {
     transition: none !important;
   }
 }
+
+/* ======================= o jogo de quando falta a net =======================
+   O desenho todo acontece dentro do canvas; isto aqui é só a moldura, o
+   placard e os botões para quem joga com o dedo. */
+
+.jogo {
+  max-width: 780px;
+}
+.jogo h1 {
+  font-size: clamp(26px, 4.4vw, 38px);
+}
+.jogo-placard {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin: 20px 0 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tinta-3);
+}
+.jogo-placard b {
+  margin-left: 6px;
+  color: var(--tinta);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+.jogo-tela {
+  position: relative;
+  border: 1px solid var(--linha);
+  border-radius: var(--r);
+  background: linear-gradient(180deg, #1b130e 0%, #241a13 100%);
+  overflow: hidden;
+  box-shadow: var(--sombra);
+  cursor: pointer;
+  /* um toque é um salto, e não um zoom nem um deslizar da página */
+  touch-action: manipulation;
+  user-select: none;
+}
+.jogo-tela canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.jogo-aviso {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  padding: 16px;
+  text-align: center;
+  background: rgba(23, 16, 12, 0.72);
+}
+.jogo-aviso p {
+  margin: 0;
+  font-family: var(--disp);
+  font-size: clamp(18px, 3vw, 22px);
+  color: var(--tinta);
+}
+.jogo-ajuda {
+  margin-top: 12px;
+}
+/* com dedo não há teclas, por isso os botões só aparecem aí */
+.jogo-botoes {
+  display: none;
+}
+@media (hover: none) {
+  .jogo-botoes {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .jogo-botoes .btn {
+    flex: 1;
+    padding: 14px;
+  }
+  .jogo-ajuda {
+    display: none;
+  }
+}
