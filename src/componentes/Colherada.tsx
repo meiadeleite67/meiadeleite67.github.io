@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { fotoDoMembro } from '../lib/api';
 import { guardar, lido } from '../lib/dados';
 import type { Estado, Membro } from '../lib/tipos';
@@ -14,6 +15,13 @@ import type { Estado, Membro } from '../lib/tipos';
  * Fica difícil com os acertos e não com o relógio: quem acerta mais vê-os
  * sair mais depressa, ficar menos tempo cá fora e, a partir de certa altura,
  * sair dois e três ao mesmo tempo. Quem vai falhando fica no ritmo em que está.
+ *
+ * O Cusco não entra: é a mascote, e na mascote não se bate.
+ *
+ * E há um segredo. Uma vez por jogo, a certa altura, o Abadesso espreita da
+ * beira do ecrã e volta a esconder-se. Quem for rápido e lhe tocar descobre-o,
+ * e a partir daí é ele que sai das chávenas. Fica descoberto nesse browser e
+ * passa a aparecer na lista, para se poder voltar a ele.
  */
 
 const CHAVENAS = 9;
@@ -34,6 +42,17 @@ const ACERTOS_POR_NIVEL = 5;
 
 const RECORDE = 'mdl.colherada.recorde';
 const ESCOLHIDO = 'mdl.colherada.quem';
+const ACHADO = 'mdl.colherada.abadesso';
+
+/** O segredo. Não é membro do painel: a foto vive no próprio site. */
+const ABADESSO: Membro = { id: 'abadesso', nome: 'Abadesso', descricao: '', temFoto: true, ordem: 999 };
+const FOTO_DO_ABADESSO = '/media/abadesso.jpg';
+/** Quando espreita, contado desde o começo da jogada, e quanto tempo fica. */
+const ESPREITA_MIN = 5000;
+const ESPREITA_MAX = 16000;
+const ESPREITA_DURA = 1500;
+/** Quanto tempo fica a mensagem antes de o jogo continuar, já com ele. */
+const ACHADO_DURA = 2600;
 
 const GRITOS = ['Pumba!', 'Toma!', 'Ai!', 'Apanhado!', 'Na mouche!', 'Ui!'];
 
@@ -70,7 +89,7 @@ function Cara({ membro }: { membro: Membro }) {
     <>
       {membro.temFoto && membro.id ? (
         <img
-          src={fotoDoMembro(membro.id)}
+          src={membro.id === ABADESSO.id ? FOTO_DO_ABADESSO : fotoDoMembro(membro.id)}
           alt=""
           draggable={false}
           onError={(e) => {
@@ -94,14 +113,28 @@ export function Colherada({ estado }: { estado: Estado }) {
   /** Onde a colher caiu da última vez. O número muda a cada pancada, para a
    *  animação voltar a correr mesmo que seja na mesma chávena. */
   const [pancada, setPancada] = useState({ onde: -1, n: 0 });
+  const [achado, setAchado] = useState(() => lido(ACHADO) === 'sim');
+  /** Enquanto ele espreita: de que lado e a que altura do ecrã. */
+  const [espreita, setEspreita] = useState<{ lado: 'esq' | 'dir'; topo: number } | null>(null);
+  const [aAnunciar, setAAnunciar] = useState(false);
 
   /* O que o relógio precisa de ler vive em referências: os temporizadores
      foram marcados antes e veriam valores velhos se lessem o estado. */
-  const jogo = useRef({ chavenas: vazias(), acertos: 0, vidas: VIDAS, vez: 0, aJogar: false });
+  const jogo = useRef({
+    chavenas: vazias(),
+    acertos: 0,
+    vidas: VIDAS,
+    vez: 0,
+    aJogar: false,
+    espreitou: false
+  });
   const relogios = useRef<number[]>([]);
 
-  const membros = estado.membros;
+  const membros = [...estado.membros.filter((m) => !m.mascote), ...(achado ? [ABADESSO] : [])];
   const quem = membros.find((m) => m.id === quemId) ?? membros[0] ?? UM_DE_NOS;
+  /* os temporizadores precisam de saber com quem se joga sem ler estado velho */
+  const comQuem = useRef(quem.id);
+  comQuem.current = quem.id;
 
   const daqui = (ms: number, o: () => void) => {
     relogios.current.push(window.setTimeout(o, ms));
@@ -119,6 +152,7 @@ export function Colherada({ estado }: { estado: Estado }) {
     arrumar();
     j.chavenas = vazias();
     mostrar();
+    setEspreita(null);
     setFase('acabou');
     const antes = Number(lido(RECORDE)) || 0;
     if (j.acertos > antes) {
@@ -157,9 +191,53 @@ export function Colherada({ estado }: { estado: Estado }) {
     daqui(intervalo(j.acertos), lancar);
   }, [acabar]);
 
+  /** Ele espreita da beira do ecrã e volta a esconder-se. Com ele já nas
+   *  chávenas não há nada para descobrir. */
+  const marcarEspreita = useCallback(() => {
+    const j = jogo.current;
+    if (j.espreitou || comQuem.current === ABADESSO.id) return;
+    const quando = ESPREITA_MIN + Math.random() * (ESPREITA_MAX - ESPREITA_MIN);
+    daqui(quando, () => {
+      if (!j.aJogar || j.espreitou) return;
+      j.espreitou = true;
+      setEspreita({ lado: Math.random() < 0.5 ? 'esq' : 'dir', topo: 22 + Math.random() * 50 });
+      daqui(ESPREITA_DURA, () => setEspreita(null));
+    });
+  }, []);
+
+  /** Apanhado. O jogo para um instante para o anunciar e segue com ele. */
+  function apanhar() {
+    const j = jogo.current;
+    if (!j.aJogar) return;
+    setEspreita(null);
+    j.aJogar = false;
+    arrumar();
+    j.chavenas = vazias();
+    mostrar();
+    setAchado(true);
+    guardar(ACHADO, 'sim');
+    setQuemId(ABADESSO.id);
+    guardar(ESCOLHIDO, ABADESSO.id);
+    setAAnunciar(true);
+    daqui(ACHADO_DURA, () => {
+      setAAnunciar(false);
+      j.aJogar = true;
+      daqui(500, lancar);
+    });
+  }
+
   function comecar() {
     arrumar();
-    jogo.current = { chavenas: vazias(), acertos: 0, vidas: VIDAS, vez: 0, aJogar: true };
+    jogo.current = {
+      chavenas: vazias(),
+      acertos: 0,
+      vidas: VIDAS,
+      vez: 0,
+      aJogar: true,
+      espreitou: false
+    };
+    setEspreita(null);
+    setAAnunciar(false);
     mostrar();
     setAcertos(0);
     setVidas(VIDAS);
@@ -167,6 +245,7 @@ export function Colherada({ estado }: { estado: Estado }) {
     setFase('a-jogar');
     // um instante para a pessoa pousar os olhos no balcão antes do primeiro
     daqui(600, lancar);
+    marcarEspreita();
   }
 
   function bater(i: number) {
@@ -203,14 +282,18 @@ export function Colherada({ estado }: { estado: Estado }) {
         arrumar();
         j.chavenas = vazias();
         mostrar();
+        setEspreita(null);
       } else if (!j.aJogar && j.vidas > 0) {
+        setAAnunciar(false);
         j.aJogar = true;
         daqui(600, lancar);
+        // se ainda nao tinha espreitado, continua a poder espreitar
+        marcarEspreita();
       }
     };
     document.addEventListener('visibilitychange', aoMudar);
     return () => document.removeEventListener('visibilitychange', aoMudar);
-  }, [fase, lancar]);
+  }, [fase, lancar, marcarEspreita]);
 
   // sair da página a meio arruma os temporizadores todos
   useEffect(() => () => arrumar(), []);
@@ -322,7 +405,33 @@ export function Colherada({ estado }: { estado: Estado }) {
                 {pancada.onde === i && <span className="colher" key={pancada.n} aria-hidden="true" />}
               </button>
             ))}
+
+            {aAnunciar && (
+              <div className="abadesso-achado" role="status">
+                <span className="retrato">
+                  <img src={FOTO_DO_ABADESSO} alt="" draggable={false} />
+                </span>
+                <p>Um Abadesso foi encontrado</p>
+              </div>
+            )}
           </div>
+
+          {espreita &&
+            createPortal(
+              <button
+                type="button"
+                className={`abadesso-espreita ${espreita.lado}`}
+                style={{ top: `${espreita.topo}%` }}
+                aria-label="Quem é este?"
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  apanhar();
+                }}
+              >
+                <img src={FOTO_DO_ABADESSO} alt="" draggable={false} />
+              </button>,
+              document.body
+            )}
 
           {fase === 'acabou' && (
             <div className="cusco-fim colherada-fim">
