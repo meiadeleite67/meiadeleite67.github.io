@@ -2988,6 +2988,11 @@ footer {
   background: rgba(9, 6, 4, 0.97);
   backdrop-filter: blur(3px);
   padding: 8px;
+  /* No telemovel a barra do browser entra e sai, e a altura da janela nao e a
+     altura que se ve. O dvh e a que se ve; o vh fica para quem nao o
+     conhecer. */
+  height: 100vh;
+  height: 100dvh;
 }
 .lupa-topo {
   grid-column: 1 / -1;
@@ -3045,13 +3050,23 @@ footer {
   place-items: center;
   overflow: hidden;
   height: 100%;
+  /* Sem isto a linha do meio nao encolhe abaixo do tamanho da imagem: uma
+     fotografia grande empurrava a grelha para fora do ecra e aparecia em
+     tamanho real. O minimo de uma linha 1fr e o conteudo dela, a nao ser que
+     se diga que nao. */
+  min-height: 0;
+  min-width: 0;
   /* com os dedos em cima disto, o browser nao mexe a pagina nem faz o zoom
      dele: quem manda no zoom aqui somos nos */
   touch-action: none;
 }
 .lupa-palco img {
   max-width: 100%;
-  max-height: 100%;
+  /* o teto tambem em altura de ecra, para a foto nunca ficar por baixo da
+     barra do browser */
+  max-height: min(100%, calc(100dvh - 120px));
+  width: auto;
+  height: auto;
   object-fit: contain;
   transform-origin: center;
   transition: transform 0.12s ease-out;
@@ -3066,7 +3081,9 @@ footer {
 }
 .lupa-palco video {
   max-width: 100%;
-  max-height: 100%;
+  max-height: min(100%, calc(100dvh - 120px));
+  width: auto;
+  height: auto;
 }
 @media (max-width: 560px) {
   .lupa {

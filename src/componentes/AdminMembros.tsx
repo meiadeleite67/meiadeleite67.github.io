@@ -3,6 +3,9 @@ import { api, enderecoDoMedia, fotoDoMembro } from '../lib/api';
 import type { ItemDaGaleria, Membro } from '../lib/tipos';
 
 const LADO = 480;
+/** O lado maior de uma foto da galeria. Chega para se aproximar sem ficar
+ *  esborratada, e poupa quase tudo o que uma foto de telemovel traz a mais. */
+const LADO_DA_GALERIA = 1800;
 
 /**
  * Encolhe a foto aqui no browser antes de a mandar.
@@ -11,6 +14,47 @@ const LADO = 480;
  * fazer numa base de chave e valor. Cortamos ao quadrado, reduzimos para 480
  * pixels e gravamos em JPEG: fica nuns 40 kB e chega bem para um retrato.
  */
+/**
+ * As fotos do telemovel vem com quatro mil pixeis de lado e varios megabytes.
+ * Para a galeria isso nao serve de nada: encolhe-se para mil e oitocentos do
+ * lado maior, sem cortar nada, e fica a mesma foto a pesar um decimo.
+ *
+ * Os videos passam ao lado: encolher video no browser e outra historia.
+ */
+function encolherParaGaleria(ficheiro: File): Promise<File> {
+  if (!ficheiro.type.startsWith('image/')) return Promise.resolve(ficheiro);
+  return new Promise((resolve, reject) => {
+    const endereco = URL.createObjectURL(ficheiro);
+    const img = new Image();
+    img.onerror = () => {
+      URL.revokeObjectURL(endereco);
+      reject(new Error('Isso nao parece uma imagem.'));
+    };
+    img.onload = () => {
+      URL.revokeObjectURL(endereco);
+      const maior = Math.max(img.width, img.height);
+      // ja e pequena: vai como esta
+      if (maior <= LADO_DA_GALERIA) return resolve(ficheiro);
+      const escala = LADO_DA_GALERIA / maior;
+      const tela = document.createElement('canvas');
+      tela.width = Math.round(img.width * escala);
+      tela.height = Math.round(img.height * escala);
+      const pincel = tela.getContext('2d');
+      if (!pincel) return reject(new Error('O browser nao deixou desenhar a imagem.'));
+      pincel.drawImage(img, 0, 0, tela.width, tela.height);
+      tela.toBlob(
+        (b) => {
+          if (!b) return reject(new Error('Nao deu para encolher a imagem.'));
+          resolve(new File([b], ficheiro.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }));
+        },
+        'image/jpeg',
+        0.85
+      );
+    };
+    img.src = endereco;
+  });
+}
+
 function encolher(ficheiro: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const leitor = new FileReader();
@@ -318,14 +362,14 @@ function GaleriaDoAdmin({
 
   async function por(ficheiro: File | undefined) {
     if (!ficheiro) return;
-    // o limite e do servidor; avisar aqui poupa a viagem
-    if (ficheiro.size > 8 * 1024 * 1024) {
-      aoFalhar(new Error('Isso tem mais de oito megabytes. Corta o video ou encolhe a foto.'), '');
-      return;
-    }
     setAEnviar(true);
     try {
-      await api.porNaGaleria(dono, ficheiro, legenda.trim());
+      // as fotos encolhem antes de viajar; os videos vao como vieram
+      const pronto = await encolherParaGaleria(ficheiro);
+      if (pronto.size > 8 * 1024 * 1024) {
+        throw new Error('Isso tem mais de oito megabytes. Corta o video, que e o que costuma ser.');
+      }
+      await api.porNaGaleria(dono, pronto, legenda.trim());
       setLegenda('');
       reler();
     } catch (e) {
