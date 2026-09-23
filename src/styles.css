@@ -2928,3 +2928,222 @@ footer {
     height: 88px;
   }
 }
+
+/* ======================= a galeria da mascote =======================
+   Uma fila de miniaturas por baixo do cartao dela, e uma lupa por cima da
+   pagina para ver uma coisa de cada vez. */
+
+.galeria {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.galeria-tira {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  padding: 0;
+  border: 1px solid var(--linha);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--papel);
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+}
+.galeria-tira:hover {
+  transform: translateY(-2px);
+  border-color: var(--crema-2);
+}
+.galeria-tira img,
+.galeria-tira video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.galeria-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(21, 14, 10, 0.35);
+  color: #f7ebda;
+}
+.galeria-play svg {
+  width: 22px;
+  height: 22px;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
+}
+
+/* a lupa */
+.lupa {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto 1fr auto;
+  align-items: center;
+  background: rgba(9, 6, 4, 0.97);
+  backdrop-filter: blur(3px);
+  padding: 8px;
+}
+.lupa-topo {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 6px;
+}
+.lupa-conta {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--tinta-3);
+}
+.lupa-botoes {
+  display: flex;
+  gap: 6px;
+}
+.lupa-botoes button,
+.lupa-seta {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--linha);
+  border-radius: 10px;
+  background: rgba(36, 26, 19, 0.8);
+  color: var(--tinta);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background 0.15s;
+}
+.lupa-botoes button:hover,
+.lupa-seta:hover {
+  background: var(--crema-2);
+}
+.lupa-seta {
+  font-size: 28px;
+  align-self: center;
+}
+.lupa-seta.esquerda {
+  grid-column: 1;
+  grid-row: 2;
+}
+.lupa-seta.direita {
+  grid-column: 3;
+  grid-row: 2;
+}
+.lupa-palco {
+  grid-column: 2;
+  grid-row: 2;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  height: 100%;
+  /* com os dedos em cima disto, o browser nao mexe a pagina nem faz o zoom
+     dele: quem manda no zoom aqui somos nos */
+  touch-action: none;
+}
+.lupa-palco img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transform-origin: center;
+  transition: transform 0.12s ease-out;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.lupa-palco.perto {
+  cursor: grab;
+}
+.lupa-palco.perto:active {
+  cursor: grabbing;
+}
+.lupa-palco video {
+  max-width: 100%;
+  max-height: 100%;
+}
+@media (max-width: 560px) {
+  .lupa {
+    padding: 4px;
+  }
+  .lupa-seta {
+    width: 30px;
+    font-size: 22px;
+  }
+  .lupa-botoes button {
+    width: 36px;
+    height: 36px;
+  }
+}
+.lupa-legenda {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 10px 6px 4px;
+  text-align: center;
+  color: var(--tinta-2);
+  font-size: 14px;
+}
+
+/* e no painel de admin */
+.galeria-admin {
+  margin: -4px 0 10px;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--linha);
+  border-top: 0;
+  border-radius: 0 0 var(--r) var(--r);
+  background: rgba(255, 244, 227, 0.02);
+}
+.galeria-admin-tiras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+.galeria-admin-tira {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 9px;
+  overflow: hidden;
+  border: 1px solid var(--linha);
+}
+.galeria-admin-tira img,
+.galeria-admin-tira video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.galeria-admin-tira button {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(12, 8, 5, 0.75);
+  color: #f7ebda;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.galeria-admin-tira button:hover {
+  background: var(--vinho);
+}
+.galeria-admin-por {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.galeria-admin-por input[type='text'] {
+  flex: 1 1 180px;
+  min-width: 0;
+}

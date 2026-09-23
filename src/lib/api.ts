@@ -1,4 +1,11 @@
-import type { Estado, Evento, Membro, Pontuacao, RespostaDaMesa } from './tipos';
+import type {
+  Estado,
+  Evento,
+  ItemDaGaleria,
+  Membro,
+  Pontuacao,
+  RespostaDaMesa
+} from './tipos';
 
 /**
  * O site é servido pelo GitHub Pages, que só entrega ficheiros. Quem grava é
@@ -114,6 +121,31 @@ export const api = {
     naMesa('/mesa/jogar', { nome, chave, acao, passo }),
   emprestimo: (nome: string, chave: string) => naMesa('/quadro/emprestimo', { nome, chave }),
 
+  /* ---- a galeria da mascote ---- */
+
+  galeria: (dono: string) => pedir<ItemDaGaleria[]>(`/galeria/${dono}`),
+  tirarDaGaleria: (dono: string, id: string) =>
+    pedir<{ ok: boolean }>(`/galeria/${dono}/${id}`, { method: 'DELETE' }),
+
+  /** Poe uma foto ou um video na galeria. O ficheiro vai em bruto, tal e qual
+   *  saiu do telemovel: em base64 ocupava mais um terco e obrigava a converter
+   *  tudo dos dois lados. */
+  async porNaGaleria(dono: string, ficheiro: File, legenda: string): Promise<ItemDaGaleria> {
+    const base = await endereco();
+    if (!base) throw new Error('O site ainda nao esta ligado ao servidor do grupo.');
+    const r = await fetch(`${base}/galeria/${dono}?legenda=${encodeURIComponent(legenda)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': ficheiro.type, Authorization: `Bearer ${chave}` },
+      body: ficheiro
+    });
+    const corpo = await r.json().catch(() => null);
+    if (!r.ok) {
+      if (r.status === 401) chave = '';
+      throw new Error((corpo && corpo.erro) || 'Nao deu para por isso la.');
+    }
+    return corpo as ItemDaGaleria;
+  },
+
   /** Tira um nome do quadro. Precisa da chave de admin. */
   apagarDoQuadro: (nome: string) =>
     pedir<{ ok: boolean; nome: string }>('/quadro/apagar', {
@@ -167,6 +199,11 @@ export const api = {
 
 /** A foto de um membro vem do servidor, que é quem a guarda. Quando isto é
  *  chamado já houve uma leitura do estado, por isso o endereço está sabido. */
+/** O endereco de uma foto ou video da galeria. O tipo vai junto para o
+ *  servidor saber com que cara o entregar. */
+export const enderecoDoMedia = (item: { id: string; mime: string }) =>
+  servidor ? `${servidor}/media/${item.id}?tipo=${encodeURIComponent(item.mime)}` : '';
+
 export const fotoDoMembro = (id: string) => (servidor ? `${servidor}/membros/${id}/foto` : '');
 
 /** Onde estão as fotos do mural, servidas como ficheiros do próprio site. */

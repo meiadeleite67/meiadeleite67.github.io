@@ -1,4 +1,5 @@
 import { fotoDoMembro } from '../lib/api';
+import { Galeria } from './Galeria';
 import type { Estado, Membro } from '../lib/tipos';
 
 export function Membros({ estado }: { estado: Estado }) {
@@ -82,6 +83,7 @@ function CartaoDaMascote({ membro }: { membro: Membro }) {
         </span>
         <h2>{membro.nome}</h2>
         {membro.descricao && <p>{membro.descricao}</p>}
+        <Galeria dono={membro.id} />
       </div>
     </article>
   );

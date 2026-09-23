@@ -16,6 +16,10 @@
  *   GET    /agenda          a agenda
  *   GET    /membros         os membros do grupo
  *   GET    /membros/<id>/foto   a fotografia de um membro
+ *   GET    /galeria/<id>      a galeria da mascote
+ *   POST   /galeria/<id>      poe la uma foto ou um video (precisa da chave)
+ *   DELETE /galeria/<id>/<item>  tira de la (precisa da chave)
+ *   GET    /media/<item>      a foto ou o video, tal e qual
  *   POST   /admin/entrar    troca um código de 6 dígitos por uma chave
  *   POST   /agenda          marca (precisa da chave)
  *   PATCH  /agenda/<id>     muda  (precisa da chave)
@@ -57,6 +61,13 @@ const MAX_EVENTOS = 300;
 const MAX_NOMES = 200;
 const MAX_MEMBROS = 60;
 const MAX_FOTO = 400_000; // caracteres de base64, uns 300 kB de imagem
+
+/* A galeria da mascote. Os ficheiros vao para aqui em bruto e nao em base64:
+   um video em base64 ocupava mais um terco e obrigava a converter tudo de cada
+   vez que fosse pedido. */
+const MAX_MEDIA = 8 * 1024 * 1024;
+const MAX_NA_GALERIA = 40;
+const TIPOS_DE_MEDIA = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm', 'video/quicktime'];
 
 /* O saldo do blackjack vive aqui e nao no browser de quem joga. Antes o site
    mandava o saldo ja feito e este Worker acreditava, o que dava para pôr o
@@ -606,6 +617,10 @@ export default {
 
       if (metodo === 'DELETE') {
         await env.QUADRO.delete(`foto:${lista[onde].id}`);
+        // a galeria dele vai atras, ficheiro a ficheiro
+        for (const item of await ler(env, `galeria:${lista[onde].id}`, []))
+          await env.QUADRO.delete(`media:${item.id}`);
+        await env.QUADRO.delete(`galeria:${lista[onde].id}`);
         lista.splice(onde, 1);
         lista.forEach((m, i) => {
           m.ordem = i;
@@ -636,6 +651,87 @@ export default {
       }
       await env.QUADRO.put('membros', JSON.stringify(lista));
       return responder(m, request);
+    }
+
+    /* ---- a galeria da mascote ----
+
+       Uma lista por membro, e cada coisa guardada a parte com o seu tipo.
+       Quem ve so precisa do enderecos; quem poe precisa da chave de admin. */
+
+    const galeriaDe = /^\/galeria\/([A-Za-z0-9_-]{1,40})$/.exec(caminho);
+    if (galeriaDe) {
+      const dono = galeriaDe[1];
+      const lista = await ler(env, `galeria:${dono}`, []);
+
+      if (metodo === 'GET') return responder(lista, request);
+
+      if (metodo === 'POST') {
+        if (!(await temChave(request, env)))
+          return responder({ erro: 'Precisas de entrar outra vez.' }, request, 401);
+        if (lista.length >= MAX_NA_GALERIA)
+          return responder({ erro: 'A galeria está cheia.' }, request, 409);
+
+        const mime = (request.headers.get('Content-Type') || '').split(';')[0].trim();
+        if (!TIPOS_DE_MEDIA.includes(mime))
+          return responder({ erro: 'Isso não é uma foto nem um vídeo que eu saiba mostrar.' }, request, 415);
+
+        const bytes = await request.arrayBuffer();
+        if (bytes.byteLength === 0) return responder({ erro: 'Veio vazio.' }, request, 400);
+        if (bytes.byteLength > MAX_MEDIA)
+          return responder(
+            { erro: 'Isso é demasiado pesado. O limite são oito megabytes.' },
+            request,
+            413
+          );
+
+        const item = {
+          id: novoId() + novoId(),
+          mime,
+          tipo: mime.startsWith('video/') ? 'video' : 'foto',
+          legenda: texto(url.searchParams.get('legenda'), 120),
+          criadoEm: new Date().toISOString()
+        };
+        await env.QUADRO.put(`media:${item.id}`, bytes);
+        lista.push(item);
+        await env.QUADRO.put(`galeria:${dono}`, JSON.stringify(lista));
+        return responder(item, request);
+      }
+    }
+
+    const itemDaGaleria = /^\/galeria\/([A-Za-z0-9_-]{1,40})\/([A-Za-z0-9_-]{1,80})$/.exec(caminho);
+    if (itemDaGaleria && metodo === 'DELETE') {
+      if (!(await temChave(request, env)))
+        return responder({ erro: 'Precisas de entrar outra vez.' }, request, 401);
+      const dono = itemDaGaleria[1];
+      const lista = await ler(env, `galeria:${dono}`, []);
+      const onde = lista.findIndex((x) => x.id === itemDaGaleria[2]);
+      if (onde < 0) return responder({ erro: 'Isso já não está lá.' }, request, 404);
+      await env.QUADRO.delete(`media:${lista[onde].id}`);
+      lista.splice(onde, 1);
+      await env.QUADRO.put(`galeria:${dono}`, JSON.stringify(lista));
+      return responder({ ok: true }, request);
+    }
+
+    /** Uma foto ou um video da galeria, servido tal e qual, para o site o
+     *  poder mostrar numa tag normal. */
+    const mediaComId = /^\/media\/([A-Za-z0-9_-]{1,80})$/.exec(caminho);
+    if (mediaComId && metodo === 'GET') {
+      const bytes = await env.QUADRO.get(`media:${mediaComId[1]}`, 'arrayBuffer');
+      if (!bytes) return new Response(null, { status: 404, headers: cabecalhos(request) });
+      /* O tipo esta na lista de quem e dono do ficheiro, mas procurar por ele
+         obrigava a ler as listas todas. Vai antes no proprio endereco, como
+         pergunta, e se nao vier assume-se imagem. */
+      const mime = TIPOS_DE_MEDIA.includes(url.searchParams.get('tipo') || '')
+        ? url.searchParams.get('tipo')
+        : 'image/jpeg';
+      return new Response(bytes, {
+        headers: {
+          'Content-Type': mime,
+          'Cache-Control': 'public, max-age=31536000, immutable',
+          'Accept-Ranges': 'none',
+          ...cabecalhos(request)
+        }
+      });
     }
 
     /** A foto de um membro, servida como imagem para o site a poder mostrar

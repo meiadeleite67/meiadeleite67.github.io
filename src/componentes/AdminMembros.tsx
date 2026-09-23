@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react';
-import { api, fotoDoMembro } from '../lib/api';
-import type { Membro } from '../lib/tipos';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { api, enderecoDoMedia, fotoDoMembro } from '../lib/api';
+import type { ItemDaGaleria, Membro } from '../lib/tipos';
 
 const LADO = 480;
 
@@ -228,6 +228,7 @@ function Linha({
   }
 
   return (
+    <>
     <div className="linha-admin">
       <div className="retrato pequeno">
         {membro.temFoto && <img src={fotoDoMembro(membro.id)} alt="" />}
@@ -284,6 +285,112 @@ function Linha({
           </button>
         </>
       )}
+    </div>
+    {membro.mascote && <GaleriaDoAdmin dono={membro.id} aoFalhar={aoFalhar} />}
+    </>
+  );
+}
+
+/**
+ * A galeria da mascote, aqui no painel: por fotos e videos, ver o que la esta
+ * e tirar de la. So aparece para quem for mascote, porque e a galeria dela.
+ */
+function GaleriaDoAdmin({
+  dono,
+  aoFalhar
+}: {
+  dono: string;
+  aoFalhar: (e: unknown, porOmissao: string) => void;
+}) {
+  const [itens, setItens] = useState<ItemDaGaleria[]>([]);
+  const [legenda, setLegenda] = useState('');
+  const [aEnviar, setAEnviar] = useState(false);
+  const campo = useRef<HTMLInputElement>(null);
+
+  const reler = useCallback(() => {
+    api
+      .galeria(dono)
+      .then(setItens)
+      .catch(() => setItens([]));
+  }, [dono]);
+
+  useEffect(reler, [reler]);
+
+  async function por(ficheiro: File | undefined) {
+    if (!ficheiro) return;
+    // o limite e do servidor; avisar aqui poupa a viagem
+    if (ficheiro.size > 8 * 1024 * 1024) {
+      aoFalhar(new Error('Isso tem mais de oito megabytes. Corta o video ou encolhe a foto.'), '');
+      return;
+    }
+    setAEnviar(true);
+    try {
+      await api.porNaGaleria(dono, ficheiro, legenda.trim());
+      setLegenda('');
+      reler();
+    } catch (e) {
+      aoFalhar(e, 'Nao deu para por isso la.');
+    } finally {
+      setAEnviar(false);
+      if (campo.current) campo.current.value = '';
+    }
+  }
+
+  async function tirar(item: ItemDaGaleria) {
+    if (!window.confirm('Tirar isto da galeria?')) return;
+    try {
+      await api.tirarDaGaleria(dono, item.id);
+      reler();
+    } catch (e) {
+      aoFalhar(e, 'Nao deu para tirar.');
+    }
+  }
+
+  return (
+    <div className="galeria-admin">
+      <p className="rotulo">A galeria da mascote</p>
+
+      {itens.length > 0 && (
+        <div className="galeria-admin-tiras">
+          {itens.map((item) => (
+            <div className="galeria-admin-tira" key={item.id}>
+              {item.tipo === 'video' ? (
+                <video src={enderecoDoMedia(item)} muted playsInline preload="metadata" />
+              ) : (
+                <img src={enderecoDoMedia(item)} alt={item.legenda} loading="lazy" />
+              )}
+              <button type="button" aria-label="Tirar da galeria" onClick={() => tirar(item)}>
+                &times;
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="galeria-admin-por">
+        <input
+          type="text"
+          maxLength={120}
+          value={legenda}
+          placeholder="legenda, se quiseres"
+          onChange={(e) => setLegenda(e.target.value)}
+        />
+        <input
+          type="file"
+          accept="image/*,video/*"
+          ref={campo}
+          style={{ display: 'none' }}
+          onChange={(e) => por(e.target.files?.[0])}
+        />
+        <button
+          className="btn claro mini"
+          type="button"
+          disabled={aEnviar}
+          onClick={() => campo.current?.click()}
+        >
+          {aEnviar ? 'A enviar...' : 'Por foto ou video'}
+        </button>
+      </div>
     </div>
   );
 }

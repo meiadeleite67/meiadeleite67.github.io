@@ -77,6 +77,15 @@ export type RespostaDaMesa = {
   mesa: MesaVista | null;
 };
 
+/** Uma foto ou um video da galeria da mascote. */
+export type ItemDaGaleria = {
+  id: string;
+  mime: string;
+  tipo: 'foto' | 'video';
+  legenda: string;
+  criadoEm: string;
+};
+
 export type Estado = {
   agenda: Evento[];
   insta: Post[];
