@@ -21,3 +21,15 @@ account_id = "281d601cbcde851304121a32ea476202"
 [[kv_namespaces]]
 binding = "QUADRO"
 id = "9237e4fa77dd48ba94f2b8bd21754cec"
+
+# As mesas de poker. Cada mesa e um objecto destes: um sitio so, que atende um
+# pedido de cada vez, com o estado da mesa la dentro e as ligacoes de quem esta
+# sentado agarradas a ele. E o que o armazenamento normal nao dava: ali duas
+# jogadas ao mesmo tempo podiam gravar uma por cima da outra.
+[[durable_objects.bindings]]
+name = "MESAS"
+class_name = "MesaDePoker"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["MesaDePoker"]

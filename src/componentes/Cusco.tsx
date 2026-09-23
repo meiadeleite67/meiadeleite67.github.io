@@ -1,10 +1,12 @@
 import { useMemo, type CSSProperties } from 'react';
+import { Caixa, type Peca } from './Caixa';
 
 /**
  * O Cusco em três dimensões, pela mesma receita do troféu: caixas feitas com
  * as transformações 3D do próprio CSS, seis faces cada uma, sem biblioteca
  * nenhuma. São vinte e sete caixas com os cantos bem redondos, que é o que
- * lhe tira o ar de caixote e lhe dá ar de bicho.
+ * lhe tira o ar de caixote e lhe dá ar de bicho. A caixa em si vive no seu
+ * ficheiro, que o croupier da mesa de poker é feito das mesmas.
  *
  * As cores vieram das fotografias: o pelo acastanhado, o peito e o focinho
  * mais claros, o nariz preto e a coleira verde acinzentada que ele traz.
@@ -23,26 +25,6 @@ const PELO_CLARO = '#e2a96a';
 const CREME = '#efd4ad';
 const ESCURO = '#2a1a11';
 const COLEIRA = '#9cae8d';
-
-type Peca = {
-  nome: string;
-  /** largura, altura, fundura */
-  w: number;
-  h: number;
-  d: number;
-  /** onde fica, a contar do meio do cão */
-  x: number;
-  y: number;
-  z: number;
-  rz?: number;
-  ry?: number;
-  cor: string;
-  /** Quanto se arredondam os cantos desta peça. É o que tira o ar de caixote:
-   *  um cubo com os cantos bem redondos já se parece com um bicho. */
-  raio?: number;
-  /** a que parte pertence, para as poses saberem o que mexer */
-  grupo?: 'cabeca' | 'cauda' | 'corpo';
-};
 
 const PECAS: Peca[] = [
   /* O corpo é feito de três volumes que se sobrepõem, e não de um caixote só:
@@ -104,33 +86,6 @@ function paraOndeVoam(): Record<string, CSSProperties> {
   return saidas;
 }
 
-function Caixa({ peca, voo }: { peca: Peca; voo?: CSSProperties }) {
-  const estilo = {
-    '--w': `${peca.w}px`,
-    '--h': `${peca.h}px`,
-    '--d': `${peca.d}px`,
-    '--x': `${peca.x}px`,
-    '--y': `${peca.y}px`,
-    '--z': `${peca.z}px`,
-    '--rz': `${peca.rz ?? 0}deg`,
-    '--ry': `${peca.ry ?? 0}deg`,
-    '--cor': peca.cor,
-    '--raio': `${peca.raio ?? 4}px`,
-    ...voo
-  } as CSSProperties;
-
-  return (
-    <div className={`caixa ${peca.nome}`} data-grupo={peca.grupo} style={estilo}>
-      <i className="frente" />
-      <i className="tras" />
-      <i className="esq" />
-      <i className="dir" />
-      <i className="topo" />
-      <i className="base" />
-    </div>
-  );
-}
-
 export function Cusco({ pose }: { pose: Pose }) {
   const voos = useMemo(paraOndeVoam, []);
 
@@ -138,7 +93,7 @@ export function Cusco({ pose }: { pose: Pose }) {
     <div className="cusco-cena">
       <div className="cusco" data-pose={pose} aria-label="O Cusco" role="img">
         {PECAS.map((p) => (
-          <Caixa key={p.nome} peca={p} voo={pose === 'rebenta' ? voos[p.nome] : undefined} />
+          <Caixa key={p.nome} peca={p} extra={pose === 'rebenta' ? voos[p.nome] : undefined} />
         ))}
       </div>
       <div className="cusco-sombra" data-pose={pose} />

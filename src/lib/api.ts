@@ -5,6 +5,7 @@ import type {
   Membro,
   Pontuacao,
   Post,
+  QuantosNaMesa,
   RespostaDaMesa
 } from './tipos';
 
@@ -260,6 +261,23 @@ export const api = {
  *  servidor saber com que cara o entregar. */
 export const enderecoDoMedia = (item: { id: string; mime: string }) =>
   servidor ? `${servidor}/media/${item.id}?tipo=${encodeURIComponent(item.mime)}` : '';
+
+/**
+ * O endereco da ligacao viva a uma mesa de poker.
+ *
+ * E o mesmo servidor do resto, mas em ws: uma mesa com cinco pessoas nao se
+ * faz a perguntar "ha novidades?" de meio em meio segundo. A ligacao fica
+ * aberta e e a mesa que avisa quando alguem joga.
+ */
+export async function enderecoDaMesa(mesa: string): Promise<string> {
+  const base = await endereco();
+  if (!base) return '';
+  return `${base.replace(/^http/, 'ws')}/poker/${encodeURIComponent(mesa)}`;
+}
+
+/** Quanta gente esta em cada mesa, para a entrada do poker. */
+export const quantosNasMesas = (mesas: string[]) =>
+  pedir<QuantosNaMesa[]>(`/poker?mesas=${mesas.map(encodeURIComponent).join(',')}`);
 
 export const fotoDoMembro = (id: string) => (servidor ? `${servidor}/membros/${id}/foto` : '');
 

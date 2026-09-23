@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { api, temServidor } from '../lib/api';
-import { guardar, lido } from '../lib/dados';
+import { chaveDe, guardarChave, guardarNome, nomeGuardado } from '../lib/nick';
 import { APOSTAS, conta, mesaNova, porFicha, soma, suave, tirarFichas } from '../lib/blackjack';
 import type { Carta, Mao, Mesa, Resultado } from '../lib/blackjack';
 import type { Estado, RespostaDaMesa } from '../lib/tipos';
@@ -21,28 +21,13 @@ const DIZ: Record<Resultado, string> = {
  *  verdadeira nem chega a sair do servidor enquanto estiver por virar. */
 const TAPADA: Carta = { v: 'A', n: '\u2660', verm: false };
 
-const CHAVES = 'mdl.chaves';
-
-/* A chave de cada nickname vive so neste browser. E ela que prova que o nome e
-   nosso; sem ela o servidor nao deixa jogar com ele. */
-function chavesGuardadas(): Record<string, string> {
-  try {
-    const g = JSON.parse(lido(CHAVES) || '{}');
-    return g && typeof g === 'object' ? g : {};
-  } catch {
-    return {};
-  }
-}
-const guardarChave = (nome: string, chave: string) =>
-  guardar(CHAVES, JSON.stringify({ ...chavesGuardadas(), [nome]: chave }));
-
 export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: () => void }) {
   /* Esta mesa e so o que se ve. Quem tem as cartas a serio e o servidor: aqui
      nao ha sapato nenhum, nem contas de quem ganhou. */
   const [mesa, setMesa] = useState<Mesa>(() => mesaNova(0));
-  const [nome, setNome] = useState(() => lido('mdl.nome') || '');
-  const [aPedirNome, setAPedirNome] = useState(() => !(lido('mdl.nome') || '').trim());
-  const [rascunho, setRascunho] = useState(() => lido('mdl.nome') || '');
+  const [nome, setNome] = useState(nomeGuardado);
+  const [aPedirNome, setAPedirNome] = useState(() => !nomeGuardado());
+  const [rascunho, setRascunho] = useState(nomeGuardado);
   const [podem, setPodem] = useState({ dobrar: false, dividir: false });
   const [passo, setPasso] = useState(0);
   const [aEsperar, setAEsperar] = useState(false);
@@ -53,8 +38,6 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
   const campoNome = useRef<HTMLInputElement>(null);
   /* Um pedido de cada vez: dois a andar juntos davam uma carta a mais. */
   const ocupado = useRef(false);
-
-  const chaveDe = (quem: string) => chavesGuardadas()[quem] || '';
 
   useEffect(() => {
     if (aPedirNome) campoNome.current?.focus({ preventScroll: true });
@@ -101,9 +84,9 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
 
   /* quem chega com o nome e a chave ja postos volta a mesa onde a deixou */
   useEffect(() => {
-    const posto = (lido('mdl.nome') || '').trim();
+    const posto = nomeGuardado();
     if (!posto) return;
-    const chave = chavesGuardadas()[posto] || '';
+    const chave = chaveDe(posto);
     if (!chave) {
       // nome sem chave, de antes de isto existir: pede-se outra vez
       setRascunho(posto);
@@ -127,7 +110,7 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
       const r = await api.sentar(limpo, chaveDe(limpo));
       if (r.chave) guardarChave(limpo, r.chave);
       setNome(limpo);
-      guardar('mdl.nome', limpo);
+      guardarNome(limpo);
       setMesa(mesaNova(r.linha.torroes));
       mostrar(r);
       setAPedirNome(false);

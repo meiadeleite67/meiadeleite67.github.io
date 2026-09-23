@@ -80,6 +80,86 @@ export type RespostaDaMesa = {
   mesa: MesaVista | null;
 };
 
+/* ---------------------------- o poker ----------------------------
+
+   A mesa de poker e viva: chega por uma ligacao aberta e nao por pedidos. O
+   que vem de la e sempre a mesa vista do lugar de quem esta a ver, e as cartas
+   dos outros vem a null enquanto nao forem mostradas. */
+
+export type EstadoNaMao = 'aberto' | 'tudo' | 'passou';
+
+export type NaMao = {
+  lugar: number;
+  nome: string;
+  fichas: number;
+  /** O que ele ja pos no meio nesta ronda. */
+  posto: number;
+  estado: EstadoNaMao;
+  ganhou: number;
+  /** Quantas cartas tem na mao, mesmo quando nao se veem quais. */
+  quantas: number;
+  /** As minhas, ou as de quem mostrou. As dos outros vem a null. */
+  cartas: CartaVista[] | null;
+  mao: string;
+};
+
+/** O que da para fazer agora, decidido pelo servidor e nao pelo site. */
+export type Podes = {
+  passar: boolean;
+  igualar: number;
+  minimo: number;
+  maximo: number;
+  podeSubir: boolean;
+};
+
+export type FaseDaMao = 'previa' | 'flop' | 'turn' | 'river' | 'mostra' | 'acabou';
+
+export type MaoDePoker = {
+  numero: number;
+  passo: number;
+  fase: FaseDaMao;
+  comunidade: CartaVista[];
+  pote: number;
+  aposta: number;
+  subidaMinima: number;
+  botao: number;
+  cegos: { pequeno: number; grande: number };
+  vez: number;
+  /** A hora, no relogio do servidor, a que a vez de quem esta a jogar acaba. */
+  prazo: number;
+  bolos: { valor: number; para: number[] }[];
+  podes: Podes | null;
+  jogadores: NaMao[];
+};
+
+export type LugarDaMesa = {
+  lugar: number;
+  nome: string;
+  fichas: number;
+  ligado: boolean;
+};
+
+export type MesaViva = {
+  /** A hora do servidor quando isto saiu de la, para os relogios baterem. */
+  agora: number;
+  /** A hora do nosso relogio quando isto chegou. */
+  recebidoEm: number;
+  numero: number;
+  comecaEm: number;
+  fimEm: number;
+  narracao: string[];
+  eu: { nome: string; lugar: number } | null;
+  lugares: LugarDaMesa[];
+  mao: MaoDePoker | null;
+};
+
+export type QuantosNaMesa = {
+  mesa: string;
+  sentados: number;
+  aJogar: number;
+  maos: number;
+};
+
 /** Uma foto ou um video da galeria da mascote. */
 export type ItemDaGaleria = {
   id: string;
@@ -105,4 +185,5 @@ export type Pagina =
   | 'admin'
   | 'jogo'
   | 'cusco'
-  | 'colherada';
+  | 'colherada'
+  | 'poker';

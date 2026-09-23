@@ -12,6 +12,8 @@
  *   POST   /mesa              a mão que está a decorrer, se houver
  *   POST   /mesa/apostar      aposta e dá cartas
  *   POST   /mesa/jogar        pedir, ficar, dobrar ou dividir
+ *   GET    /poker            quantas pessoas estao em cada mesa
+ *   GET    /poker/<mesa>     a ligacao viva a uma mesa de poker (WebSocket)
  *   POST   /quadro/apagar     tira um nome do quadro (precisa da chave)
  *   POST   /quadro/limpar     deita o quadro abaixo (precisa da chave)
  *   GET    /agenda          a agenda
@@ -36,6 +38,8 @@
  * repositório nem viaja pela internet.
  */
 
+import { aoCalhasEmHex, chaveBate, resumoDe } from './chaves.js';
+import { MesaDePoker } from './mesa-de-poker.js';
 import {
   APOSTA_MAXIMA,
   dividir,
@@ -140,21 +144,6 @@ const linhaNova = (nome) => ({
 
 /** O que pode sair daqui para fora. */
 const semSegredos = ({ resumo, pendente, ...resto }) => resto;
-
-const aoCalhasEmHex = (bytes) => {
-  const b = new Uint8Array(bytes);
-  crypto.getRandomValues(b);
-  return [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
-};
-
-async function resumoDe(chave) {
-  const dados = new TextEncoder().encode('mdl:' + chave);
-  const digerido = await crypto.subtle.digest('SHA-256', dados);
-  return [...new Uint8Array(digerido)].map((x) => x.toString(16).padStart(2, '0')).join('');
-}
-
-const chaveBate = async (chave, resumo) =>
-  typeof chave === 'string' && /^[a-f0-9]{32}$/.test(chave) && (await resumoDe(chave)) === resumo;
 
 /**
  * Tudo o que e jogar passa por aqui: confirma que quem pede e mesmo o dono do
@@ -352,6 +341,10 @@ function limparEvento(veio, antes) {
   };
 }
 
+/* As mesas de poker vivem em objectos proprios, mas quem as tem de dar a
+   conhecer e o ficheiro de entrada do Worker. */
+export { MesaDePoker };
+
 export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') return new Response(null, { headers: cabecalhos(request) });
@@ -524,6 +517,47 @@ export default {
       const quantos = Object.keys(guardado).length;
       await env.QUADRO.put('quadro', JSON.stringify({}));
       return responder({ ok: true, quantos }, request);
+    }
+
+    /* ---- as mesas de poker ----
+
+       Cada mesa e um Durable Object: um sitio so, que atende um pedido de cada
+       vez e que fica com a ligacao aberta a quem la esta sentado. Este Worker
+       so lhe entrega o pedido e sai da frente.
+
+       Uma ligacao destas nao leva cabecalhos: o browser nao deixa. Por isso
+       quem e cada um diz-se na primeira mensagem, ja dentro da ligacao, com a
+       mesma chave do quadro de honra. */
+
+    if (caminho === '/poker' && metodo === 'GET') {
+      const quais = (url.searchParams.get('mesas') || '')
+        .split(',')
+        .map((x) => x.trim())
+        .filter((x) => /^[A-Za-z0-9_-]{1,40}$/.test(x))
+        .slice(0, 8);
+      const todas = await Promise.all(
+        quais.map(async (mesa) => {
+          try {
+            const r = await env.MESAS.get(env.MESAS.idFromName(mesa)).fetch(
+              'https://mesa/quantos'
+            );
+            return { mesa, ...(await r.json()) };
+          } catch {
+            return { mesa, sentados: 0, aJogar: 0, maos: 0 };
+          }
+        })
+      );
+      return responder(todas, request);
+    }
+
+    const daMesa = /^\/poker\/([A-Za-z0-9_-]{1,40})$/.exec(caminho);
+    if (daMesa) {
+      /* So do nosso site. A chave e que manda, mas nao ha razao nenhuma para
+         deixar outra pagina qualquer abrir uma ligacao a uma mesa nossa. */
+      const origem = request.headers.get('Origin') || '';
+      if (origem && !CASAS.includes(origem))
+        return responder({ erro: 'Essa mesa nao e para aqui.' }, request, 403);
+      return env.MESAS.get(env.MESAS.idFromName(daMesa[1])).fetch(request);
     }
 
     /* Os cem emprestados: so para quem esta mesmo sem nada. */
