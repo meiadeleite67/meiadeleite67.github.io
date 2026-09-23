@@ -2329,6 +2329,7 @@ footer {
   flex-direction: column;
   gap: 1px;
   min-width: 0;
+  text-align: left;
 }
 .jogo-etiqueta small {
   font-family: var(--mono);
@@ -2774,9 +2775,16 @@ footer {
 
 .jogo {
   max-width: 780px;
+  margin: 0 auto;
+  text-align: center;
 }
 .jogo h1 {
   font-size: clamp(26px, 4.4vw, 38px);
+}
+.jogo .lead {
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 54ch;
 }
 .jogo-placard {
   display: flex;
