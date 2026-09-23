@@ -1,8 +1,8 @@
 import { fotoDoMembro } from '../lib/api';
 import { Galeria } from './Galeria';
-import type { Estado, Membro } from '../lib/tipos';
+import type { Estado, Membro, Pagina } from '../lib/tipos';
 
-export function Membros({ estado }: { estado: Estado }) {
+export function Membros({ estado, irPara }: { estado: Estado; irPara: (p: Pagina) => void }) {
   /* A mascote sai da fila e vai para cima, sozinha e com cartao proprio. */
   const mascote = estado.membros.find((m) => m.mascote);
   const restantes = estado.membros.filter((m) => !m.mascote);
@@ -11,7 +11,7 @@ export function Membros({ estado }: { estado: Estado }) {
     <section>
       <h1 style={{ fontSize: 'clamp(28px,5vw,42px)' }}>Membros do MEIadeLEIte</h1>
 
-      {mascote && <CartaoDaMascote membro={mascote} />}
+      {mascote && <CartaoDaMascote membro={mascote} irPara={irPara} />}
 
       {estado.membros.length === 0 ? (
         <p className="vazio" style={{ marginTop: 20 }}>
@@ -70,7 +70,7 @@ function Pata() {
   );
 }
 
-function CartaoDaMascote({ membro }: { membro: Membro }) {
+function CartaoDaMascote({ membro, irPara }: { membro: Membro; irPara: (p: Pagina) => void }) {
   return (
     <article className="mascote">
       <div className="retrato">
@@ -84,6 +84,14 @@ function CartaoDaMascote({ membro }: { membro: Membro }) {
         <h2>{membro.nome}</h2>
         {membro.descricao && <p>{membro.descricao}</p>}
         <Galeria dono={membro.id} />
+        <button
+          className="btn claro mini"
+          type="button"
+          style={{ marginTop: 14 }}
+          onClick={() => irPara('cusco')}
+        >
+          Fazer-lhe uma meia de leite
+        </button>
       </div>
     </article>
   );

@@ -7,6 +7,7 @@ import { Mural } from './componentes/Mural';
 import { Agenda } from './componentes/Agenda';
 import { Admin } from './componentes/Admin';
 import { Jogo } from './componentes/Jogo';
+import { JogoDoCusco } from './componentes/JogoDoCusco';
 import { Rodape } from './componentes/Rodape';
 import { api } from './lib/api';
 import { PAGINAS, TODAS_AS_PAGINAS } from './lib/dados';
@@ -191,12 +192,13 @@ export default function App() {
 
       <main className="troca" key={pagina}>
         {pagina === 'inicio' && <Inicio estado={estado} irPara={irPara} />}
-        {pagina === 'membros' && <Membros estado={estado} />}
+        {pagina === 'membros' && <Membros estado={estado} irPara={irPara} />}
         {pagina === 'blackjack' && <Blackjack estado={estado} recarregar={recarregar} />}
         {pagina === 'instagram' && <Mural estado={estado} />}
         {pagina === 'agenda' && <Agenda estado={estado} />}
         {pagina === 'admin' && <Admin estado={estado} recarregar={recarregar} />}
         {pagina === 'jogo' && <Jogo estado={estado} semRede={semRede} />}
+        {pagina === 'cusco' && <JogoDoCusco />}
 
         <Rodape irPara={irPara} />
       </main>

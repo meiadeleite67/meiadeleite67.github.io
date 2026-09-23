@@ -3205,3 +3205,453 @@ footer {
 .por-no-mural-linha select {
   flex: 0 0 auto;
 }
+
+/* ======================= o Cusco em tres dimensoes =======================
+   Pela mesma receita do trofeu: caixas feitas com as transformacoes 3D do
+   proprio CSS, seis faces cada uma, sem biblioteca nenhuma. Cada caixa sabe a
+   sua largura, altura e fundura, e as faces poem-se sozinhas a partir
+   disso. */
+
+.cusco-cena {
+  perspective: 900px;
+  perspective-origin: 50% 46%;
+  display: grid;
+  place-items: center;
+  height: 270px;
+  user-select: none;
+}
+.cusco {
+  position: relative;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+  /* As pecas vao de -90 a +149 em x: sem este desvio o cao fica encostado a
+     direita da cena em vez de ao meio. */
+  --meio: -30px;
+  transform: translateX(var(--meio)) rotateX(-10deg) rotateY(-28deg) scale(var(--escala, 1.15));
+}
+.caixa {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--w);
+  height: var(--h);
+  transform-style: preserve-3d;
+  transform: translate3d(calc(var(--x) - var(--w) / 2), calc(var(--y) - var(--h) / 2), var(--z))
+    rotateZ(var(--rz)) rotateY(var(--ry));
+}
+.caixa > i {
+  position: absolute;
+  display: block;
+  left: 50%;
+  top: 50%;
+  background: var(--cor);
+}
+/* as seis faces, e a luz a bater so de cima */
+.caixa .frente,
+.caixa .tras,
+.caixa .topo,
+.caixa .base {
+  width: var(--w);
+  margin-left: calc(var(--w) / -2);
+}
+.caixa .frente,
+.caixa .tras,
+.caixa .esq,
+.caixa .dir {
+  height: var(--h);
+  margin-top: calc(var(--h) / -2);
+}
+.caixa .frente {
+  transform: translateZ(calc(var(--d) / 2));
+}
+.caixa .tras {
+  transform: translateZ(calc(var(--d) / -2)) rotateY(180deg);
+  filter: brightness(0.7);
+}
+.caixa .esq,
+.caixa .dir {
+  width: var(--d);
+  margin-left: calc(var(--d) / -2);
+}
+.caixa .dir {
+  transform: translateX(calc(var(--w) / 2)) rotateY(90deg);
+  filter: brightness(0.86);
+}
+.caixa .esq {
+  transform: translateX(calc(var(--w) / -2)) rotateY(-90deg);
+  filter: brightness(0.86);
+}
+.caixa .topo,
+.caixa .base {
+  height: var(--d);
+  margin-top: calc(var(--d) / -2);
+}
+.caixa .topo {
+  transform: translateY(calc(var(--h) / -2)) rotateX(90deg);
+  filter: brightness(1.14);
+}
+.caixa .base {
+  transform: translateY(calc(var(--h) / 2)) rotateX(-90deg);
+  filter: brightness(0.58);
+}
+
+/* a cauda roda a partir da raiz, e nao do meio */
+.cusco .cauda {
+  transform-origin: 50% 0%;
+}
+
+/* ---- as poses ---- */
+.cusco[data-pose='parado'] {
+  animation: cusco-respira 2.8s ease-in-out infinite;
+}
+.cusco[data-pose='parado'] .cauda {
+  animation: cusco-abana 1.1s ease-in-out infinite;
+}
+.cusco[data-pose='bebe'] {
+  animation: cusco-bebe 1.3s ease-in-out infinite;
+}
+.cusco[data-pose='bebe'] .cauda {
+  animation: cusco-abana 0.8s ease-in-out infinite;
+}
+.cusco[data-pose='feliz'] {
+  animation: cusco-salta 0.62s cubic-bezier(0.3, 0.8, 0.4, 1) infinite;
+}
+.cusco[data-pose='feliz'] .cauda {
+  animation: cusco-abana 0.24s linear infinite;
+}
+.cusco[data-pose='nojo'] {
+  animation: cusco-nojo 2.4s ease-in-out forwards;
+}
+.cusco[data-pose='rebenta'] .caixa {
+  animation: cusco-rebenta 0.9s cubic-bezier(0.15, 0.75, 0.3, 1) var(--atraso, 0ms) forwards;
+}
+
+@keyframes cusco-respira {
+  0%,
+  100% {
+    transform: translateX(var(--meio)) rotateX(-10deg) rotateY(-28deg) scale(var(--escala, 1.15));
+  }
+  50% {
+    transform: translateX(var(--meio)) rotateX(-10deg) rotateY(-28deg) scale(calc(var(--escala, 1.15) * 1.022));
+  }
+}
+@keyframes cusco-abana {
+  0%,
+  100% {
+    rotate: z -22deg;
+  }
+  50% {
+    rotate: z 24deg;
+  }
+}
+@keyframes cusco-bebe {
+  0%,
+  100% {
+    transform: translateX(var(--meio)) rotateX(-10deg) rotateY(-16deg) rotateZ(9deg)
+      translateY(6px) scale(var(--escala, 1.15));
+  }
+  50% {
+    transform: translateX(var(--meio)) rotateX(-10deg) rotateY(-16deg) rotateZ(13deg)
+      translateY(12px) scale(var(--escala, 1.15));
+  }
+}
+@keyframes cusco-salta {
+  0%,
+  100% {
+    transform: translateX(var(--meio)) rotateX(-10deg) rotateY(-28deg) translateY(0) scale(var(--escala, 1.15));
+  }
+  45% {
+    transform: translateX(var(--meio)) rotateX(-10deg) rotateY(-28deg) translateY(-26px) scale(var(--escala, 1.15));
+  }
+}
+@keyframes cusco-nojo {
+  0% {
+    transform: translateX(var(--meio)) rotateX(-10deg) rotateY(-28deg) scale(var(--escala, 1.15));
+  }
+  18% {
+    transform: translateX(calc(var(--meio) - 8px)) rotateX(-10deg) rotateY(-28deg) scale(var(--escala, 1.15));
+  }
+  30% {
+    transform: translateX(calc(var(--meio) + 8px)) rotateX(-10deg) rotateY(-28deg) scale(var(--escala, 1.15));
+  }
+  100% {
+    transform: translateX(calc(var(--meio) - 14px)) rotateX(-10deg) rotateY(-148deg) scale(var(--escala, 1.15));
+  }
+}
+/* cada peca sai para o lado que lhe calhou, roda e desaparece */
+@keyframes cusco-rebenta {
+  to {
+    transform: translate3d(
+        calc(var(--x) - var(--w) / 2 + var(--vx, 0px)),
+        calc(var(--y) - var(--h) / 2 + var(--vy, 0px)),
+        var(--z)
+      )
+      rotateZ(var(--giro, 90deg)) scale(0.45);
+    opacity: 0;
+  }
+}
+
+.cusco-sombra {
+  width: 190px;
+  height: 22px;
+  margin-top: -14px;
+  border-radius: 50%;
+  background: radial-gradient(50% 50%, rgba(0, 0, 0, 0.5), transparent 70%);
+  filter: blur(7px);
+}
+.cusco-sombra[data-pose='rebenta'] {
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+.cusco-clarao {
+  position: absolute;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 236, 200, 0.9), rgba(224, 158, 89, 0) 60%);
+  animation: cusco-clarao 0.5s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes cusco-clarao {
+  from {
+    transform: scale(0.2);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+
+/* ======================= a bancada do jogo ======================= */
+
+.cusco-jogo {
+  max-width: 820px;
+}
+.cusco-jogo h1 {
+  font-size: clamp(26px, 4.4vw, 38px);
+}
+.cusco-palco {
+  position: relative;
+  display: grid;
+  place-items: center;
+  margin-top: 18px;
+}
+.cusco-balao {
+  position: absolute;
+  top: 6px;
+  right: 4%;
+  max-width: 230px;
+  padding: 9px 13px;
+  border: 1px solid var(--linha);
+  border-radius: 14px 14px 14px 3px;
+  background: var(--papel);
+  color: var(--tinta);
+  font-family: var(--disp);
+  font-size: 15px;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.25s, transform 0.25s;
+  pointer-events: none;
+}
+.cusco-balao.visivel {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.bancada {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: end;
+  justify-items: center;
+  gap: 16px;
+  margin-top: 6px;
+  padding: 18px 14px 20px;
+  border: 1px solid var(--linha);
+  border-radius: var(--r);
+  background: linear-gradient(180deg, rgba(255, 244, 227, 0.045), rgba(255, 244, 227, 0.012));
+}
+
+.pacote {
+  width: 104px;
+  height: 128px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transition: transform 0.12s;
+  touch-action: none;
+}
+.pacote:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.pacote:active:not(:disabled) {
+  transform: translateY(3px) rotate(-3deg);
+}
+.pacote-corpo {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 8px 8px 5px 5px;
+  box-shadow: inset 0 -18px 26px rgba(0, 0, 0, 0.28), inset 0 2px 0 rgba(255, 255, 255, 0.22),
+    var(--sombra);
+  font-family: var(--disp);
+  font-size: 18px;
+}
+.pacote.cafe .pacote-corpo {
+  background: linear-gradient(160deg, #6b4423, #3c2313);
+  color: #f2dcc0;
+}
+.pacote.leite .pacote-corpo {
+  background: linear-gradient(160deg, #f4ece0, #cbbca6);
+  color: #3c2313;
+}
+
+.copo {
+  position: relative;
+  width: 92px;
+  transition: transform 0.7s cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+/* o copo sobe ate ao focinho dele, que esta a direita e acima da bancada */
+.copo.entregue {
+  transform: translate(92px, -204px) scale(0.78);
+}
+.copo-vidro {
+  position: relative;
+  height: 132px;
+  border: 2px solid rgba(240, 248, 255, 0.5);
+  border-top-width: 1px;
+  border-radius: 5px 5px 16px 16px;
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03) 40%);
+  overflow: hidden;
+}
+.copo-liquido {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0;
+  border-radius: 0 0 13px 13px;
+}
+/* o copo esvazia-se enquanto ele bebe. A altura e posta pelo proprio jogo no
+   estilo do elemento, por isso e preciso passar-lhe a frente. */
+.copo.a-beber .copo-liquido {
+  height: 0 !important;
+  transition: height 1.3s ease-in;
+}
+/* e se ele rebenta, o copo cai */
+.copo.caiu {
+  transform: translate(92px, -40px) rotate(38deg);
+  opacity: 0;
+  transition: transform 0.7s ease-in, opacity 0.7s;
+}
+.copo-brilho {
+  position: absolute;
+  top: 6px;
+  left: 9px;
+  width: 11px;
+  bottom: 14px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.05));
+}
+.copo-base {
+  height: 7px;
+  margin: 0 6px;
+  border-radius: 0 0 7px 7px;
+  background: rgba(240, 248, 255, 0.22);
+}
+/* o fio de liquido a cair de um dos lados */
+.copo[data-verter='cafe']::before,
+.copo[data-verter='leite']::before {
+  content: '';
+  position: absolute;
+  top: -42px;
+  left: 50%;
+  width: 6px;
+  height: 46px;
+  margin-left: -3px;
+  border-radius: 3px;
+  animation: cair 0.35s linear infinite;
+}
+.copo[data-verter='cafe']::before {
+  background: linear-gradient(180deg, rgba(74, 44, 24, 0), #4a2c18);
+}
+.copo[data-verter='leite']::before {
+  background: linear-gradient(180deg, rgba(242, 230, 210, 0), #f2e6d2);
+}
+@keyframes cair {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.cusco-fim {
+  margin-top: 16px;
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+.cusco-veredito {
+  margin: 0;
+  font-family: var(--disp);
+  font-size: clamp(18px, 3vw, 22px);
+  color: var(--tinta);
+}
+.cusco-conta {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tinta-3);
+}
+.cusco-conta b {
+  color: var(--crema);
+}
+.cusco-marca {
+  margin-top: 14px;
+}
+
+@media (max-width: 560px) {
+  .cusco-cena {
+    height: 215px;
+  }
+  .cusco {
+    --escala: 0.82;
+    --meio: -22px;
+  }
+  .pacote {
+    width: 78px;
+    height: 104px;
+  }
+  .bancada {
+    gap: 8px;
+    padding: 14px 8px 16px;
+  }
+  .copo {
+    width: 76px;
+  }
+  .copo.entregue {
+    transform: translate(58px, -158px) scale(0.72);
+  }
+  .copo-vidro {
+    height: 112px;
+  }
+  .cusco-balao {
+    right: 2%;
+    font-size: 13px;
+    max-width: 180px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cusco,
+  .cusco .cauda {
+    animation: none !important;
+  }
+}
