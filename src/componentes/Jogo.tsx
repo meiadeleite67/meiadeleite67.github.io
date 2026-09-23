@@ -29,6 +29,8 @@ const GRAVIDADE = 2400;
 const IMPULSO = 700;
 const VELOCIDADE_INICIAL = 330;
 const VELOCIDADE_MAXIMA = 720;
+/** Quanto é que a corrida acelera por cada passo dado. */
+const ACELERACAO = 0.018;
 /** Quanto é preciso correr para valer um ponto. */
 const PASSO_DO_PONTO = 12;
 /** Antes disto só há torrões; os guardanapos aparecem depois. */
@@ -46,10 +48,12 @@ type Obstaculo = {
   x: number;
   largura: number;
   altura: number;
-  /** Altura a que o obstáculo flutua acima do chão. Zero é pousado. */
+  /** Altura a que o obstáculo está agora, acima do chão. Zero é pousado. */
   voo: number;
   /** Quantos torrões tem, ou zero se for guardanapo. */
   cubos: number;
+  /** Onde é que a onda do voo começa, para não virem todos iguais. */
+  onda: number;
 };
 
 /** Quem está a correr nesta jogada. */
@@ -207,8 +211,13 @@ function desenharBoneco(c: CanvasRenderingContext2D, j: Jogo) {
   const base = CHAO - j.altura;
   const x = BONECO_X;
   const noAr = j.altura > 0.5;
-  // com os pés no chão as pernas alternam; no ar ficam esticadas
-  const passada = noAr ? -1 : Math.floor(j.tempo * 11) % 2;
+  /* A passada conta-se pelo chão andado e não pelo relógio: assim as pernas
+     mexem-se ao ritmo a que o chão passa, e vê-se o boneco a acelerar em vez
+     de ir sempre no mesmo passo por mais depressa que aquilo corra. */
+  /* A passada tambem se alonga com a velocidade, como quem corre a serio: se
+     fosse sempre do mesmo tamanho, no fim as pernas iam a tremer. */
+  const passoDaPerna = 15 + (j.velocidade - VELOCIDADE_INICIAL) / 40;
+  const passada = noAr ? -1 : Math.floor(j.chao / passoDaPerna) % 2;
 
   // a sombra encolhe com o salto, que é o que diz a que altura ele vai
   const perto = Math.max(0.2, 1 - j.altura / 120);
@@ -302,18 +311,32 @@ function desenharObstaculo(c: CanvasRenderingContext2D, o: Obstaculo, tempo: num
     return;
   }
 
-  /* o guardanapo vai a abanar, e é o abanar que se vê de longe */
-  const aba = Math.sin(tempo * 13) * 3;
+  /* O guardanapo vai pelo ar a bater as pontas como um pássaro bate as asas.
+     As asas sobem e descem juntas, e é isso que se vê de longe. */
+  const bate = Math.sin(tempo * 15) * 7;
+  const meio = o.x + o.largura / 2;
+  const cy = base - o.altura / 2;
+
   c.fillStyle = '#ede2d0';
   c.beginPath();
-  c.moveTo(o.x, base - o.altura + aba);
-  c.lineTo(o.x + o.largura, base - o.altura - aba);
-  c.lineTo(o.x + o.largura, base - aba);
-  c.lineTo(o.x, base + aba);
+  c.moveTo(meio, cy);
+  c.lineTo(o.x, cy - bate);
+  c.lineTo(o.x + 5, cy + 3);
   c.closePath();
   c.fill();
+  c.beginPath();
+  c.moveTo(meio, cy);
+  c.lineTo(o.x + o.largura, cy - bate);
+  c.lineTo(o.x + o.largura - 5, cy + 3);
+  c.closePath();
+  c.fill();
+
+  // o vinco do meio, que é o que faz aquilo parecer um guardanapo dobrado
   c.strokeStyle = '#a8977f';
-  c.lineWidth = 1;
+  c.lineWidth = 1.2;
+  c.beginPath();
+  c.moveTo(meio - 4, cy + 2);
+  c.lineTo(meio + 4, cy + 2);
   c.stroke();
 }
 
@@ -403,16 +426,16 @@ export function Jogo({ estado, semRede }: { estado: Estado; semRede: boolean }) 
 
   /* teclado */
   useEffect(() => {
+    const NOSSAS = ['Space', 'ArrowUp', 'KeyW', 'ArrowDown', 'KeyS'];
     const carregou = (e: KeyboardEvent) => {
+      /* o travão tem de vir antes de tudo, repetição ou não: a seta para
+         baixo repete enquanto estiver carregada, e era nessas repetições que
+         a página deslizava por baixo do jogo */
+      if (!NOSSAS.includes(e.code)) return;
+      e.preventDefault();
       if (e.repeat) return;
-      if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
-        e.preventDefault();
-        saltar();
-      }
-      if (e.code === 'ArrowDown' || e.code === 'KeyS') {
-        e.preventDefault();
-        baixar(true);
-      }
+      if (e.code === 'ArrowDown' || e.code === 'KeyS') baixar(true);
+      else saltar();
     };
     const largou = (e: KeyboardEvent) => {
       if (e.code === 'ArrowDown' || e.code === 'KeyS') baixar(false);
@@ -452,7 +475,7 @@ export function Jogo({ estado, semRede }: { estado: Estado; semRede: boolean }) 
       j.tempo += dt;
 
       if (j.fase === 'a-jogar') {
-        j.velocidade = Math.min(VELOCIDADE_MAXIMA, VELOCIDADE_INICIAL + j.distancia * 0.018);
+        j.velocidade = Math.min(VELOCIDADE_MAXIMA, VELOCIDADE_INICIAL + j.distancia * ACELERACAO);
         const passo = j.velocidade * dt;
         j.distancia += passo;
         j.chao += passo;
@@ -471,7 +494,10 @@ export function Jogo({ estado, semRede }: { estado: Estado; semRede: boolean }) 
           j.obstaculos.push(obstaculoNovo(pontosDe(j.distancia)));
           j.ateAoProximo = j.velocidade * (0.78 + Math.random() * 0.72);
         }
-        for (const o of j.obstaculos) o.x -= passo;
+        for (const o of j.obstaculos) {
+          o.x -= passo;
+          if (o.cubos === 0) o.voo = vooDe(o);
+        }
         j.obstaculos = j.obstaculos.filter((o) => o.x + o.largura > -20);
 
         if (bateu(j)) {
@@ -604,7 +630,14 @@ export function Jogo({ estado, semRede }: { estado: Estado; semRede: boolean }) 
 /** Um torrão, ou uma pilha deles, ou um guardanapo a voar. */
 function obstaculoNovo(pontos: number): Obstaculo {
   if (pontos > PONTOS_PARA_GUARDANAPOS && Math.random() < 0.28) {
-    return { x: LARGURA + 10, largura: 30, altura: 16, voo: 40, cubos: 0 };
+    return {
+      x: LARGURA + 10,
+      largura: 28,
+      altura: 14,
+      voo: VOO_MEIO,
+      cubos: 0,
+      onda: Math.random() * Math.PI * 2
+    };
   }
   const cubos = 1 + Math.floor(Math.random() * 3);
   return {
@@ -612,9 +645,19 @@ function obstaculoNovo(pontos: number): Obstaculo {
     largura: cubos * 17,
     altura: Math.random() < 0.25 ? 32 : 16,
     voo: 0,
-    cubos
+    cubos,
+    onda: 0
   };
 }
+
+/** A que altura vai o guardanapo neste ponto do percurso. A onda depende de
+ *  onde ele está e não do relógio, para se ver de longe onde é que ele vai
+ *  estar quando chegar cá. E é de propósito que a onda toda cabe entre os
+ *  dezasseis e os trinta e quatro: mais alto e passava-se por baixo sem fazer
+ *  nada, mais baixo e nem baixado se escapava. */
+const VOO_MEIO = 25;
+const VOO_ONDA = 7;
+const vooDe = (o: Obstaculo) => VOO_MEIO + Math.sin(o.x / 52 + o.onda) * VOO_ONDA;
 
 /** Caixa contra caixa, com uma folga que perdoa os quase. */
 function bateu(j: Jogo): boolean {
