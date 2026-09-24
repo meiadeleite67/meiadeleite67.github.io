@@ -44,10 +44,24 @@ export function Rodape({ irPara }: { irPara: (p: Pagina) => void }) {
         <div>
           <h4>Andar por aqui</h4>
           <ul>
-            {[...PAGINAS, ...JOGOS].map((p) => (
+            {PAGINAS.map((p) => (
               <li key={p.id}>
                 <button type="button" onClick={() => irPara(p.id)}>
                   {p.nome}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* os jogos a parte, como no cabecalho: sao outra coisa */}
+        <div>
+          <h4>Jogos</h4>
+          <ul>
+            {JOGOS.map((j) => (
+              <li key={j.id}>
+                <button type="button" onClick={() => irPara(j.id)}>
+                  {j.nome}
                 </button>
               </li>
             ))}

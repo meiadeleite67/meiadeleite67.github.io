@@ -1444,7 +1444,17 @@ footer {
 }
 @media (min-width: 720px) {
   .rodape {
-    grid-template-columns: 1.6fr 1fr 1fr;
+    grid-template-columns: 1.6fr 1fr 1fr 1fr;
+  }
+}
+/* entre os dois tamanhos as quatro colunas ficavam estreitas de mais: passam
+   a duas, com a apresentacao do grupo a ocupar a linha de cima inteira */
+@media (min-width: 560px) and (max-width: 1000px) {
+  .rodape {
+    grid-template-columns: 1fr 1fr;
+  }
+  .rodape-sobre {
+    grid-column: 1 / -1;
   }
 }
 .rodape-sobre {
