@@ -1,6 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type RefObject
+} from 'react';
 import { api, temServidor } from '../lib/api';
 import { passeDe } from '../lib/nick';
+import { abrirRoleta, ligarSom, somLigado } from '../lib/som';
 import type { Aposta, Pontuacao, Rodada, TipoDeAposta } from '../lib/tipos';
 
 /**
@@ -75,6 +84,10 @@ const DUZIAS: { tipo: TipoDeAposta; nome: string }[] = [
   { tipo: 'duzia3', nome: '25 a 36' }
 ];
 
+/** Uma ficha pousada no pano: onde ficou e quanto vale. Guardam-se por ordem,
+ *  que é o que deixa desfazer a última sem mexer nas outras. */
+type Posta = { chave: string; ficha: number };
+
 /** A chave com que cada aposta fica guardada enquanto está na mesa. */
 const chaveDa = (tipo: TipoDeAposta, valor?: number) =>
   tipo === 'numero' ? `numero:${valor}` : tipo;
@@ -98,9 +111,11 @@ export function Roleta({
   const [linha, setLinha] = useState<Pontuacao | null>(null);
   const [recado, setRecado] = useState('');
   const [ficha, setFicha] = useState(FICHAS[1]);
-  /* O que está na mesa, ficha a ficha. Guardam-se uma a uma e não somadas,
-     para se poderem empilhar em cima da casa como se empilham numa mesa. */
-  const [mesa, setMesa] = useState<Record<string, number[]>>({});
+  /* O que está na mesa, ficha a ficha e pela ordem em que se pousaram. Guardar
+     a ordem e não só as somas é o que deixa haver um desfazer: tira-se a
+     última que se pôs, seja em que casa for. */
+  const [postas, setPostas] = useState<Posta[]>([]);
+  const [comSom, setComSom] = useState(somLigado);
   const [aRodar, setARodar] = useState(false);
   const [aPedir, setAPedir] = useState(false);
   const [saiu, setSaiu] = useState<Rodada | null>(null);
@@ -109,12 +124,20 @@ export function Roleta({
 
   const ocupado = useRef(false);
   const relogios = useRef<number[]>([]);
+  const cena = useRef<HTMLDivElement>(null);
+
+  /* As fichas de cada casa, para as empilhar. Sai da lista e não o contrário:
+     a lista é que manda, e isto é só a mesma coisa vista por casas. */
+  const mesa = useMemo(() => {
+    const por: Record<string, number[]> = {};
+    postas.forEach((p) => {
+      (por[p.chave] = por[p.chave] || []).push(p.ficha);
+    });
+    return por;
+  }, [postas]);
 
   const passe = nome ? passeDe(nome) : '';
-  const naMesa = useMemo(
-    () => Object.values(mesa).reduce((s, fichas) => s + fichas.reduce((x, f) => x + f, 0), 0),
-    [mesa]
-  );
+  const naMesa = useMemo(() => postas.reduce((s, p) => s + p.ficha, 0), [postas]);
   const saldo = linha ? linha.torroes : 0;
 
   useEffect(
@@ -146,7 +169,7 @@ export function Roleta({
     if (naMesa + ficha > saldo) return setRecado('Não tens torrões que cheguem para mais fichas.');
     setRecado('');
     setSaiu(null);
-    setMesa({ ...mesa, [chave]: [...(mesa[chave] || []), ficha] });
+    setPostas((antes) => [...antes, { chave, ficha }]);
   }
 
   /** Os cem do costume, para quem está mesmo sem nada. A carteira é a mesma de
@@ -168,14 +191,54 @@ export function Roleta({
 
   function tirar(chave: string) {
     if (aRodar) return;
-    const resto = { ...mesa };
-    delete resto[chave];
-    setMesa(resto);
+    setPostas((antes) => antes.filter((p) => p.chave !== chave));
+  }
+
+  /** Tira a última ficha que se pôs, onde quer que ela tenha ficado. */
+  function desfazer() {
+    if (aRodar || postas.length === 0) return;
+    setRecado('');
+    setSaiu(null);
+    setPostas((antes) => antes.slice(0, -1));
+  }
+
+  /**
+   * Põe a roleta à vista antes de ela girar.
+   *
+   * No telemóvel o pano das apostas é comprido e quem carrega em rodar está lá
+   * em baixo a olhar para as fichas, com a roleta fora do ecrã: girava e não se
+   * via nada. Só mexe se ela não estiver toda à vista, por isso no computador,
+   * onde cabe tudo, isto não faz nada.
+   */
+  function mostrarARoleta() {
+    const oQuadro = cena.current;
+    if (!oQuadro) return;
+    const aVista = () => {
+      const caixa = oQuadro.getBoundingClientRect();
+      const altura = window.innerHeight || document.documentElement.clientHeight;
+      return caixa.top >= 0 && caixa.bottom <= altura;
+    };
+    if (aVista()) return;
+
+    const devagar = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    oQuadro.scrollIntoView({ behavior: devagar ? 'smooth' : 'auto', block: 'center' });
+
+    /* Há sítios onde o scroll suave simplesmente não acontece, e aí não se
+       mexia nada e a bola girava fora do ecrã. Se daqui a um instante a roleta
+       ainda não estiver à vista, vai-se lá de uma vez. Mais vale um salto seco
+       do que rodar às escondidas. */
+    if (!devagar) return;
+    relogios.current.push(
+      window.setTimeout(() => {
+        if (!aVista()) oQuadro.scrollIntoView({ behavior: 'auto', block: 'center' });
+      }, 400)
+    );
   }
 
   async function rodar() {
     if (aRodar || ocupado.current || naMesa <= 0) return;
     ocupado.current = true;
+    mostrarARoleta();
     setARodar(true);
     setRecado('');
     setSaiu(null);
@@ -192,7 +255,7 @@ export function Roleta({
         window.setTimeout(() => {
           setSaiu(r.rodada);
           setLinha(r.linha);
-          setMesa({});
+          setPostas([]);
           setARodar(false);
           recarregar();
         }, A_RODAR)
@@ -241,9 +304,35 @@ export function Roleta({
           <b>{saldo}</b>
           <small>torrões de {nome}</small>
         </p>
+        <button
+          className={`rol-som${comSom ? '' : ' calada'}`}
+          type="button"
+          onClick={() => {
+            setComSom(!comSom);
+            ligarSom(!comSom);
+          }}
+          aria-pressed={comSom}
+          title={comSom ? 'Calar a roleta' : 'Ouvir a roleta'}
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3.6 9.3h3.3L11.6 5v14l-4.7-4.3H3.6Z" fill="currentColor" />
+            {comSom ? (
+              <g fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                <path d="M15 9.4a3.7 3.7 0 0 1 0 5.2" />
+                <path d="M17.6 6.9a7.2 7.2 0 0 1 0 10.2" />
+              </g>
+            ) : (
+              <g fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                <path d="M15.2 9.6l5.2 4.8" />
+                <path d="M20.4 9.6l-5.2 4.8" />
+              </g>
+            )}
+          </svg>
+          <span>{comSom ? 'Som' : 'Calada'}</span>
+        </button>
       </header>
 
-      <Prato alvo={alvo} aRodar={aRodar} saiu={saiu} />
+      <Prato cena={cena} alvo={alvo} aRodar={aRodar} saiu={saiu} />
 
       {saiu && (
         <p className={`rol-veredito ${saiu.lucro > 0 ? 'bem' : saiu.lucro < 0 ? 'mal' : ''}`}>
@@ -294,8 +383,22 @@ export function Roleta({
           )}
         </p>
         <div className="rol-botoes">
-          <button type="button" className="btn" onClick={() => setMesa({})} disabled={aRodar || naMesa === 0}>
-            Tirar as fichas
+          <button
+            type="button"
+            className="btn"
+            onClick={desfazer}
+            disabled={aRodar || postas.length === 0}
+            title="Tirar a última ficha que puseste"
+          >
+            Desfazer
+          </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setPostas([])}
+            disabled={aRodar || naMesa === 0}
+          >
+            Tirar todas
           </button>
           <button type="button" className="btn azul" onClick={rodar} disabled={aRodar || naMesa === 0}>
             {aRodar ? 'A rodar...' : 'Rodar'}
@@ -315,10 +418,12 @@ export function Roleta({
 /* ======================== o prato, em três dimensões ======================== */
 
 function Prato({
+  cena,
   alvo,
   aRodar,
   saiu
 }: {
+  cena: RefObject<HTMLDivElement>;
   alvo: { casa: number; n: number } | null;
   aRodar: boolean;
   saiu: Rodada | null;
@@ -347,6 +452,11 @@ function Prato({
    * a outro e mais nada. Aqui há três coisas ao mesmo tempo: a bola trava, vai
    * descendo pela parede da bacia para dentro, e dá um saltinho quando bate na
    * casa. O prato anda com ela, e acaba com a casa que saiu debaixo da marca.
+   *
+   * O som sai daqui e não de um ficheiro a tocar por cima: o tom vem da
+   * velocidade a que as coisas vão nesta imagem, e cada estalo é um separador
+   * que a bola atravessou de verdade. É por isso que os estalos se vão
+   * afastando sozinhos à medida que ela perde força.
    */
   useEffect(() => {
     if (!alvo || !prato.current || !eixo.current) return;
@@ -362,14 +472,23 @@ function Prato({
     const inicio = performance.now();
     const oPrato = prato.current;
     const oEixo = eixo.current;
+    const som = abrirRoleta();
+
+    /* Por cima de que separador ia a bola em relação ao prato. É a diferença
+       dos dois ângulos e não o da bola: o prato também anda, e ao contrário. */
+    let separador = Math.floor((de.bola - de.prato) / PASSO);
+    let ultimoEstalo = 0;
+    let largouAPista = false;
 
     const imagem = (agora: number) => {
       const t = Math.min(1, (agora - inicio) / A_RODAR);
       // depressa ao princípio, quase nada no fim: é uma bola a perder força
       const trava = 1 - Math.pow(1 - t, 3);
 
-      oPrato.style.setProperty('--prato', `${de.prato + (paraPrato - de.prato) * trava}deg`);
-      oEixo.style.setProperty('--ang', `${de.bola + (paraBola - de.bola) * trava}deg`);
+      const angPrato = de.prato + (paraPrato - de.prato) * trava;
+      const angBola = de.bola + (paraBola - de.bola) * trava;
+      oPrato.style.setProperty('--prato', `${angPrato}deg`);
+      oEixo.style.setProperty('--ang', `${angBola}deg`);
 
       /* Só começa a cair depois de perder velocidade. Antes disso a força
          chega-lhe para se manter encostada à pista, como numa roleta a sério. */
@@ -380,17 +499,55 @@ function Prato({
       oEixo.style.setProperty('--raio', `${NA_PISTA + (NA_CASA - NA_PISTA) * suave - salto}%`);
       oEixo.style.setProperty('--z', `${Z_PISTA + (Z_CASA - Z_PISTA) * suave}px`);
 
+      if (som) {
+        /* A velocidade vem da conta da travagem e não de comparar esta imagem
+           com a anterior: uma imagem perdida dava um salto na velocidade, e um
+           salto na velocidade ouve-se logo. */
+        const porSegundo = (3 * Math.pow(1 - t, 2) * 1000) / A_RODAR;
+        const vPrato = Math.abs(paraPrato - de.prato) * porSegundo;
+        const vBola = Math.abs(paraBola - de.bola) * porSegundo;
+        som.andar(vPrato, vBola, cai === 0);
+
+        if (cai > 0) {
+          if (!largouAPista) {
+            largouAPista = true;
+            // o momento em que ela larga a pista e bate na primeira pedra
+            som.estalo(0.45);
+            ultimoEstalo = agora;
+          }
+          const passou = Math.floor((angBola - angPrato) / PASSO);
+          /* Ao princípio a bola atravessa separadores mais depressa do que o
+             ouvido os separa, e por isso não se põe um estalo por cada um:
+             ficaria uma metralhadora em vez de um matraquear. */
+          if (passou !== separador && agora - ultimoEstalo > 26) {
+            const rapidez = Math.min(1, (vPrato + vBola) / 1400);
+            som.estalo(0.2 + 0.7 * (1 - rapidez));
+            ultimoEstalo = agora;
+          }
+          separador = passou;
+        }
+      }
+
       if (t < 1) pedido.current = requestAnimationFrame(imagem);
-      else parado.current = { prato: paraPrato, bola: paraBola };
+      else {
+        parado.current = { prato: paraPrato, bola: paraBola };
+        som?.assentar();
+      }
     };
 
     pedido.current = requestAnimationFrame(imagem);
-    return () => cancelAnimationFrame(pedido.current);
+    return () => {
+      cancelAnimationFrame(pedido.current);
+      /* Quem sai da página a meio de uma rodada, ou manda girar outra vez, não
+         fica com o som da anterior a acabar sozinho. */
+      som?.parar();
+    };
   }, [alvo]);
 
   return (
     <div
       className="rol-cena"
+      ref={cena}
       style={
         {
           '--casas': casas,

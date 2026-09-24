@@ -4959,6 +4959,38 @@ footer {
   color: var(--tinta-3);
 }
 
+/* Calar a roleta. Fica ao lado do saldo, no canto, do mesmo feitio da pastilha
+   do nome que esta no cabecalho: e a mesma ideia, um interruptor pequeno que
+   nao quer atencao nenhuma enquanto estiver como deve estar. */
+.rol-som {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  border: 1px solid var(--linha);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--tinta-2);
+  padding: 6px 13px;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.rol-som:hover {
+  border-color: var(--crema-2);
+  color: var(--tinta);
+}
+.rol-som svg {
+  flex: 0 0 auto;
+  color: var(--crema);
+}
+.rol-som.calada {
+  color: var(--tinta-3);
+}
+.rol-som.calada svg {
+  color: var(--tinta-3);
+}
+
 .rol-cena {
   position: relative;
   width: 100%;
@@ -5326,6 +5358,7 @@ footer {
 .rol-botoes {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 .rol-regras {
   margin-top: 14px;
@@ -5335,6 +5368,23 @@ footer {
 @media (max-width: 720px) {
   .rol-cena {
     max-width: 290px;
+  }
+  /* Ao alto os tres botoes nao cabem lado a lado com o recado do que esta na
+     mesa. A fila passa a ocupar a largura toda e o de rodar fica com o que
+     sobra, que e o que se carrega mais vezes. */
+  .rol-fim {
+    align-items: stretch;
+  }
+  .rol-botoes {
+    width: 100%;
+  }
+  .rol-botoes .btn {
+    flex: 1 1 auto;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .rol-botoes .btn.azul {
+    flex: 2 1 auto;
   }
   /* a mesa ao alto: doze filas de tres, com o zero em cima e as duzias de
      lado, como uma mesa a serio vista por quem esta de pe ao lado dela */
