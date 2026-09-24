@@ -13,7 +13,9 @@ import { Jogo } from './componentes/Jogo';
 import { JogoDoCusco } from './componentes/JogoDoCusco';
 import { Colherada } from './componentes/Colherada';
 import { Rodape } from './componentes/Rodape';
+import { Entrada } from './componentes/Entrada';
 import { api } from './lib/api';
+import { nomeGuardado } from './lib/nick';
 import { JOGOS, MENU, TODAS_AS_PAGINAS, eJogo } from './lib/dados';
 import type { Estado, Pagina } from './lib/tipos';
 
@@ -36,6 +38,12 @@ export default function App() {
   /** A lista dos jogos, aberta ou fechada. Na gaveta do telemóvel está sempre
    *  aberta, que aí há espaço para ela. */
   const [jogosAbertos, setJogosAbertos] = useState(false);
+  /* O nickname vive aqui e nao dentro de cada jogo. Antes cada jogo pedia o
+     nome por sua conta e cada um tinha o seu botao de mudar, o que dava tres
+     sitios para fazer a mesma coisa. Agora pede-se uma vez, no cabecalho, e os
+     jogos so mostram com que nome se esta a jogar. */
+  const [nome, setNome] = useState(nomeGuardado);
+  const [aPedirNome, setAPedirNome] = useState(false);
   const { fase, entornar } = useEntornar();
 
   const recarregar = useCallback(async () => {
@@ -121,6 +129,16 @@ export default function App() {
     // so depende da rede: o irPara muda a cada navegacao e nao deve reativar isto
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [semRede]);
+
+  /* a janela do nome fecha-se com Escape, como tudo o resto que abre por cima */
+  useEffect(() => {
+    if (!aPedirNome) return;
+    const fechar = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && nome) setAPedirNome(false);
+    };
+    window.addEventListener('keydown', fechar);
+    return () => window.removeEventListener('keydown', fechar);
+  }, [aPedirNome, nome]);
 
   /* a lista dos jogos fecha-se com Escape, como tudo o resto que abre por cima */
   useEffect(() => {
@@ -250,6 +268,26 @@ export default function App() {
               )
             )}
           </nav>
+          {/* quem esta a jogar, e onde se muda de nome */}
+          <button
+            className={`quem${nome ? '' : ' sem-nome'}`}
+            type="button"
+            onClick={() => setAPedirNome(true)}
+            title={nome ? 'Mudar de nickname' : 'Entrar com um nickname'}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="8" r="3.6" fill="none" stroke="currentColor" strokeWidth="1.9" />
+              <path
+                d="M4.8 20.5c0-3.8 3.2-6.2 7.2-6.2s7.2 2.4 7.2 6.2"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.9"
+                strokeLinecap="round"
+              />
+            </svg>
+            <span>{nome || 'Entrar'}</span>
+          </button>
+
           {menuAberto && <div className="gaveta-fundo" onClick={() => setMenuAberto(false)} />}
           {jogosAbertos && (
             <div className="jogos-fundo" onClick={() => setJogosAbertos(false)} aria-hidden="true" />
@@ -260,9 +298,25 @@ export default function App() {
       <main className="troca" key={pagina}>
         {pagina === 'inicio' && <Inicio estado={estado} irPara={irPara} />}
         {pagina === 'membros' && <Membros estado={estado} irPara={irPara} />}
-        {pagina === 'blackjack' && <Blackjack recarregar={recarregar} irPara={irPara} />}
-        {pagina === 'poker' && <JogoDoPoker estado={estado} recarregar={recarregar} />}
-        {pagina === 'roleta' && <Roleta recarregar={recarregar} />}
+        {pagina === 'blackjack' && (
+          <Blackjack
+            nome={nome}
+            pedirNome={() => setAPedirNome(true)}
+            recarregar={recarregar}
+            irPara={irPara}
+          />
+        )}
+        {pagina === 'poker' && (
+          <JogoDoPoker
+            estado={estado}
+            nome={nome}
+            pedirNome={() => setAPedirNome(true)}
+            recarregar={recarregar}
+          />
+        )}
+        {pagina === 'roleta' && (
+          <Roleta nome={nome} pedirNome={() => setAPedirNome(true)} recarregar={recarregar} />
+        )}
         {pagina === 'quadro' && <Quadro estado={estado} />}
         {pagina === 'instagram' && <Mural estado={estado} />}
         {pagina === 'agenda' && <Agenda estado={estado} />}
@@ -273,6 +327,41 @@ export default function App() {
 
         <Rodape irPara={irPara} />
       </main>
+
+      {aPedirNome && (
+        <div className="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="nome-titulo">
+          <div className="modal">
+            <svg width="40" height="54" viewBox="0 0 30 40" aria-hidden="true">
+              <path
+                d="M5 3 h20 l-2.5 32 a4 4 0 0 1 -4 3.6 h-7 a4 4 0 0 1 -4 -3.6 Z"
+                fill="var(--crema-2)"
+              />
+              <path
+                d="M6.6 14 h16.8 l-1.5 21 a4 4 0 0 1 -4 3.6 h-6 a4 4 0 0 1 -4 -3.6 Z"
+                fill="var(--crema)"
+              />
+              <rect x="5.4" y="9" width="19.2" height="5.4" fill="var(--crema-2)" />
+            </svg>
+            <h2 id="nome-titulo">{nome ? 'Mudar de nickname' : 'Com que nome jogas?'}</h2>
+            <p>
+              O nome é o da Leader Board, e o PIN é o que prova que ele é teu. Serve para o
+              blackjack, para o poker e para a roleta, que os torrões são os mesmos.
+            </p>
+            <Entrada
+              aoEntrar={(quem) => {
+                setNome(quem);
+                setAPedirNome(false);
+                recarregar();
+              }}
+            />
+            {nome && (
+              <button className="btn claro" type="button" onClick={() => setAPedirNome(false)}>
+                Deixa estar
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       <Entornar fase={fase} />
     </>

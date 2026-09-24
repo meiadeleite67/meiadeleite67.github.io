@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { api } from '../lib/api';
-import { Entrada } from './Entrada';
-import { nomeGuardado, passeDe } from '../lib/nick';
+import { passeDe } from '../lib/nick';
 import { APOSTAS, conta, mesaNova, porFicha, soma, suave, tirarFichas } from '../lib/blackjack';
 import type { Carta, Mao, Mesa, Resultado } from '../lib/blackjack';
 import type { Pagina, RespostaDaMesa } from '../lib/tipos';
@@ -21,17 +20,19 @@ const DIZ: Record<Resultado, string> = {
 const TAPADA: Carta = { v: 'A', n: '\u2660', verm: false };
 
 export function Blackjack({
+  nome,
+  pedirNome,
   recarregar,
   irPara
 }: {
+  nome: string;
+  pedirNome: () => void;
   recarregar: () => void;
   irPara: (p: Pagina) => void;
 }) {
   /* Esta mesa e so o que se ve. Quem tem as cartas a serio e o servidor: aqui
      nao ha sapato nenhum, nem contas de quem ganhou. */
   const [mesa, setMesa] = useState<Mesa>(() => mesaNova(0));
-  const [nome, setNome] = useState(nomeGuardado);
-  const [aPedirNome, setAPedirNome] = useState(() => !nomeGuardado());
   const [podem, setPodem] = useState({ dobrar: false, dividir: false });
   const [passo, setPasso] = useState(0);
   const [aEsperar, setAEsperar] = useState(false);
@@ -79,28 +80,15 @@ export function Blackjack({
     }
   }
 
-  /* Quem chega com o nome e o passe ja postos volta a mesa onde a deixou. Sem
-     passe pede-se o PIN, que e o caso de quem vem de outro browser ou de antes
-     dos PINs existirem. */
+  /* O nome vem do cabecalho. Sempre que ele muda, volta-se a mesa desse nome:
+     a mao que estivesse a meio e as fichas sao de quem la estava. */
   useEffect(() => {
-    const posto = nomeGuardado();
-    if (!posto) return;
-    if (!passeDe(posto)) {
-      setAPedirNome(true);
-      return;
-    }
-    aoServidor(() => api.sentar(posto, passeDe(posto)));
-    // uma vez, ao entrar na mesa
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /** Quem acabou de escrever o nome e o PIN senta-se a mesa onde a deixou. */
-  function jaEntrou(quem: string) {
-    setNome(quem);
-    setAPedirNome(false);
+    if (!nome || !passeDe(nome)) return;
     setMesa(mesaNova(0));
-    aoServidor(() => api.sentar(quem, passeDe(quem)));
-  }
+    aoServidor(() => api.sentar(nome, passeDe(nome)));
+    // so depende do nome; o aoServidor muda a cada render e nao deve reativar isto
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nome]);
 
   function darCartas() {
     const aposta = soma(mesa.fichas);
@@ -346,37 +334,10 @@ export function Blackjack({
           {nome.trim() && (
             <p className="a-jogar-como">
               A jogar como <b>{nome.trim()}</b>
-              <button type="button" onClick={() => setAPedirNome(true)}>
-                mudar
-              </button>
             </p>
           )}
         </div>
       </section>
-
-      {aPedirNome && (
-        <div className="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">
-          <div className="modal">
-            <svg width="40" height="54" viewBox="0 0 30 40" aria-hidden="true">
-              <path
-                d="M5 3 h20 l-2.5 32 a4 4 0 0 1 -4 3.6 h-7 a4 4 0 0 1 -4 -3.6 Z"
-                fill="var(--crema-2)"
-              />
-              <path
-                d="M6.6 14 h16.8 l-1.5 21 a4 4 0 0 1 -4 3.6 h-6 a4 4 0 0 1 -4 -3.6 Z"
-                fill="var(--crema)"
-              />
-              <rect x="5.4" y="9" width="19.2" height="5.4" fill="var(--crema-2)" />
-            </svg>
-            <h2 id="modal-titulo">Quem se senta à mesa?</h2>
-            <p>
-              O nome é o da Leader Board, e o PIN é o que prova que ele é teu. Com ele entras no
-              teu nome em qualquer telemóvel.
-            </p>
-            <Entrada aoEntrar={jaEntrou} />
-          </div>
-        </div>
-      )}
 
       <section className="bj-quadro">
         <h2 style={{ fontSize: 24, marginBottom: 6 }}>Leader Board</h2>

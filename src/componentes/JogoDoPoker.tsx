@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MesaEm3D, useSegundos } from './MesaDePoker';
-import { Entrada } from './Entrada';
 import { api, fotoDoMembro, quantosNasMesas, temServidor } from '../lib/api';
-import { nomeGuardado, passeDe } from '../lib/nick';
+import { passeDe } from '../lib/nick';
 import { restam, useMesaViva } from '../lib/poker';
 import { guardar, lido } from '../lib/dados';
 import type { Estado, Membro, QuantosNaMesa } from '../lib/tipos';
@@ -31,14 +30,17 @@ const PRAZO = 30;
 
 const mesaDe = (membro: Membro) => `m-${membro.id}`;
 
-export function JogoDoPoker({ estado, recarregar }: { estado: Estado; recarregar: () => void }) {
-  /* Um nome sem passe e um nome que nao se pode provar neste aparelho: pede-se
-     o PIN outra vez, como no blackjack, senao a mesa dizia so que nao sabe
-     quem somos. */
-  const [nome, setNome] = useState(() => {
-    const posto = nomeGuardado();
-    return posto && passeDe(posto) ? posto : '';
-  });
+export function JogoDoPoker({
+  estado,
+  nome,
+  pedirNome,
+  recarregar
+}: {
+  estado: Estado;
+  nome: string;
+  pedirNome: () => void;
+  recarregar: () => void;
+}) {
   const [mesa, setMesa] = useState<string | null>(() => lido(ONDE_ESTAVA) || null);
   const [quantos, setQuantos] = useState<QuantosNaMesa[]>([]);
   const [subida, setSubida] = useState(0);
@@ -151,12 +153,9 @@ export function JogoDoPoker({ estado, recarregar }: { estado: Estado; recarregar
           À mesa senta-se com o mesmo nickname do blackjack, e com o mesmo PIN. É ele que prova de
           quem são as fichas, e por isso ninguém se pode sentar com o nome de outra pessoa.
         </p>
-        <Entrada
-          aoEntrar={(quem) => {
-            setNome(quem);
-            recarregar();
-          }}
-        />
+        <button className="btn azul" type="button" onClick={pedirNome}>
+          Entrar com o meu nome
+        </button>
       </section>
     );
 

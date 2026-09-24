@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { Entrada } from './Entrada';
 import { api, temServidor } from '../lib/api';
-import { nomeGuardado, passeDe } from '../lib/nick';
+import { passeDe } from '../lib/nick';
 import type { Aposta, Pontuacao, Rodada, TipoDeAposta } from '../lib/tipos';
 
 /**
@@ -35,14 +34,6 @@ const FICHAS = [1, 5, 10, 25, 100];
 const A_RODAR = 5200;
 const PASSO = 360 / RODA.length;
 
-/* O tabuleiro é o de sempre: três filas de doze, com o zero de lado. A fila de
-   cima é a terceira coluna, que é a dos múltiplos de três. */
-const FILAS = [
-  Array.from({ length: 12 }, (_, i) => i * 3 + 3),
-  Array.from({ length: 12 }, (_, i) => i * 3 + 2),
-  Array.from({ length: 12 }, (_, i) => i * 3 + 1)
-];
-
 const DE_FORA: { tipo: TipoDeAposta; nome: string; paga: string }[] = [
   { tipo: 'baixo', nome: '1 a 18', paga: 'paga a dobrar' },
   { tipo: 'par', nome: 'Par', paga: 'paga a dobrar' },
@@ -58,8 +49,6 @@ const DUZIAS: { tipo: TipoDeAposta; nome: string }[] = [
   { tipo: 'duzia3', nome: '25 a 36' }
 ];
 
-const COLUNAS: TipoDeAposta[] = ['coluna3', 'coluna2', 'coluna1'];
-
 /** A chave com que cada aposta fica guardada enquanto está na mesa. */
 const chaveDa = (tipo: TipoDeAposta, valor?: number) =>
   tipo === 'numero' ? `numero:${valor}` : tipo;
@@ -69,17 +58,22 @@ const apostaDa = (chave: string, quanto: number): Aposta =>
     ? { tipo: 'numero', valor: Number(chave.slice(7)), quanto }
     : { tipo: chave as TipoDeAposta, quanto };
 
-export function Roleta({ recarregar }: { recarregar: () => void }) {
-  const [nome, setNome] = useState(() => {
-    const posto = nomeGuardado();
-    return posto && passeDe(posto) ? posto : '';
-  });
+export function Roleta({
+  nome,
+  pedirNome,
+  recarregar
+}: {
+  nome: string;
+  pedirNome: () => void;
+  recarregar: () => void;
+}) {
   const [linha, setLinha] = useState<Pontuacao | null>(null);
   const [recado, setRecado] = useState('');
   const [ficha, setFicha] = useState(FICHAS[1]);
   /** O que está na mesa, por chave de aposta. */
   const [mesa, setMesa] = useState<Record<string, number>>({});
   const [aRodar, setARodar] = useState(false);
+  const [aPedir, setAPedir] = useState(false);
   const [saiu, setSaiu] = useState<Rodada | null>(null);
   /** As voltas do prato e da bola. Só crescem, para nunca andarem para trás. */
   const [giro, setGiro] = useState({ prato: 0, bola: 0 });
@@ -122,6 +116,23 @@ export function Roleta({ recarregar }: { recarregar: () => void }) {
     setRecado('');
     setSaiu(null);
     setMesa({ ...mesa, [chave]: ja + ficha });
+  }
+
+  /** Os cem do costume, para quem está mesmo sem nada. A carteira é a mesma de
+   *  todos os jogos, por isso o empréstimo também. */
+  async function pedirEmprestado() {
+    if (aPedir) return;
+    setAPedir(true);
+    setRecado('');
+    try {
+      const r = await api.emprestimo(nome, passe);
+      setLinha(r.linha);
+      recarregar();
+    } catch (e) {
+      setRecado(e instanceof Error ? e.message : 'Não deu para pedir.');
+    } finally {
+      setAPedir(false);
+    }
   }
 
   function tirar(chave: string) {
@@ -194,7 +205,9 @@ export function Roleta({ recarregar }: { recarregar: () => void }) {
         <p className="lead">
           Joga-se com os mesmos torrões do blackjack e do poker. Entra com o teu nome e o teu PIN.
         </p>
-        <Entrada aoEntrar={setNome} />
+        <button className="btn azul" type="button" onClick={pedirNome}>
+          Entrar com o meu nome
+        </button>
       </section>
     );
 
@@ -239,6 +252,15 @@ export function Roleta({ recarregar }: { recarregar: () => void }) {
       </div>
 
       <Tabuleiro mesa={mesa} por={por} tirar={tirar} aRodar={aRodar} saiu={saiu} />
+
+      {saldo < 5 && (
+        <p className="rol-sem-nada">
+          Ficaste sem torrões.
+          <button type="button" onClick={pedirEmprestado} disabled={aPedir}>
+            Pedir 100 emprestados ao Amílcar
+          </button>
+        </p>
+      )}
 
       <div className="rol-fim">
         <p className="notas">
@@ -302,11 +324,9 @@ function Prato({
   return (
     <div className="rol-cena" style={estilo} role="img" aria-label="A roleta">
       <div className="rol-mundo">
-        {/* a bacia de madeira, feita de discos uns atrás dos outros */}
+        {/* a bacia de madeira e a pista da bola, as duas em anel para se ver
+            lá para dentro: um disco cheio tapava a roda, que está mais fundo */}
         <div className="rol-bacia">
-          {[0, 1, 2, 3, 4].map((f) => (
-            <i key={f} className="rol-folha" style={{ '--f': f } as CSSProperties} />
-          ))}
           <i className="rol-pista" />
         </div>
 
@@ -336,7 +356,85 @@ function Prato({
   );
 }
 
-/* ============================== o pano ============================== */
+/* ============================== o pano ==============================
+
+   O tabuleiro e uma grelha so, e cada casa sabe dois sitios: o que ocupa com a
+   mesa deitada e o que ocupa com ela ao alto. Assim a mesa roda de orientacao
+   no telemovel sem o HTML mudar nada, e deixa de ser preciso arrasta-la para o
+   lado para se ver os numeros todos.
+
+   Deitada sao tres filas de doze, como numa mesa de casino vista de lado. Ao
+   alto sao doze filas de tres, com o zero em cima e as duzias de lado, que e
+   como as mesas a serio estao viradas para quem esta de pe ao lado delas. */
+
+type Sitio = {
+  /** deitado: fila, coluna, e quantas ocupa de cada */
+  l: number;
+  c: number;
+  ls?: number;
+  cs?: number;
+  /** ao alto: o mesmo */
+  lv: number;
+  cv: number;
+  lvs?: number;
+  cvs?: number;
+};
+
+const ondeFica = (s: Sitio) =>
+  ({
+    '--l': s.l,
+    '--c': s.c,
+    '--ls': s.ls ?? 1,
+    '--cs': s.cs ?? 1,
+    '--lv': s.lv,
+    '--cv': s.cv,
+    '--lvs': s.lvs ?? 1,
+    '--cvs': s.cvs ?? 1
+  }) as CSSProperties;
+
+/** Onde cada numero fica nas duas orientacoes. */
+const sitioDoNumero = (n: number): Sitio => ({
+  l: n % 3 === 0 ? 1 : n % 3 === 2 ? 2 : 3,
+  c: Math.floor((n - 1) / 3) + 2,
+  lv: Math.floor((n - 1) / 3) + 2,
+  cv: ((n - 1) % 3) + 1
+});
+
+const SITIO_DAS_COLUNAS: Record<string, Sitio> = {
+  coluna3: { l: 1, c: 14, lv: 14, cv: 3 },
+  coluna2: { l: 2, c: 14, lv: 14, cv: 2 },
+  coluna1: { l: 3, c: 14, lv: 14, cv: 1 }
+};
+
+const SITIO_DAS_DUZIAS: Record<string, Sitio> = {
+  duzia1: { l: 4, c: 2, cs: 4, lv: 2, cv: 4, lvs: 4 },
+  duzia2: { l: 4, c: 6, cs: 4, lv: 6, cv: 4, lvs: 4 },
+  duzia3: { l: 4, c: 10, cs: 4, lv: 10, cv: 4, lvs: 4 }
+};
+
+const SITIO_DE_FORA: Record<string, Sitio> = {
+  baixo: { l: 5, c: 2, cs: 2, lv: 15, cv: 1, cvs: 2 },
+  alto: { l: 5, c: 12, cs: 2, lv: 15, cv: 3, cvs: 2 },
+  par: { l: 5, c: 4, cs: 2, lv: 16, cv: 1, cvs: 2 },
+  impar: { l: 5, c: 10, cs: 2, lv: 16, cv: 3, cvs: 2 },
+  vermelho: { l: 5, c: 6, cs: 2, lv: 17, cv: 1, cvs: 2 },
+  preto: { l: 5, c: 8, cs: 2, lv: 17, cv: 3, cvs: 2 }
+};
+
+const ACERTA: Record<string, (n: number) => boolean> = {
+  baixo: (n) => n >= 1 && n <= 18,
+  alto: (n) => n >= 19 && n <= 36,
+  par: (n) => n !== 0 && n % 2 === 0,
+  impar: (n) => n % 2 === 1,
+  vermelho: (n) => cor(n) === 'vermelho',
+  preto: (n) => cor(n) === 'preto',
+  duzia1: (n) => n >= 1 && n <= 12,
+  duzia2: (n) => n >= 13 && n <= 24,
+  duzia3: (n) => n >= 25 && n <= 36,
+  coluna1: (n) => n !== 0 && n % 3 === 1,
+  coluna2: (n) => n !== 0 && n % 3 === 2,
+  coluna3: (n) => n !== 0 && n % 3 === 0
+};
 
 function Tabuleiro({
   mesa,
@@ -351,7 +449,8 @@ function Tabuleiro({
   aRodar: boolean;
   saiu: Rodada | null;
 }) {
-  /** A ficha que está em cima de uma casa, se houver. */
+  /** A ficha que esta em cima de uma casa, se houver. Carregar com o botao do
+   *  lado direito tira-a de la. */
   const emCima = (chave: string) => {
     const quanto = mesa[chave];
     if (!quanto) return null;
@@ -371,89 +470,67 @@ function Tabuleiro({
   const brilha = (acerta: (n: number) => boolean) =>
     saiu && !aRodar && acerta(saiu.saiu) ? ' acertou' : '';
 
+  const casa = (
+    chave: string,
+    classe: string,
+    sitio: Sitio,
+    texto: string,
+    aoTocar: () => void,
+    acerta: (n: number) => boolean
+  ) => (
+    <button
+      key={chave}
+      type="button"
+      className={`rol-cela ${classe}${brilha(acerta)}`}
+      style={ondeFica(sitio)}
+      onClick={aoTocar}
+      disabled={aRodar}
+    >
+      <span>{texto}</span>
+      {emCima(chave)}
+    </button>
+  );
+
   return (
     <div className={`rol-pano${aRodar ? ' fechado' : ''}`}>
-      <button
-        type="button"
-        className={`rol-cela zero${brilha((n) => n === 0)}`}
-        onClick={() => por('numero', 0)}
-        disabled={aRodar}
-      >
-        <span>0</span>
-        {emCima('numero:0')}
-      </button>
+      {casa(
+        'numero:0',
+        'zero',
+        { l: 1, c: 1, ls: 3, lv: 1, cv: 1, cvs: 4 },
+        '0',
+        () => por('numero', 0),
+        (n) => n === 0
+      )}
 
-      <div className="rol-numeros">
-        {FILAS.map((fila, f) => (
-          <div key={f} className="rol-fila">
-            {fila.map((n) => (
-              <button
-                key={n}
-                type="button"
-                className={`rol-cela ${cor(n)}${brilha((x) => x === n)}`}
-                onClick={() => por('numero', n)}
-                disabled={aRodar}
-              >
-                <span>{n}</span>
-                {emCima(`numero:${n}`)}
-              </button>
-            ))}
-            <button
-              type="button"
-              className={`rol-cela lado${brilha((x) => x !== 0 && x % 3 === (3 - f) % 3)}`}
-              onClick={() => por(COLUNAS[f])}
-              disabled={aRodar}
-              title="Esta coluna paga dois para um"
-            >
-              <span>2:1</span>
-              {emCima(COLUNAS[f])}
-            </button>
-          </div>
-        ))}
+      {Array.from({ length: 36 }, (_, i) => i + 1).map((n) =>
+        casa(
+          `numero:${n}`,
+          cor(n),
+          sitioDoNumero(n),
+          String(n),
+          () => por('numero', n),
+          (x) => x === n
+        )
+      )}
 
-        <div className="rol-fila rol-duzias">
-          {DUZIAS.map((d, i) => (
-            <button
-              key={d.tipo}
-              type="button"
-              className={`rol-cela larga${brilha((x) => x >= i * 12 + 1 && x <= i * 12 + 12)}`}
-              onClick={() => por(d.tipo)}
-              disabled={aRodar}
-            >
-              <span>{d.nome}</span>
-              {emCima(d.tipo)}
-            </button>
-          ))}
-        </div>
+      {(['coluna3', 'coluna2', 'coluna1'] as TipoDeAposta[]).map((t) =>
+        casa(t, 'lado', SITIO_DAS_COLUNAS[t], '2:1', () => por(t), ACERTA[t])
+      )}
 
-        <div className="rol-fila rol-fora">
-          {DE_FORA.map((o) => (
-            <button
-              key={o.tipo}
-              type="button"
-              className={`rol-cela${o.tipo === 'vermelho' || o.tipo === 'preto' ? ' ' + o.tipo : ''}${brilha(
-                (x) =>
-                  o.tipo === 'baixo'
-                    ? x >= 1 && x <= 18
-                    : o.tipo === 'alto'
-                      ? x >= 19 && x <= 36
-                      : o.tipo === 'par'
-                        ? x !== 0 && x % 2 === 0
-                        : o.tipo === 'impar'
-                          ? x % 2 === 1
-                          : o.tipo === 'vermelho'
-                            ? cor(x) === 'vermelho'
-                            : cor(x) === 'preto'
-              )}`}
-              onClick={() => por(o.tipo)}
-              disabled={aRodar}
-            >
-              <span>{o.nome}</span>
-              {emCima(o.tipo)}
-            </button>
-          ))}
-        </div>
-      </div>
+      {DUZIAS.map((d) =>
+        casa(d.tipo, 'larga', SITIO_DAS_DUZIAS[d.tipo], d.nome, () => por(d.tipo), ACERTA[d.tipo])
+      )}
+
+      {DE_FORA.map((o) =>
+        casa(
+          o.tipo,
+          o.tipo === 'vermelho' || o.tipo === 'preto' ? o.tipo : 'larga',
+          SITIO_DE_FORA[o.tipo],
+          o.nome,
+          () => por(o.tipo),
+          ACERTA[o.tipo]
+        )
+      )}
     </div>
   );
 }

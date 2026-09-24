@@ -4917,10 +4917,14 @@ footer {
 
 /* ============================== a roleta ==============================
 
-   O prato e a bola sao feitos como o trofeu, o Cusco e a mesa de poker: com as
-   transformacoes 3D do proprio CSS. O prato e um disco inclinado que roda, a
-   bola anda numa pista por fora e ao contrario, e as casas sao pintadas de uma
-   vez so num gradiente em leque, que e o que poupa trinta e sete triangulos. */
+   A roleta ve-se de cima, e por isso e um circulo e nao uma elipse. A fundura
+   continua a ser a serio: a cena tem perspectiva e os discos da bacia estao
+   uns atras dos outros, o que os faz encolher para dentro e da o funil. Uma
+   roleta inclinada era mais bonita de lado mas ficava oval, e uma roleta oval
+   nao parece uma roleta.
+
+   As casas sao pintadas de uma vez num gradiente em leque, o que poupa trinta
+   e sete triangulos. */
 
 .rol {
   max-width: 1000px;
@@ -4955,54 +4959,72 @@ footer {
 .rol-cena {
   position: relative;
   width: 100%;
-  max-width: 400px;
-  aspect-ratio: 1 / 0.78;
-  margin: 20px auto 6px;
-  perspective: 900px;
+  /* quadrada, senao a bacia era uma elipse antes mesmo de rodar */
+  max-width: 340px;
+  aspect-ratio: 1 / 1;
+  margin: 18px auto 10px;
+  perspective: 760px;
 }
 .rol-mundo {
   position: absolute;
   inset: 0;
   transform-style: preserve-3d;
-  transform: rotateX(58deg);
 }
 
-/* a bacia: discos uns atras dos outros, para ter fundura */
+/* A bacia e a pista sao aneis e nao discos: um disco cheio tapava tudo o que
+   esta mais fundo, e o que esta mais fundo e a roda.
+
+   Nao ha filtros aqui dentro de proposito. Um filter num contexto de tres
+   dimensoes achata o elemento e tira-o do empilhamento, e a bacia aparecia
+   fora do sitio, de lado, como uma foice. */
 .rol-bacia {
   position: absolute;
   inset: 0;
   transform-style: preserve-3d;
-}
-.rol-folha {
-  position: absolute;
-  inset: 0;
-  display: block;
   border-radius: 50%;
-  background: linear-gradient(150deg, #6b4526, #3d2616 60%, #291809);
-  transform: translateZ(calc(var(--f) * -7px));
-  filter: brightness(calc(1 - var(--f) * 0.14));
+  /* O centro do gradiente tem de ser o centro do circulo. Posto de lado para
+     dar brilho, e o proprio anel que sai do sitio: fica so meia madeira, de um
+     lado. O brilho vem do box-shadow, que se agarra a borda. */
+  background: radial-gradient(
+    circle at 50% 50%,
+    transparent 0 71%,
+    #c98a56 71.5%,
+    #a86d3d 76%,
+    #7d5029 85%,
+    #513418 93%,
+    #2c1c0c 100%
+  );
+  box-shadow:
+    inset 0 0.45em 0.9em rgba(255, 228, 184, 0.12),
+    inset 0 -0.35em 0.7em rgba(0, 0, 0, 0.5),
+    0 1.1em 2.2em -0.8em rgba(0, 0, 0, 0.8);
 }
+/* a pista por onde a bola anda, encavada entre a madeira e a roda */
 .rol-pista {
   position: absolute;
-  inset: 7%;
+  inset: 5%;
   display: block;
   border-radius: 50%;
-  background: radial-gradient(circle, #241609 60%, #180e06);
-  box-shadow: inset 0 0 1.4em 0.4em rgba(0, 0, 0, 0.55);
-  transform: translateZ(2px);
+  background: radial-gradient(
+    circle at 50% 50%,
+    transparent 0 78%,
+    #4a2e11 78.5%,
+    #26170a 90%,
+    #150c04 100%
+  );
+  box-shadow: inset 0 0.3em 0.7em rgba(0, 0, 0, 0.6);
+  transform: translateZ(-11px);
 }
-
-/* o prato, com as casas pintadas de uma vez */
 .rol-prato {
   position: absolute;
-  inset: 14%;
+  inset: 19%;
   border-radius: 50%;
   background: var(--casas);
-  transform: translateZ(5px) rotate(var(--prato));
+  transform: translateZ(-24px) rotate(var(--prato));
   transition: transform var(--anda) cubic-bezier(0.12, 0.72, 0.12, 1);
   box-shadow:
-    inset 0 0 0 2px rgba(240, 220, 192, 0.25),
-    0 0 1.2em rgba(0, 0, 0, 0.5);
+    inset 0 0 0 2px rgba(240, 220, 192, 0.22),
+    0 0 1.6em rgba(0, 0, 0, 0.6);
 }
 .rol-casa {
   position: absolute;
@@ -5013,27 +5035,34 @@ footer {
 .rol-casa span {
   position: absolute;
   left: 50%;
-  top: 1.5%;
+  top: 3.5%;
   transform: translateX(-50%);
   font-family: var(--mono);
-  font-size: 7px;
+  font-size: 8px;
   line-height: 1;
-  color: rgba(255, 252, 245, 0.92);
+  color: rgba(255, 252, 245, 0.94);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
 }
 .rol-meio {
   position: absolute;
-  inset: 33%;
+  inset: 34%;
   display: block;
   border-radius: 50%;
-  background: radial-gradient(circle at 38% 32%, #d9b071, #7a5027 55%, #3a2412);
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
+  background: radial-gradient(circle at 36% 30%, #f0d19a, #b07f3c 45%, #6a441f 75%, #33200f);
+  box-shadow:
+    0 0 0 2px rgba(0, 0, 0, 0.4),
+    inset -3px -5px 10px rgba(0, 0, 0, 0.45),
+    inset 3px 4px 8px rgba(255, 240, 210, 0.35);
+  transform: translateZ(6px);
 }
 
-/* a bola, numa pista por fora e ao contrario do prato */
+/* A bola anda na pista, por fora do prato e ao contrario dele. E uma bola a
+   serio e nao um ponto: tem o brilho de um lado, a sombra do outro, e a
+   sombra dela na madeira por baixo. */
 .rol-orbita {
   position: absolute;
-  inset: 8%;
-  transform: translateZ(9px) rotate(var(--bola));
+  inset: 11%;
+  transform: translateZ(6px) rotate(var(--bola));
   transition: transform var(--anda) cubic-bezier(0.1, 0.68, 0.16, 1);
   pointer-events: none;
 }
@@ -5041,22 +5070,30 @@ footer {
   position: absolute;
   left: 50%;
   top: 0;
-  width: 11px;
-  height: 11px;
+  width: 19px;
+  height: 19px;
   border-radius: 50%;
-  background: radial-gradient(circle at 34% 30%, #fffdf8, #b9b2a4);
+  background: radial-gradient(
+    circle at 32% 26%,
+    #ffffff 0%,
+    #f6f2e8 16%,
+    #d8d1c1 52%,
+    #948d7d 82%,
+    #6a6456 100%
+  );
   transform: translate(-50%, -50%);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.7);
+  box-shadow:
+    inset -2px -3px 5px rgba(0, 0, 0, 0.35),
+    inset 2px 2px 3px rgba(255, 255, 255, 0.5),
+    0 4px 7px rgba(0, 0, 0, 0.7);
 }
 
 /* a marca de onde a bola para, e o numero que saiu */
-/* a marca fica mesmo em cima da beira da bacia, que e onde a bola para. A
-   bacia comeca a cerca de um quarto da altura da cena, por causa da
-   inclinacao */
+/* a marca fica no cimo da bacia, que e onde a bola para */
 .rol-marca {
   position: absolute;
   left: 50%;
-  top: 23%;
+  top: 0;
   width: 0;
   height: 0;
   transform: translate(-50%, -4px);
@@ -5068,7 +5105,7 @@ footer {
 .rol-saiu {
   position: absolute;
   left: 50%;
-  bottom: 2%;
+  bottom: -6%;
   transform: translateX(-50%);
   min-width: 2.2em;
   padding: 0.15em 0.5em;
@@ -5163,38 +5200,26 @@ footer {
   cursor: default;
 }
 
-/* o pano */
+/* O pano e uma grelha so. Cada casa sabe o sitio que ocupa com a mesa deitada
+   e o que ocupa com ela ao alto, e a media query so troca as variaveis: no
+   telemovel a mesa poe-se ao alto em vez de se ter de a arrastar para o lado. */
 .rol-pano {
-  display: flex;
+  display: grid;
+  grid-template-columns: 0.85fr repeat(12, 1fr) 1.05fr;
+  grid-auto-rows: minmax(34px, auto);
   gap: 4px;
   background: radial-gradient(120% 130% at 50% 10%, #186145, #114434 60%, #08291f);
   border: 6px solid #3d2616;
   border-radius: 10px;
   padding: 6px;
-  overflow-x: auto;
 }
 .rol-pano.fechado {
   opacity: 0.6;
 }
-.rol-numeros {
-  display: grid;
-  gap: 4px;
-  flex: 1 1 auto;
-  min-width: 460px;
-}
-.rol-fila {
-  display: grid;
-  grid-template-columns: repeat(12, 1fr) 1.1fr;
-  gap: 4px;
-}
-.rol-duzias {
-  grid-template-columns: repeat(3, 1fr);
-}
-.rol-fora {
-  grid-template-columns: repeat(6, 1fr);
-}
 .rol-cela {
   position: relative;
+  grid-row: var(--l) / span var(--ls);
+  grid-column: var(--c) / span var(--cs);
   border: 1px solid rgba(240, 220, 192, 0.25);
   border-radius: 4px;
   background: transparent;
@@ -5202,9 +5227,8 @@ footer {
   font: inherit;
   font-family: var(--mono);
   font-size: 13px;
-  padding: 8px 2px;
+  padding: 6px 2px;
   cursor: pointer;
-  min-height: 38px;
   display: grid;
   place-items: center;
 }
@@ -5222,9 +5246,6 @@ footer {
 }
 .rol-cela.zero {
   background: #1d7a4c;
-  flex: 0 0 42px;
-  min-width: 42px;
-  border-radius: 4px;
 }
 .rol-cela.lado,
 .rol-cela.larga {
@@ -5275,11 +5296,22 @@ footer {
 
 @media (max-width: 720px) {
   .rol-cena {
-    max-width: 320px;
+    max-width: 290px;
+  }
+  /* a mesa ao alto: doze filas de tres, com o zero em cima e as duzias de
+     lado, como uma mesa a serio vista por quem esta de pe ao lado dela */
+  .rol-pano {
+    grid-template-columns: repeat(3, 1fr) 0.9fr;
+    grid-auto-rows: minmax(30px, auto);
   }
   .rol-cela {
+    grid-row: var(--lv) / span var(--lvs);
+    grid-column: var(--cv) / span var(--cvs);
     font-size: 12px;
-    min-height: 34px;
+  }
+  .rol-cela.lado,
+  .rol-cela.larga {
+    font-size: 11px;
   }
 }
 
@@ -5376,4 +5408,107 @@ footer {
 .pk-compra button:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+/* ===================== quem esta a jogar =====================
+
+   O nickname vive no cabecalho e e ali que se muda. Antes cada jogo pedia o
+   nome por sua conta e cada um tinha o seu botao de mudar, o que dava tres
+   sitios para fazer a mesma coisa; os jogos agora so mostram com que nome se
+   esta a jogar. */
+
+.quem {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  max-width: 200px;
+  border: 1px solid var(--linha);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--tinta-2);
+  padding: 6px 13px;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.quem:hover {
+  border-color: var(--crema-2);
+  color: var(--tinta);
+}
+.quem svg {
+  flex: 0 0 auto;
+  color: var(--crema);
+}
+.quem span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.quem.sem-nome {
+  border-color: var(--crema-2);
+  color: var(--crema);
+}
+.modal .btn.claro {
+  margin-top: 10px;
+}
+
+/* quem ficou sem nada, na roleta */
+.rol-sem-nada {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 12px auto 0;
+  color: var(--tinta-2);
+  font-size: 14px;
+}
+.rol-sem-nada button {
+  background: var(--crema);
+  color: #241a13;
+  border: 0;
+  border-radius: 999px;
+  padding: 5px 13px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+.rol-sem-nada button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (max-width: 700px) {
+  /* Sem quebra de linha: com ela, o flex preferia mandar o hamburguer para
+     baixo a encolher o botao do nome. Aqui dentro a barra e so a marca, o nome
+     e o hamburguer, que a navegacao esta na gaveta. */
+  .bar-in {
+    gap: 10px;
+    flex-wrap: nowrap;
+  }
+  /* a marca nao encolhe: encolhida, o nome do grupo partia-se em duas linhas.
+     Quem encolhe e o botao do nome, que corta com reticencias. */
+  .marca {
+    flex: 0 0 auto;
+  }
+  .marca b {
+    white-space: nowrap;
+  }
+  /* No telemovel fica entre a marca e o hamburguer, e encolhe se for preciso:
+     com largura fixa, num ecra estreito, empurrava o hamburguer para a linha
+     de baixo. O nome corta-se com reticencias, que e melhor do que isso. */
+  .quem {
+    order: 2;
+    flex: 0 1 auto;
+    min-width: 64px;
+    max-width: 108px;
+    padding: 5px 10px;
+    font-size: 13px;
+    gap: 5px;
+  }
+  .hamburguer {
+    order: 3;
+  }
 }
