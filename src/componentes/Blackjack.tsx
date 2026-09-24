@@ -1,14 +1,12 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { api, temServidor } from '../lib/api';
+import { api } from '../lib/api';
 import { Entrada } from './Entrada';
 import { nomeGuardado, passeDe } from '../lib/nick';
 import { APOSTAS, conta, mesaNova, porFicha, soma, suave, tirarFichas } from '../lib/blackjack';
 import type { Carta, Mao, Mesa, Resultado } from '../lib/blackjack';
-import type { Estado, RespostaDaMesa } from '../lib/tipos';
+import type { Pagina, RespostaDaMesa } from '../lib/tipos';
 
 const LARGURA_CARTA = 64;
-/** Quantos nomes cabem numa pagina do quadro de honra. */
-const POR_PAGINA = 10;
 
 const DIZ: Record<Resultado, string> = {
   blackjack: 'Blackjack',
@@ -22,7 +20,13 @@ const DIZ: Record<Resultado, string> = {
  *  verdadeira nem chega a sair do servidor enquanto estiver por virar. */
 const TAPADA: Carta = { v: 'A', n: '\u2660', verm: false };
 
-export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: () => void }) {
+export function Blackjack({
+  recarregar,
+  irPara
+}: {
+  recarregar: () => void;
+  irPara: (p: Pagina) => void;
+}) {
   /* Esta mesa e so o que se ve. Quem tem as cartas a serio e o servidor: aqui
      nao ha sapato nenhum, nem contas de quem ganhou. */
   const [mesa, setMesa] = useState<Mesa>(() => mesaNova(0));
@@ -32,8 +36,6 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
   const [passo, setPasso] = useState(0);
   const [aEsperar, setAEsperar] = useState(false);
   const [recado, setRecado] = useState('');
-  /** Em que pagina do quadro de honra vamos. */
-  const [pagina, setPagina] = useState(0);
 
   /* Um pedido de cada vez: dois a andar juntos davam uma carta a mais. */
   const ocupado = useRef(false);
@@ -100,17 +102,6 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
     aoServidor(() => api.sentar(quem, passeDe(quem)));
   }
 
-  /* Da primeira vez que o quadro chega, abre na pagina de quem esta a jogar:
-     quem esta em trigesimo nao tem de andar a procura de si proprio. */
-  const jaSaltei = useRef('');
-  useEffect(() => {
-    const quem = nome.trim();
-    if (!quem || estado.ranking.length === 0 || jaSaltei.current === quem) return;
-    const onde = estado.ranking.findIndex((r) => r.nome === quem);
-    jaSaltei.current = quem;
-    if (onde >= 0) setPagina(Math.floor(onde / POR_PAGINA));
-  }, [nome, estado.ranking]);
-
   function darCartas() {
     const aposta = soma(mesa.fichas);
     if (aposta <= 0 || aposta > mesa.saldo) return;
@@ -127,13 +118,6 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
    *  ja esta fechada e paga do lado de la. */
   const outraMao = () =>
     setMesa((m) => ({ ...m, maos: [], casa: [], atual: 0, fase: 'aposta', revelar: false }));
-
-  /* O quadro cresce e a pagina com ele, por isso vai as fatias. */
-  const paginas = Math.max(1, Math.ceil(estado.ranking.length / POR_PAGINA));
-  const naPagina = Math.min(pagina, paginas - 1);
-  const primeiro = naPagina * POR_PAGINA;
-  const aMostrar = estado.ranking.slice(primeiro, primeiro + POR_PAGINA);
-  const ondeEstou = estado.ranking.findIndex((r) => r.nome === nome.trim());
 
   const b = mesa;
   const naMesa = soma(b.fichas);
@@ -394,89 +378,15 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
         </div>
       )}
 
-      <section>
-        <h2 style={{ fontSize: 24, marginBottom: 14 }}>Leaderboard</h2>
-        <div className="painel">
-          {estado.ranking.length === 0 ? (
-            <p className="vazio">
-              {temServidor()
-                ? 'Ainda ninguém arriscou um torrão. Sê o primeiro a perder tudo.'
-                : 'O quadro partilhado ainda não está ligado. Por agora os torrões ficam só no teu browser.'}
-            </p>
-          ) : (
-            <table className="rank">
-              <thead>
-                <tr>
-                  <th />
-                  <th>Quem</th>
-                  <th>Torrões</th>
-                  <th>Máximo</th>
-                  <th>Mãos</th>
-                  <th>Ganhas</th>
-                  <th>BJ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {aMostrar.map((r, i) => (
-                  <tr
-                    key={r.nome}
-                    className={`${r.nome === nome.trim() ? 'eu' : ''} ${
-                      primeiro + i < 3 ? 'podio' : ''
-                    }`.trim()}
-                  >
-                    <td>{primeiro + i + 1}</td>
-                    <td>
-                      {r.nome}
-                      {r.nome === nome.trim() ? ' (tu)' : ''}
-                    </td>
-                    <td className="num">{r.torroes}</td>
-                    <td className="num">{r.pico}</td>
-                    <td className="num">{r.maos}</td>
-                    <td className="num">{r.vitorias}</td>
-                    <td className="num">{r.bjs}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-
-          {paginas > 1 && (
-            <div className="paginas">
-              <button
-                className="btn claro mini"
-                type="button"
-                disabled={naPagina === 0}
-                onClick={() => setPagina(naPagina - 1)}
-              >
-                Anteriores
-              </button>
-
-              <span className="paginas-conta">
-                {primeiro + 1} a {Math.min(primeiro + POR_PAGINA, estado.ranking.length)} de{' '}
-                {estado.ranking.length}
-              </span>
-
-              {ondeEstou >= 0 && Math.floor(ondeEstou / POR_PAGINA) !== naPagina && (
-                <button
-                  className="btn claro mini"
-                  type="button"
-                  onClick={() => setPagina(Math.floor(ondeEstou / POR_PAGINA))}
-                >
-                  Onde estou
-                </button>
-              )}
-
-              <button
-                className="btn claro mini"
-                type="button"
-                disabled={naPagina >= paginas - 1}
-                onClick={() => setPagina(naPagina + 1)}
-              >
-                Seguintes
-              </button>
-            </div>
-          )}
-        </div>
+      <section className="bj-quadro">
+        <h2 style={{ fontSize: 24, marginBottom: 6 }}>Quadro de honra</h2>
+        <p className="notas">
+          Os torrões são os mesmos no poker e na roleta, e o quadro mostra tudo o que cada um fez
+          em cada jogo.
+        </p>
+        <button className="btn claro" type="button" onClick={() => irPara('quadro')}>
+          Ver o quadro de honra
+        </button>
       </section>
     </>
   );

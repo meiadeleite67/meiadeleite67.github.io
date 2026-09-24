@@ -30,6 +30,18 @@ id = "9237e4fa77dd48ba94f2b8bd21754cec"
 name = "MESAS"
 class_name = "MesaDePoker"
 
+# O banco: os torroes de toda a gente num sitio so. Uma carteira partilhada
+# pelos tres jogos nao podia viver no KV, que e consistente so com o tempo:
+# quem se sentasse em duas mesas ao mesmo tempo gastava os mesmos torroes
+# duas vezes.
+[[durable_objects.bindings]]
+name = "BANCO"
+class_name = "Banco"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["MesaDePoker"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Banco"]

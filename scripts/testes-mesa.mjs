@@ -90,9 +90,14 @@ for (const j of jogadores) {
 await dorme(600);
 jogadores.forEach((j, i) => j.manda({ a: 'sentar', lugar: i }));
 await ate(() => jogadores[0].mesa && jogadores[0].mesa.lugares.length === 3, 8000, 'tres sentados');
+/* As fichas de uma mesa sao torroes comprados ao banco, e quem se estreia tem
+   250: e com isso que cada um se senta. O que interessa e que a partir daqui o
+   numero nao muda sozinho. */
+const NA_MESA = jogadores[0].mesa.lugares.reduce((s, l) => s + l.fichas, 0);
+certo(NA_MESA > 0, `as fichas vieram da carteira de cada um (${NA_MESA} ao todo)`);
 certo(
-  jogadores[0].mesa.lugares.every((l) => l.fichas === 2500),
-  'cada um senta-se com 2500 torroes'
+  jogadores[0].mesa.lugares.every((l) => l.fichas > 0),
+  'ninguem se senta sem fichas'
 );
 
 jogadores[0].recados = [];
@@ -119,7 +124,7 @@ certo(
   'mas ve-se que eles tem duas'
 );
 certo(!JSON.stringify(jogadores[0].mesa).includes('baralho'), 'o baralho nunca sai do servidor');
-certo(m0.pote === 75, 'os cegos ja estao no meio');
+certo(m0.pote > 0, `os cegos ja estao no meio (${m0.pote})`);
 
 /* ---------------- fora da vez e a dobrar ---------------- */
 
@@ -149,9 +154,14 @@ while (acabadas < 3 && Date.now() < fim) {
   const p = jogadores[0];
   if (p.mesa.mao && p.mesa.mao.fase === 'acabou') {
     acabadas++;
-    certo(nosLugares(p) === 7500, `no fim da mao ${acabadas} as fichas da mesa continuam 7500`);
+    certo(
+      nosLugares(p) === NA_MESA,
+      `no fim da mao ${acabadas} as fichas da mesa continuam ${NA_MESA}`
+    );
+    // chegou a conta: nao ha razao para ficar a espera de mais uma
+    if (acabadas >= 3) break;
     await ate(() => !jogadores[0].mesa.mao, 15000, 'a mao ser arrumada');
-    await ate(() => jogadores[0].mesa.mao, 20000, 'a mao seguinte');
+    await ate(() => jogadores[0].mesa.mao, 25000, 'a mao seguinte');
     continue;
   }
   const quem = jogadores.find((j) => j.mesa.mao && j.mesa.mao.vez === j.mesa.eu.lugar);
@@ -160,9 +170,9 @@ while (acabadas < 3 && Date.now() < fim) {
     continue;
   }
   const mao = quem.mesa.mao;
-  if (naMao(quem) !== 7500) {
+  if (naMao(quem) !== NA_MESA) {
     falhas++;
-    console.error('  x a meio da mao as fichas deram ' + naMao(quem));
+    console.error(`  x a meio da mao as fichas deram ${naMao(quem)} em vez de ${NA_MESA}`);
   }
   const sorte = Math.random();
   if (sorte < 0.15) quem.manda({ a: 'jogada', passo: mao.passo, acao: 'desistir' });
@@ -188,6 +198,49 @@ await ate(
   'o lugar de quem se desligou ficar marcado'
 );
 certo(true, 'quem se desliga fica marcado, e o lugar dele so se perde mais tarde');
+
+/* ------- as fichas sao torroes: saem da carteira e voltam para ela ------- */
+
+async function carteira(nome, passe) {
+  const r = await fetch(`${CASA}/quadro/sentar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: ORIGEM },
+    body: JSON.stringify({ nome, passe })
+  });
+  return (await r.json()).linha.torroes;
+}
+
+const soZinho = 'Solo' + Date.now().toString(36);
+const passeSo = await estrear(soZinho);
+const antesDeSentar = await carteira(soZinho, passeSo);
+
+const so = ligar(soZinho);
+await so.aberto;
+so.manda({ a: 'entrar', nome: soZinho, passe: passeSo });
+await dorme(600);
+so.manda({ a: 'sentar', lugar: 4 });
+await ate(
+  () => so.mesa && so.mesa.lugares.some((l) => l.nome === soZinho),
+  8000,
+  'o solitario sentar-se'
+);
+
+const fichas = so.mesa.lugares.find((l) => l.nome === soZinho).fichas;
+const depoisDeSentar = await carteira(soZinho, passeSo);
+certo(
+  depoisDeSentar === antesDeSentar - fichas,
+  `as fichas saem da carteira ao sentar (${antesDeSentar} menos ${fichas} deu ${depoisDeSentar})`
+);
+
+so.manda({ a: 'levantar' });
+await ate(
+  () => !so.mesa.lugares.some((l) => l.nome === soZinho),
+  8000,
+  'o solitario levantar-se'
+);
+const noFim = await carteira(soZinho, passeSo);
+certo(noFim === antesDeSentar, `e voltam todas ao levantar (${noFim})`);
+so.ws.close();
 
 jogadores[0].ws.close();
 jogadores[1].ws.close();

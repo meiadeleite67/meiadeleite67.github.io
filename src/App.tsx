@@ -4,6 +4,8 @@ import { Inicio } from './componentes/Inicio';
 import { Membros } from './componentes/Membros';
 import { Blackjack } from './componentes/Blackjack';
 import { JogoDoPoker } from './componentes/JogoDoPoker';
+import { Roleta } from './componentes/Roleta';
+import { Quadro } from './componentes/Quadro';
 import { Mural } from './componentes/Mural';
 import { Agenda } from './componentes/Agenda';
 import { Admin } from './componentes/Admin';
@@ -258,8 +260,10 @@ export default function App() {
       <main className="troca" key={pagina}>
         {pagina === 'inicio' && <Inicio estado={estado} irPara={irPara} />}
         {pagina === 'membros' && <Membros estado={estado} irPara={irPara} />}
-        {pagina === 'blackjack' && <Blackjack estado={estado} recarregar={recarregar} />}
+        {pagina === 'blackjack' && <Blackjack recarregar={recarregar} irPara={irPara} />}
         {pagina === 'poker' && <JogoDoPoker estado={estado} recarregar={recarregar} />}
+        {pagina === 'roleta' && <Roleta recarregar={recarregar} />}
+        {pagina === 'quadro' && <Quadro estado={estado} />}
         {pagina === 'instagram' && <Mural estado={estado} />}
         {pagina === 'agenda' && <Agenda estado={estado} />}
         {pagina === 'admin' && <Admin estado={estado} recarregar={recarregar} />}

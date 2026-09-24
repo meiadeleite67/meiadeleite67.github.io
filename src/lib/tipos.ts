@@ -38,13 +38,54 @@ export type Membro = {
 
 export type Pontuacao = {
   nome: string;
+  /** A carteira, que e a mesma em todos os jogos onde ha torroes a serio. */
   torroes: number;
+  /** As contas do blackjack, que vem de antes de haver mais jogos. */
   maos: number;
   vitorias: number;
   bjs: number;
   pico: number;
   atualizado: string;
+  poquer: { maos: number; ganhas: number; maiorPote: number };
+  roleta: { rodadas: number; ganhas: number; maior: number };
+  /** Os jogos de um so jogador entram com o recorde e nao com torroes: o
+   *  servidor nao tem como confirmar o que o browser lhe diz. */
+  recordes: { jogo: number; cusco: number; colherada: number };
 };
+
+/* ----------------------------- a roleta ----------------------------- */
+
+export type TipoDeAposta =
+  | 'numero'
+  | 'vermelho'
+  | 'preto'
+  | 'par'
+  | 'impar'
+  | 'baixo'
+  | 'alto'
+  | 'duzia1'
+  | 'duzia2'
+  | 'duzia3'
+  | 'coluna1'
+  | 'coluna2'
+  | 'coluna3';
+
+export type Aposta = { tipo: TipoDeAposta; valor?: number; quanto: number };
+
+export type FichaContada = Aposta & { acertou: boolean; volta: number };
+
+export type Rodada = {
+  saiu: number;
+  cor: 'verde' | 'vermelho' | 'preto';
+  /** Onde a casa fica na roda, para a bola saber onde parar. */
+  casa: number;
+  detalhe: FichaContada[];
+  apostado: number;
+  volta: number;
+  lucro: number;
+};
+
+export type RespostaDaRoleta = { linha: Pontuacao; rodada: Rodada };
 
 /* O que o servidor deixa o site ver da mao que esta a decorrer. As cartas da
    casa vem cortadas: enquanto a tapada estiver tapada, ela nem sai de la. */
@@ -193,4 +234,6 @@ export type Pagina =
   | 'jogo'
   | 'cusco'
   | 'colherada'
-  | 'poker';
+  | 'poker'
+  | 'roleta'
+  | 'quadro';

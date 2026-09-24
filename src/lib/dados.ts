@@ -3,6 +3,7 @@ import type { Pagina, TipoEvento } from './tipos';
 export const PAGINAS: { id: Pagina; nome: string }[] = [
   { id: 'inicio', nome: 'Início' },
   { id: 'membros', nome: 'Membros' },
+  { id: 'quadro', nome: 'Quadro de honra' },
   { id: 'instagram', nome: 'Instagram' },
   { id: 'agenda', nome: 'Agenda' }
 ];
@@ -11,6 +12,7 @@ export const PAGINAS: { id: Pagina; nome: string }[] = [
 export const JOGOS: { id: Pagina; nome: string; nota: string }[] = [
   { id: 'blackjack', nome: 'Blackjack', nota: 'Cartas a torrões de açúcar' },
   { id: 'poker', nome: 'Poker', nota: 'Cinco lugares e um de nós a dar as cartas' },
+  { id: 'roleta', nome: 'Roleta', nota: 'Trinta e sete casas e um zero só' },
   { id: 'cusco', nome: 'O Cusco', nota: 'Faz-lhe uma meia de leite' },
   { id: 'colherada', nome: 'À colherada', nota: 'A toupeira da feira, com um de nós' },
   { id: 'jogo', nome: 'A fuga do balcão', nota: 'O que aparece quando falta a net' }
@@ -22,7 +24,8 @@ export const MENU: ({ id: Pagina; nome: string } | { jogos: true })[] = [
   PAGINAS[1],
   { jogos: true },
   PAGINAS[2],
-  PAGINAS[3]
+  PAGINAS[3],
+  PAGINAS[4]
 ];
 
 export const eJogo = (p: Pagina) => JOGOS.some((j) => j.id === p);

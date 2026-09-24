@@ -1,7 +1,7 @@
 # meiadeleite.pt
 
-Site do grupo **MEIadeLEIte**: blackjack e poker a torrões de açúcar, mural do Instagram e
-agenda, com uma meia de leite a ser entornada a cada troca de página.
+Site do grupo **MEIadeLEIte**: blackjack, poker e roleta a torrões de açúcar, mural do Instagram
+e agenda, com uma meia de leite a ser entornada a cada troca de página.
 
 Feito em React com Vite. Está publicado no GitHub Pages: cada push para `main` constrói e
 publica sozinho.
@@ -136,6 +136,29 @@ que o Worker ainda não sabe responder:
 cd worker && npx wrangler deploy
 ```
 
+### O banco, e os torrões
+
+Os torrões são uns só e servem os três jogos onde é o servidor que dá as cartas: o blackjack, o
+poker e a roleta. No poker as fichas de cada mesa são compradas à carteira e voltam para lá quando
+alguém se levanta; na roleta as fichas saem da carteira e o que voltar entra nela.
+
+Uma carteira partilhada não podia viver no KV. Ele é consistente só com o tempo, e quem se
+sentasse em duas mesas ao mesmo tempo lia o mesmo saldo duas vezes e gastava os mesmos torrões
+duas vezes. Por isso há um **Banco**, outro Durable Object: um sítio só, a atender um pedido de
+cada vez, e daqui nunca sai um saldo negativo. Da primeira vez que arranca traz para dentro o
+quadro que estava no KV; o que lá está fica lá, sem se lhe tocar, como rede por baixo da mudança.
+
+Os jogos de um só jogador — o Cusco, a colherada e a fuga do balcão — **não pagam torrões**.
+Correm todos dentro do browser e o servidor não tem como saber se alguém fez mesmo aqueles pontos:
+pagá-los reabria o buraco que se fechou no blackjack. Entram no quadro com o recorde, e o quadro
+diz de onde é que esse número vem.
+
+### O quadro de honra
+
+Está em [meiadeleite.pt/quadro](https://meiadeleite.pt/quadro), e é uma tabela por jogo com uma à
+vista de cada vez: torrões, blackjack, poker, roleta, e o recorde de cada um dos outros três.
+Metê-las todas na mesma dava uma tabela de vinte colunas que ninguém lia.
+
 ### O nome de cada um, e o PIN
 
 Quem joga escreve um nickname e um PIN de quatro a oito algarismos. Se o nome for novo, fica com
@@ -190,6 +213,9 @@ provam-se sozinhas:
 npm run provas
 ```
 
+São as do Hold'em e as da roleta. As da roleta correm duzentas mil rodadas para confirmar que a
+casa fica com perto de 2,7 por cento e que nenhuma casa da roda sai mais vezes do que as outras.
+
 As outras precisam do Worker a correr ao lado, e falam com ele a sério:
 
 ```bash
@@ -197,9 +223,10 @@ cd worker && npx wrangler dev --port 8787 --local
 npm run provas-ao-vivo
 ```
 
-São a porta de entrada (PINs, tentativas, limpar o PIN), uma mesa com três ligações (as cartas
-dos outros, jogar fora da vez, as fichas contadas do princípio ao fim da mão) e o lugar de quem
-deixa de jogar. As duas últimas precisam de um autenticador conhecido para entrar no admin: põe
+São a porta de entrada (PINs, tentativas, limpar o PIN), o banco e a roleta (os torrões que não
+se inventam, as apostas que não passam, os recordes que não valem dinheiro), uma mesa com três
+ligações (as cartas dos outros, jogar fora da vez, as fichas contadas do princípio ao fim da mão,
+e a ida e volta das fichas à carteira) e o lugar de quem deixa de jogar. As duas últimas precisam de um autenticador conhecido para entrar no admin: põe
 um `worker/.dev.vars` com `TOTP_SEGREDO=JBSWY3DPEHPK3PXP`, que esse ficheiro não entra no
 repositório.
 

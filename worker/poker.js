@@ -18,9 +18,16 @@
 
 export const MAX_LUGARES = 5;
 export const MINIMO_PARA_JOGAR = 2;
-export const FICHAS_INICIAIS = 2500;
-export const CEGO_PEQUENO = 25;
-export const CEGO_GRANDE = 50;
+/* As fichas de uma mesa sao torroes a serio, comprados ao banco. Quem se
+   senta leva a compra normal, ou o que tiver se for menos, desde que chegue
+   para o minimo da mesa; quando se levanta, o que sobrar volta para a
+   carteira. */
+export const COMPRA_MAXIMA = 1000;
+export const COMPRA_MINIMA = 100;
+/* Os cegos sao pequenos de proposito. Com a carteira partilhada, quem comeca
+   tem 250 torroes: cegos de 25 e 50 davam-lhe cinco maos e acabava-se ali. */
+export const CEGO_PEQUENO = 5;
+export const CEGO_GRANDE = 10;
 
 const NAIPES = [
   { s: '♠', verm: false },

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MesaEm3D, useSegundos } from './MesaDePoker';
 import { Entrada } from './Entrada';
-import { fotoDoMembro, quantosNasMesas, temServidor } from '../lib/api';
+import { api, fotoDoMembro, quantosNasMesas, temServidor } from '../lib/api';
 import { nomeGuardado, passeDe } from '../lib/nick';
 import { restam, useMesaViva } from '../lib/poker';
 import { guardar, lido } from '../lib/dados';
@@ -11,10 +11,12 @@ import type { Estado, Membro, QuantosNaMesa } from '../lib/tipos';
  * O poker do grupo: Texas Hold'em, a torrões, com os nossos a dar as cartas.
  *
  * Cada mesa tem um croupier fixo, que é um de nós, tirado da aba dos membros.
- * Sentam-se cinco pessoas por mesa e a mão começa quando houver duas. Quem se
- * senta compra dois mil e quinhentos torrões de fichas para aquela mesa; o
- * quadro de honra do blackjack não se mexe com isto, senão um blefe mal dado
- * deitava abaixo a tabela toda.
+ * Sentam-se cinco pessoas por mesa e a mão começa quando houver duas.
+ *
+ * As fichas são torrões a sério, comprados à carteira de cada um: a mesma do
+ * blackjack e da roleta. Quem se levanta leva o que tiver à frente de volta
+ * para a carteira, e quem sai sem dar por isso também, que a mesa trata de o
+ * pôr lá.
  *
  * O nome é o mesmo do blackjack, e prova-se com o mesmo PIN: ninguém se senta
  * com o nickname de outra pessoa.
@@ -22,6 +24,8 @@ import type { Estado, Membro, QuantosNaMesa } from '../lib/tipos';
 
 const MAX_MESAS = 5;
 const ONDE_ESTAVA = 'mdl.poker.mesa';
+/** Com quanto se pode entrar numa mesa, dentro do que se tiver na carteira. */
+const COMPRAS = [100, 250, 500, 1000];
 /** O tempo que cada um tem para jogar, igual ao do servidor. */
 const PRAZO = 30;
 
@@ -38,6 +42,9 @@ export function JogoDoPoker({ estado, recarregar }: { estado: Estado; recarregar
   const [mesa, setMesa] = useState<string | null>(() => lido(ONDE_ESTAVA) || null);
   const [quantos, setQuantos] = useState<QuantosNaMesa[]>([]);
   const [subida, setSubida] = useState(0);
+  /** Os torrões que estão na carteira, fora da mesa. */
+  const [carteira, setCarteira] = useState<number | null>(null);
+  const [compra, setCompra] = useState(COMPRAS[1]);
 
   /* As mesas são os primeiros cinco membros, por ordem, e cada um dá as cartas
      na sua. A mascote fica de fora: quem dá as cartas é gente. */
@@ -66,6 +73,21 @@ export function JogoDoPoker({ estado, recarregar }: { estado: Estado; recarregar
   /* O relogio anda enquanto ha vez a contar, e tambem enquanto estivermos
      sentados: e dele que sai o aviso de quem esta prestes a perder o lugar. */
   const agora = useSegundos(meuLugar >= 0 || (!!mao && mao.vez >= 0));
+
+  /* A carteira é a mesma de todos os jogos, e não vem pela ligação da mesa:
+     pergunta-se ao chegar e sempre que se sai ou se entra num lugar, que é
+     quando ela muda. */
+  useEffect(() => {
+    if (!nome || !passe) return;
+    let vivo = true;
+    api
+      .sentar(nome, passe)
+      .then((r) => vivo && setCarteira(r.linha.torroes))
+      .catch(() => vivo && setCarteira(null));
+    return () => {
+      vivo = false;
+    };
+  }, [nome, passe, meuLugar, mesa]);
   const faltam = restam(viva, agora);
 
   /* Quanta gente está em cada mesa. Pergunta-se ao chegar e quando se volta à
@@ -145,7 +167,8 @@ export function JogoDoPoker({ estado, recarregar }: { estado: Estado; recarregar
         <h1>Escolhe uma mesa</h1>
         <p className="lead">
           Cinco lugares por mesa, e a mão começa assim que houver dois. Cada mesa tem o seu croupier,
-          e quem se senta compra 2500 torrões de fichas para aquela mesa.
+          e as fichas são torrões a sério, comprados à tua carteira. O que sobrar volta para lá
+          quando te levantares.
         </p>
 
         {croupiers.length === 0 ? (
@@ -222,6 +245,12 @@ export function JogoDoPoker({ estado, recarregar }: { estado: Estado; recarregar
                 : 'a ligar...'}
           </small>
         </p>
+        {carteira !== null && (
+          <p className="pk-carteira">
+            <b>{carteira}</b>
+            <small>na carteira</small>
+          </p>
+        )}
         <span className={`pk-luz ${ligacao}`} aria-label={`Ligação: ${ligacao}`} />
       </header>
 
@@ -230,7 +259,7 @@ export function JogoDoPoker({ estado, recarregar }: { estado: Estado; recarregar
           estado={viva}
           dealer={croupierDaMesa}
           restamSegundos={faltam}
-          aoSentar={(lugar) => manda({ a: 'sentar', lugar })}
+          aoSentar={(lugar) => manda({ a: 'sentar', lugar, compra })}
         />
       ) : (
         <p className="notas pk-espera">A ligar à mesa...</p>
@@ -322,16 +351,38 @@ export function JogoDoPoker({ estado, recarregar }: { estado: Estado; recarregar
         ) : (
           <div className="pk-parado">
             {meuLugar < 0 ? (
-              <p className="notas">
-                {viva && viva.lugares.length >= 5
-                  ? 'A mesa está cheia. Fica a ver, ou escolhe outra.'
-                  : 'Escolhe um lugar para te sentares.'}
-              </p>
+              <>
+                <p className="notas">
+                  {viva && viva.lugares.length >= 5
+                    ? 'A mesa está cheia. Fica a ver, ou escolhe outra.'
+                    : 'Escolhe um lugar para te sentares.'}
+                </p>
+                {viva && viva.lugares.length < 5 && (
+                  <div className="pk-compra">
+                    <span className="notas">Entrar com:</span>
+                    {COMPRAS.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        className={compra === c ? 'pegada' : ''}
+                        disabled={carteira !== null && carteira < Math.min(c, COMPRAS[0])}
+                        onClick={() => setCompra(c)}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
             ) : semFichas ? (
               <>
                 <p className="notas">Ficaste sem fichas nesta mesa.</p>
-                <button type="button" className="btn azul" onClick={() => manda({ a: 'comprar' })}>
-                  Comprar 2500
+                <button
+                  type="button"
+                  className="btn azul"
+                  onClick={() => manda({ a: 'comprar', compra })}
+                >
+                  Comprar mais {compra}
                 </button>
               </>
             ) : (
@@ -363,8 +414,9 @@ export function JogoDoPoker({ estado, recarregar }: { estado: Estado; recarregar
       )}
 
       <p className="notas pk-regras">
-        Cegos de 25 e 50. Trinta segundos por jogada, e quem demorar passa ou desiste. As cartas são
-        dadas no servidor e as dos outros só chegam aqui quando a mão é mostrada.
+        Cegos de 5 e 10. Trinta segundos por jogada, e quem demorar passa ou desiste. Três faltas
+        seguidas e o lugar fica livre para outro. As cartas são dadas no servidor e as dos outros só
+        chegam aqui quando a mão é mostrada.
       </p>
     </section>
   );

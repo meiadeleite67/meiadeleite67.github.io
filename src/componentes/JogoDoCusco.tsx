@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Cusco, type Pose } from './Cusco';
+import { mandarRecorde } from '../lib/api';
 import { guardar, lido } from '../lib/dados';
 
 /**
@@ -99,6 +100,7 @@ export function JogoDoCusco() {
         setCertas((n) => {
           const novo = n + 1;
           guardar(RECORDE, String(novo));
+          mandarRecorde('cusco', novo);
           return novo;
         });
       } else {

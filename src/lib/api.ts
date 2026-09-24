@@ -1,4 +1,6 @@
+import { nomeGuardado, passeDe } from './nick';
 import type {
+  Aposta,
   Estado,
   Evento,
   ItemDaGaleria,
@@ -6,7 +8,8 @@ import type {
   Pontuacao,
   Post,
   QuantosNaMesa,
-  RespostaDaMesa
+  RespostaDaMesa,
+  RespostaDaRoleta
 } from './tipos';
 
 /**
@@ -152,6 +155,16 @@ export const api = {
     naMesa('/mesa/jogar', { nome, passe, acao, passo }),
   emprestimo: (nome: string, passe: string) => naMesa('/quadro/emprestimo', { nome, passe }),
 
+  /* ---- a roleta ----
+     As fichas saem da carteira e o numero sai la, tudo no mesmo pedido: o site
+     nao tem como saber onde a bola para antes de a mandar rodar. */
+
+  roleta: (nome: string, passe: string, apostas: Aposta[]) =>
+    pedir<RespostaDaRoleta>('/roleta', {
+      method: 'POST',
+      body: JSON.stringify({ nome, passe, apostas })
+    }),
+
   /* ---- o mural do Instagram ---- */
 
   tirarDoMural: (id: string) => pedir<{ ok: boolean }>(`/mural/${id}`, { method: 'DELETE' }),
@@ -271,6 +284,25 @@ export const api = {
  *  servidor saber com que cara o entregar. */
 export const enderecoDoMedia = (item: { id: string; mime: string }) =>
   servidor ? `${servidor}/media/${item.id}?tipo=${encodeURIComponent(item.mime)}` : '';
+
+/**
+ * Manda o recorde de um jogo de um so jogador para o quadro.
+ *
+ * Nao espera resposta nem diz nada a quem esta a jogar: e um numero para se
+ * comparar, nao vale torroes, e se o pedido falhar o jogo segue na mesma. Quem
+ * nao tiver nome nem passe nao manda nada.
+ */
+export function mandarRecorde(jogo: string, pontos: number) {
+  const nome = nomeGuardado();
+  const passe = nome ? passeDe(nome) : '';
+  if (!nome || !passe || !(pontos > 0)) return;
+  pedir('/quadro/recorde', {
+    method: 'POST',
+    body: JSON.stringify({ nome, passe, jogo, pontos })
+  }).catch(() => {
+    /* o recorde fica no browser na mesma */
+  });
+}
 
 /**
  * O endereco da ligacao viva a uma mesa de poker.

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { fotoDoMembro } from '../lib/api';
+import { fotoDoMembro, mandarRecorde } from '../lib/api';
 import { guardar, lido } from '../lib/dados';
 import type { Estado, Membro } from '../lib/tipos';
 
@@ -506,6 +506,8 @@ export function Jogo({ estado, semRede }: { estado: Estado; semRede: boolean }) 
           if (fez > j.recorde) {
             j.recorde = fez;
             guardar(RECORDE, String(fez));
+            // o recorde tambem vai para o quadro, para se comparar com os outros
+            mandarRecorde('jogo', fez);
             setRecorde(fez);
           }
           setFeitos(fez);

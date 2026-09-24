@@ -8,6 +8,8 @@
  *   GET    /tudo            a agenda, o quadro, os membros e o mural de uma vez
  *   GET    /quadro          o quadro de honra
  *   POST   /quadro/entrar     nome mais PIN; devolve o passe deste aparelho
+ *   POST   /quadro/recorde    guarda o recorde de um jogo de um so jogador
+ *   POST   /roleta           poe as fichas, roda, e paga
  *   POST   /quadro/sentar     volta à mesa com o passe que já se tem
  *   POST   /quadro/emprestimo os cem do costume, para quem está sem nada
  *   POST   /mesa              a mão que está a decorrer, se houver
@@ -40,17 +42,9 @@
  * repositório nem viaja pela internet.
  */
 
-import {
-  PIN_MAXIMO,
-  PIN_MINIMO,
-  passeBate,
-  passeNovo,
-  pinBate,
-  pinLimpo,
-  pinNovo,
-  pinServe
-} from './chaves.js';
+import { Banco } from './banco.js';
 import { MesaDePoker } from './mesa-de-poker.js';
+import { limparApostas, rodada } from './roleta.js';
 import {
   APOSTA_MAXIMA,
   dividir,
@@ -78,7 +72,6 @@ const SESSAO_DURA = 8 * 60 * 60; // segundos
 const MAX_ENGANOS = 8;
 const CASTIGO = 2 * 60 * 1000;
 const MAX_EVENTOS = 300;
-const MAX_NOMES = 200;
 const MAX_MEMBROS = 60;
 const MAX_FOTO = 400_000; // caracteres de base64, uns 300 kB de imagem
 
@@ -90,11 +83,6 @@ const MAX_NA_GALERIA = 40;
 const MAX_NO_MURAL = 60;
 const TIPOS_DE_MEDIA = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm', 'video/quicktime'];
 
-/* O saldo do blackjack vive aqui e nao no browser de quem joga. Antes o site
-   mandava o saldo ja feito e este Worker acreditava, o que dava para pôr o
-   numero que se quisesse e fazer uma aposta pequena para o gravar. Agora o
-   cliente so diz o que apostou e o que lhe saiu, e as contas sao daqui. */
-const SALDO_INICIAL = 250;
 /* Quantos PINs errados antes de o nome ficar de castigo, e por quanto tempo.
    E o que defende mesmo um PIN de quatro algarismos: a conta do resumo e
    dificil de fazer aos milhoes, mas quem defende a serio e isto. */
@@ -105,8 +93,6 @@ const CASTIGO_PIN = 15 * 60 * 1000;
    sai tudo pelo mesmo endereco, e um numero curto aqui trancava-os uns aos
    outros. Quem defende mesmo cada PIN e o limite por nome, ali em cima. */
 const MAX_PIN_ERRADO_DAQUI = 40;
-const EMPRESTIMO = 100;
-const SALDO_PARA_EMPRESTAR = 5;
 const MAX_MAOS_POR_JOGADA = 4;
 const RESULTADOS = ['blackjack', 'ganhou', 'empate', 'perdeu', 'rebentou'];
 
@@ -149,24 +135,24 @@ const codigoDoInsta = (endereco) => {
   return m ? m[1] : '';
 };
 
-const linhaNova = (nome) => ({
-  nome,
-  torroes: SALDO_INICIAL,
-  maos: 0,
-  vitorias: 0,
-  bjs: 0,
-  pico: SALDO_INICIAL,
-  /* O PIN deste nome, e os passes dos aparelhos que ja o acertaram. Nem o PIN
-     nem os passes ficam guardados: so os resumos deles, que servem para os
-     confirmar e nao para os descobrir. */
-  pin: null,
-  passes: [],
-  erros: null,
-  /* O resumo da chave antiga, do tempo em que o nome era do browser que o
-     estreasse. Fica para nao se apagar nada, mas ja nao abre nada. */
-  resumo: '',
-  atualizado: new Date().toISOString()
-});
+/* ========================== o banco ==========================
+
+   Os torroes de toda a gente vivem num objecto so, que atende um pedido de
+   cada vez. E dai que vem o quadro, e e por ai que passa tudo o que mexe em
+   dinheiro. O Worker so lhe entrega os pedidos: nada disto e publico. */
+
+const oBanco = (env) => env.BANCO.get(env.BANCO.idFromName('mdl'));
+
+async function aoBanco(env, rota, corpo) {
+  const r = await oBanco(env).fetch(`https://banco${rota}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(corpo || {})
+  });
+  return r.json();
+}
+
+const doBanco = async (env, rota) => (await oBanco(env).fetch(`https://banco${rota}`)).json();
 
 const minutosAte = (quando) => {
   const m = Math.max(1, Math.ceil((quando - Date.now()) / 60000));
@@ -188,17 +174,17 @@ async function castigarQuemPergunta(env, daqui, castigo) {
   );
 }
 
-/** O que pode sair daqui para fora. O PIN, os passes e as tentativas falhadas
- *  ficam todos deste lado. */
-const semSegredos = ({ resumo, pendente, pin, passes, erros, ...resto }) => resto;
-
 /**
  * Tudo o que e jogar passa por aqui: confirma que quem pede e mesmo o dono do
- * nome, vai buscar a linha e a mao que estiver a decorrer, deixa o trabalho
- * fazer o que tem a fazer e grava as duas coisas.
+ * nome, vai buscar a mao que estiver a decorrer, deixa o trabalho fazer o que
+ * tem a fazer, e no fim diz ao banco o que mudou.
  *
  * O trabalho devolve a mesa nova, ou uma queixa em texto quando a jogada nao
  * presta, e nesse caso nao se grava nada.
+ *
+ * O saldo com que o trabalho conta e o que o banco disse ha um instante, mas
+ * quem decide e o banco: se entretanto o dinheiro foi gasto noutro jogo, e ele
+ * que recusa, e a mesa nao chega a ser gravada.
  */
 async function comOJogador(request, env, trabalho) {
   let veio;
@@ -208,11 +194,14 @@ async function comOJogador(request, env, trabalho) {
     return responder({ erro: 'Corpo inválido.' }, request, 400);
   }
   const nome = texto(veio?.nome, 24);
-  const quadro = await ler(env, 'quadro', {});
-  const linha = quadro[nome];
-  if (!linha) return responder({ erro: 'Senta-te à mesa primeiro.' }, request, 401);
-  if (!(await passeBate(veio?.passe, linha)))
-    return responder({ erro: 'Escreve outra vez o teu PIN.' }, request, 403);
+  const passe = texto(veio?.passe, 40);
+
+  const visto = await aoBanco(env, '/ver', { nome, passe });
+  if (visto.erro) return responder({ erro: visto.erro }, request, visto.estado || 400);
+
+  const linha = { ...visto.linha };
+  const antes = linha.torroes;
+  const contas = { bj: { maos: 0, vitorias: 0, bjs: 0 } };
 
   const mesa = await ler(env, `mesa:${nome}`, null);
   const feito = trabalho({ linha, mesa, veio });
@@ -223,26 +212,27 @@ async function comOJogador(request, env, trabalho) {
   if (feito && feito.fase === 'fim' && !feito.pago) {
     for (const mao of feito.maos) {
       linha.torroes += paga(mao);
-      linha.maos++;
+      contas.bj.maos++;
       if (mao.resultado === 'blackjack') {
-        linha.vitorias++;
-        linha.bjs++;
+        contas.bj.vitorias++;
+        contas.bj.bjs++;
       } else if (mao.resultado === 'ganhou') {
-        linha.vitorias++;
+        contas.bj.vitorias++;
       }
     }
     feito.pago = true;
   }
 
-  linha.torroes = numero(linha.torroes);
-  if (linha.torroes > linha.pico) linha.pico = linha.torroes;
-  linha.atualizado = new Date().toISOString();
-  quadro[nome] = linha;
-  await env.QUADRO.put('quadro', JSON.stringify(quadro));
+  const delta = Math.round(linha.torroes) - antes;
+  const mexeu = delta !== 0 || contas.bj.maos > 0;
+
+  const fim = mexeu ? await aoBanco(env, '/mexer', { nome, passe, delta, contas }) : visto;
+  if (fim.erro) return responder({ erro: fim.erro }, request, fim.estado || 400);
+
   if (feito) await env.QUADRO.put(`mesa:${nome}`, JSON.stringify(feito));
 
   return responder(
-    { linha: semSegredos(linha), mesa: feito ? vista(feito, linha.torroes) : null },
+    { linha: fim.linha, mesa: feito ? vista(feito, fim.linha.torroes) : null },
     request
   );
 }
@@ -388,9 +378,9 @@ function limparEvento(veio, antes) {
   };
 }
 
-/* As mesas de poker vivem em objectos proprios, mas quem as tem de dar a
+/* Os objectos proprios vivem nos ficheiros deles, mas quem os tem de dar a
    conhecer e o ficheiro de entrada do Worker. */
-export { MesaDePoker };
+export { Banco, MesaDePoker };
 
 export default {
   async fetch(request, env) {
@@ -410,16 +400,14 @@ export default {
     if (caminho === '/tudo' && metodo === 'GET') {
       const [agenda, quadro, membros, mural] = await Promise.all([
         ler(env, 'agenda', null),
-        ler(env, 'quadro', {}),
+        doBanco(env, '/todos'),
         ler(env, 'membros', []),
         ler(env, 'mural', [])
       ]);
       return responder(
         {
           agenda: { definida: agenda !== null, agenda: agenda ?? [] },
-          quadro: Object.values(quadro)
-            .map((l) => semSegredos(l))
-            .sort((a, b) => b.torroes - a.torroes),
+          quadro,
           membros,
           mural
         },
@@ -429,15 +417,8 @@ export default {
 
     /* ---- quadro de honra ---- */
 
-    if ((caminho === '/quadro' || caminho === '/') && metodo === 'GET') {
-      const guardado = await ler(env, 'quadro', {});
-      return responder(
-        Object.values(guardado)
-          .map((l) => semSegredos(l))
-          .sort((a, b) => b.torroes - a.torroes),
-        request
-      );
-    }
+    if ((caminho === '/quadro' || caminho === '/') && metodo === 'GET')
+      return responder(await doBanco(env, '/todos'), request);
 
     /* A porta de entrada: o nome e o PIN.
 
@@ -469,78 +450,26 @@ export default {
         return responder({ erro: 'Corpo inválido.' }, request, 400);
       }
 
-      const nome = texto(veio?.nome, 24);
-      const pin = pinLimpo(veio?.pin);
-      if (nome.length < 2) return responder({ erro: 'Falta o nome.' }, request, 400);
-      if (!pinServe(pin))
-        return responder(
-          { erro: `O PIN são ${PIN_MINIMO} a ${PIN_MAXIMO} algarismos.` },
-          request,
-          400
-        );
+      const feito = await aoBanco(env, '/entrar', {
+        nome: texto(veio?.nome, 24),
+        pin: veio?.pin
+      });
 
-      const quadro = await ler(env, 'quadro', {});
-      const havia = quadro[nome];
-      if (!havia && Object.keys(quadro).length >= MAX_NOMES)
-        return responder({ erro: 'O quadro está cheio.' }, request, 409);
+      /* Quem erra o PIN conta duas vezes: para o nome, que o banco trata, e
+         para quem esta a perguntar, que e o que impede alguem de andar a
+         experimentar PINs em nomes diferentes. */
+      if (feito.enganou) await castigarQuemPergunta(env, daqui, castigo);
+      else if (!feito.erro) await env.QUADRO.delete(`pin:${daqui}`);
 
-      const linha = { ...linhaNova(nome), ...(havia || {}) };
-      const agora = Date.now();
-      let estreou = '';
+      if (feito.erro) return responder({ erro: feito.erro }, request, feito.estado || 400);
 
-      if (!linha.pin) {
-        // nome novo, ou de antes de haver PINs: fica com este
-        linha.pin = await pinNovo(pin);
-        estreou = havia ? 'pin' : 'nome';
-      } else {
-        if (linha.erros && linha.erros.ate > agora)
-          return responder(
-            { erro: `Esse nome está de castigo. Tenta daqui a ${minutosAte(linha.erros.ate)}.` },
-            request,
-            429
-          );
-
-        if (!(await pinBate(pin, linha.pin))) {
-          const quantas = ((linha.erros && linha.erros.quantas) || 0) + 1;
-          const trancado = quantas >= MAX_PIN_ERRADO;
-          linha.erros = trancado ? { quantas: 0, ate: agora + CASTIGO_PIN } : { quantas, ate: 0 };
-          quadro[nome] = linha;
-          await env.QUADRO.put('quadro', JSON.stringify(quadro));
-          await castigarQuemPergunta(env, daqui, castigo);
-          return responder(
-            trancado
-              ? {
-                  erro: `PIN errado. Esse nome fica de castigo ${Math.round(
-                    CASTIGO_PIN / 60000
-                  )} minutos.`
-                }
-              : {
-                  erro: `PIN errado. ${
-                    MAX_PIN_ERRADO - quantas === 1
-                      ? 'Falta uma tentativa'
-                      : `Faltam ${MAX_PIN_ERRADO - quantas} tentativas`
-                  }.`
-                },
-            request,
-            401
-          );
-        }
-        linha.erros = null;
-      }
-
-      const passe = await passeNovo(linha);
-      linha.atualizado = new Date().toISOString();
-      quadro[nome] = linha;
-      await env.QUADRO.put('quadro', JSON.stringify(quadro));
-      await env.QUADRO.delete(`pin:${daqui}`);
-
-      const mesa = await ler(env, `mesa:${nome}`, null);
+      const mesa = await ler(env, `mesa:${feito.linha.nome}`, null);
       return responder(
         {
-          linha: semSegredos(linha),
-          passe,
-          estreou,
-          mesa: mesa ? vista(mesa, linha.torroes) : null
+          linha: feito.linha,
+          passe: feito.passe,
+          estreou: feito.estreou,
+          mesa: mesa ? vista(mesa, feito.linha.torroes) : null
         },
         request
       );
@@ -614,22 +543,17 @@ export default {
         return responder({ erro: 'Corpo inválido.' }, request, 400);
       }
       const nome = texto(veio?.nome, 24);
-      const guardado = await ler(env, 'quadro', {});
-      if (!nome || !guardado[nome]) return responder({ erro: 'Esse nome não está lá.' }, request, 404);
-      delete guardado[nome];
-      await env.QUADRO.put('quadro', JSON.stringify(guardado));
+      const feito = await aoBanco(env, '/apagar', { nome });
+      if (feito.erro) return responder({ erro: feito.erro }, request, feito.estado || 400);
       await env.QUADRO.delete(`mesa:${nome}`);
-      return responder({ ok: true, nome }, request);
+      return responder(feito, request);
     }
 
     /* Deitar o quadro abaixo. So o admin, e nao ha volta a dar. */
     if (caminho === '/quadro/limpar' && metodo === 'POST') {
       if (!(await temChave(request, env)))
         return responder({ erro: 'Precisas de entrar outra vez.' }, request, 401);
-      const guardado = await ler(env, 'quadro', {});
-      const quantos = Object.keys(guardado).length;
-      await env.QUADRO.put('quadro', JSON.stringify({}));
-      return responder({ ok: true, quantos }, request);
+      return responder(await aoBanco(env, '/limpar', {}), request);
     }
 
     /* ---- as mesas de poker ----
@@ -685,24 +609,83 @@ export default {
       } catch {
         return responder({ erro: 'Corpo inválido.' }, request, 400);
       }
-      const nome = texto(veio?.nome, 24);
-      const guardado = await ler(env, 'quadro', {});
-      if (!nome || !guardado[nome])
-        return responder({ erro: 'Esse nome não está lá.' }, request, 404);
-      guardado[nome].pin = null;
-      guardado[nome].passes = [];
-      guardado[nome].erros = null;
-      await env.QUADRO.put('quadro', JSON.stringify(guardado));
-      return responder({ ok: true, nome }, request);
+      const feito = await aoBanco(env, '/pin/apagar', { nome: texto(veio?.nome, 24) });
+      return responder(feito, request, feito.erro ? feito.estado || 400 : 200);
     }
 
-    /* Os cem emprestados: so para quem esta mesmo sem nada. */
+    /* Os cem emprestados: so para quem esta mesmo sem nada. Quem decide e o
+       banco, que e quem sabe o saldo a serio. */
     if (caminho === '/quadro/emprestimo' && metodo === 'POST') {
-      return comOJogador(request, env, ({ linha, mesa }) => {
-        if (linha.torroes >= SALDO_PARA_EMPRESTAR) return 'Ainda tens torrões.';
-        linha.torroes += EMPRESTIMO;
-        return mesa;
+      let veio;
+      try {
+        veio = await request.json();
+      } catch {
+        return responder({ erro: 'Corpo inválido.' }, request, 400);
+      }
+      const nome = texto(veio?.nome, 24);
+      const feito = await aoBanco(env, '/emprestimo', { nome, passe: texto(veio?.passe, 40) });
+      if (feito.erro) return responder({ erro: feito.erro }, request, feito.estado || 400);
+      const mesa = await ler(env, `mesa:${nome}`, null);
+      return responder(
+        { linha: feito.linha, mesa: mesa ? vista(mesa, feito.linha.torroes) : null },
+        request
+      );
+    }
+
+    /* O recorde de um jogo de um so jogador. Vem do browser e nao ha como o
+       confirmar daqui, por isso nao vale torroes nenhuns: vale para se saber
+       quem joga melhor, e mais nada. */
+    if (caminho === '/quadro/recorde' && metodo === 'POST') {
+      let veio;
+      try {
+        veio = await request.json();
+      } catch {
+        return responder({ erro: 'Corpo inválido.' }, request, 400);
+      }
+      const feito = await aoBanco(env, '/recorde', {
+        nome: texto(veio?.nome, 24),
+        passe: texto(veio?.passe, 40),
+        jogo: texto(veio?.jogo, 20),
+        pontos: veio?.pontos
       });
+      return responder(feito, request, feito.erro ? feito.estado || 400 : 200);
+    }
+
+    /* ---- a roleta ----
+
+       As fichas saem da carteira e a bola anda, tudo na mesma conta: o banco
+       recebe o que se apostou e o que se ganhou de uma vez so, e ou faz as
+       duas coisas ou nao faz nenhuma. O numero sai aqui, depois de as fichas
+       estarem postas, e o site nao tem como o saber antes. */
+    if (caminho === '/roleta' && metodo === 'POST') {
+      let veio;
+      try {
+        veio = await request.json();
+      } catch {
+        return responder({ erro: 'Corpo inválido.' }, request, 400);
+      }
+      const nome = texto(veio?.nome, 24);
+      const passe = texto(veio?.passe, 40);
+
+      const visto = await aoBanco(env, '/ver', { nome, passe });
+      if (visto.erro) return responder({ erro: visto.erro }, request, visto.estado || 400);
+
+      const postas = limparApostas(veio?.apostas, visto.linha.torroes);
+      if (postas.erro) return responder({ erro: postas.erro }, request, 400);
+
+      const r = rodada(postas.apostas);
+      const feito = await aoBanco(env, '/mexer', {
+        nome,
+        passe,
+        custo: postas.total,
+        delta: r.volta - postas.total,
+        contas: {
+          roleta: { rodadas: 1, ganhas: r.volta > 0 ? 1 : 0, maior: r.volta }
+        }
+      });
+      if (feito.erro) return responder({ erro: feito.erro }, request, feito.estado || 400);
+
+      return responder({ linha: feito.linha, rodada: r }, request);
     }
 
     /* ---- entrada na página de admin ---- */

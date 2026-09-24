@@ -4914,3 +4914,466 @@ footer {
   font-size: 13px;
   cursor: pointer;
 }
+
+/* ============================== a roleta ==============================
+
+   O prato e a bola sao feitos como o trofeu, o Cusco e a mesa de poker: com as
+   transformacoes 3D do proprio CSS. O prato e um disco inclinado que roda, a
+   bola anda numa pista por fora e ao contrario, e as casas sao pintadas de uma
+   vez so num gradiente em leque, que e o que poupa trinta e sete triangulos. */
+
+.rol {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+.rol-cima {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.rol-cima .eyebrow,
+.rol-cima h1 {
+  width: 100%;
+  margin-bottom: 0;
+}
+.rol-saldo {
+  margin: 6px 0 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.rol-saldo b {
+  font-family: var(--mono);
+  font-size: 26px;
+  color: var(--crema);
+}
+.rol-saldo small {
+  color: var(--tinta-3);
+}
+
+.rol-cena {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  aspect-ratio: 1 / 0.78;
+  margin: 20px auto 6px;
+  perspective: 900px;
+}
+.rol-mundo {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: rotateX(58deg);
+}
+
+/* a bacia: discos uns atras dos outros, para ter fundura */
+.rol-bacia {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+.rol-folha {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: 50%;
+  background: linear-gradient(150deg, #6b4526, #3d2616 60%, #291809);
+  transform: translateZ(calc(var(--f) * -7px));
+  filter: brightness(calc(1 - var(--f) * 0.14));
+}
+.rol-pista {
+  position: absolute;
+  inset: 7%;
+  display: block;
+  border-radius: 50%;
+  background: radial-gradient(circle, #241609 60%, #180e06);
+  box-shadow: inset 0 0 1.4em 0.4em rgba(0, 0, 0, 0.55);
+  transform: translateZ(2px);
+}
+
+/* o prato, com as casas pintadas de uma vez */
+.rol-prato {
+  position: absolute;
+  inset: 14%;
+  border-radius: 50%;
+  background: var(--casas);
+  transform: translateZ(5px) rotate(var(--prato));
+  transition: transform var(--anda) cubic-bezier(0.12, 0.72, 0.12, 1);
+  box-shadow:
+    inset 0 0 0 2px rgba(240, 220, 192, 0.25),
+    0 0 1.2em rgba(0, 0, 0, 0.5);
+}
+.rol-casa {
+  position: absolute;
+  inset: 0;
+  transform: rotate(calc(var(--i) * var(--passo)));
+  pointer-events: none;
+}
+.rol-casa span {
+  position: absolute;
+  left: 50%;
+  top: 1.5%;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 7px;
+  line-height: 1;
+  color: rgba(255, 252, 245, 0.92);
+}
+.rol-meio {
+  position: absolute;
+  inset: 33%;
+  display: block;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #d9b071, #7a5027 55%, #3a2412);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
+}
+
+/* a bola, numa pista por fora e ao contrario do prato */
+.rol-orbita {
+  position: absolute;
+  inset: 8%;
+  transform: translateZ(9px) rotate(var(--bola));
+  transition: transform var(--anda) cubic-bezier(0.1, 0.68, 0.16, 1);
+  pointer-events: none;
+}
+.rol-bola {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #fffdf8, #b9b2a4);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.7);
+}
+
+/* a marca de onde a bola para, e o numero que saiu */
+/* a marca fica mesmo em cima da beira da bacia, que e onde a bola para. A
+   bacia comeca a cerca de um quarto da altura da cena, por causa da
+   inclinacao */
+.rol-marca {
+  position: absolute;
+  left: 50%;
+  top: 23%;
+  width: 0;
+  height: 0;
+  transform: translate(-50%, -4px);
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 13px solid var(--crema);
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+}
+.rol-saiu {
+  position: absolute;
+  left: 50%;
+  bottom: 2%;
+  transform: translateX(-50%);
+  min-width: 2.2em;
+  padding: 0.15em 0.5em;
+  border-radius: 0.5em;
+  font-family: var(--mono);
+  font-size: 30px;
+  text-align: center;
+  color: #fffdf8;
+  border: 2px solid rgba(255, 253, 248, 0.35);
+  animation: rol-entra 0.3s ease-out backwards;
+}
+.rol-saiu.vermelho {
+  background: #a52725;
+}
+.rol-saiu.preto {
+  background: #1a1a1c;
+}
+.rol-saiu.verde {
+  background: #1d7a4c;
+}
+@keyframes rol-entra {
+  from {
+    transform: translateX(-50%) scale(0.7);
+    opacity: 0;
+  }
+}
+
+.rol-veredito {
+  text-align: center;
+  margin: 4px 0 0;
+  color: var(--tinta-2);
+}
+.rol-veredito b {
+  color: var(--tinta);
+  font-family: var(--mono);
+}
+.rol-veredito.bem {
+  color: var(--verde);
+}
+.rol-veredito.mal {
+  color: var(--tinta-3);
+}
+.rol-recado {
+  text-align: center;
+}
+
+/* a bancada das fichas */
+.rol-bancada {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 14px 0 10px;
+}
+.rol-bancada .notas {
+  margin: 0;
+}
+.rol-ficha {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 3px dashed rgba(255, 255, 255, 0.6);
+  background: #3f8d63;
+  color: #fffdf8;
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45);
+}
+.rol-ficha[data-valor='5'] {
+  background: #4f7fc0;
+}
+.rol-ficha[data-valor='10'] {
+  background: #a52725;
+}
+.rol-ficha[data-valor='25'] {
+  background: #6d6d7c;
+}
+.rol-ficha[data-valor='100'] {
+  background: #9d6fc4;
+}
+.rol-ficha.pegada {
+  outline: 2px solid var(--crema);
+  outline-offset: 3px;
+  transform: translateY(-2px);
+}
+.rol-ficha:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* o pano */
+.rol-pano {
+  display: flex;
+  gap: 4px;
+  background: radial-gradient(120% 130% at 50% 10%, #186145, #114434 60%, #08291f);
+  border: 6px solid #3d2616;
+  border-radius: 10px;
+  padding: 6px;
+  overflow-x: auto;
+}
+.rol-pano.fechado {
+  opacity: 0.6;
+}
+.rol-numeros {
+  display: grid;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 460px;
+}
+.rol-fila {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr) 1.1fr;
+  gap: 4px;
+}
+.rol-duzias {
+  grid-template-columns: repeat(3, 1fr);
+}
+.rol-fora {
+  grid-template-columns: repeat(6, 1fr);
+}
+.rol-cela {
+  position: relative;
+  border: 1px solid rgba(240, 220, 192, 0.25);
+  border-radius: 4px;
+  background: transparent;
+  color: #fffdf8;
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 8px 2px;
+  cursor: pointer;
+  min-height: 38px;
+  display: grid;
+  place-items: center;
+}
+.rol-cela:hover:not(:disabled) {
+  border-color: var(--crema);
+}
+.rol-cela:disabled {
+  cursor: default;
+}
+.rol-cela.vermelho {
+  background: #a52725;
+}
+.rol-cela.preto {
+  background: #17171a;
+}
+.rol-cela.zero {
+  background: #1d7a4c;
+  flex: 0 0 42px;
+  min-width: 42px;
+  border-radius: 4px;
+}
+.rol-cela.lado,
+.rol-cela.larga {
+  font-size: 12px;
+  color: var(--tinta-2);
+}
+.rol-cela.acertou {
+  outline: 2px solid var(--crema);
+  outline-offset: -2px;
+  box-shadow: 0 0 1em rgba(224, 158, 89, 0.5);
+}
+.rol-posta {
+  position: absolute;
+  right: -4px;
+  top: -6px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--crema);
+  color: #241a13;
+  font-size: 11px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+}
+
+.rol-fim {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.rol-fim .notas {
+  margin: 0;
+}
+.rol-botoes {
+  display: flex;
+  gap: 8px;
+}
+.rol-regras {
+  margin-top: 14px;
+  max-width: 640px;
+}
+
+@media (max-width: 720px) {
+  .rol-cena {
+    max-width: 320px;
+  }
+  .rol-cela {
+    font-size: 12px;
+    min-height: 34px;
+  }
+}
+
+/* ========================== o quadro de honra ========================== */
+
+.qd {
+  max-width: 900px;
+  margin: 0 auto;
+}
+.qd-abas {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 18px 0 12px;
+}
+.qd-abas button {
+  background: transparent;
+  border: 1px solid var(--linha);
+  color: var(--tinta-2);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.qd-abas button:hover {
+  border-color: var(--crema-2);
+  color: var(--tinta);
+}
+.qd-abas button.aberta {
+  background: var(--crema);
+  border-color: var(--crema);
+  color: #241a13;
+  font-weight: 600;
+}
+.qd-nota {
+  margin: 0 0 12px;
+}
+.qd-aviso {
+  margin-top: 16px;
+  max-width: 620px;
+}
+.bj-quadro {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+.bj-quadro .notas {
+  margin: 0;
+}
+
+/* a carteira e a compra, na mesa de poker */
+.pk-carteira {
+  margin: 0;
+  display: grid;
+  text-align: right;
+  line-height: 1.2;
+  flex: 0 0 auto;
+}
+.pk-carteira b {
+  font-family: var(--mono);
+  font-size: 17px;
+  color: var(--crema);
+}
+.pk-carteira small {
+  color: var(--tinta-3);
+  font-size: 12px;
+}
+.pk-compra {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.pk-compra .notas {
+  margin: 0;
+}
+.pk-compra button {
+  background: transparent;
+  border: 1px solid var(--linha);
+  color: var(--tinta-2);
+  border-radius: 999px;
+  padding: 3px 11px;
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 13px;
+  cursor: pointer;
+}
+.pk-compra button.pegada {
+  border-color: var(--crema);
+  color: var(--crema);
+}
+.pk-compra button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

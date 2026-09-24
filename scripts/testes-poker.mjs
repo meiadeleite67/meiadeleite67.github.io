@@ -191,18 +191,18 @@ prova('não se joga fora da vez nem com jogadas inventadas', () => {
 
 prova('a subida tem de ser de pelo menos o que subiu a anterior', () => {
   const m = maoNova({ numero: 1, lugares: mesaDe(2500, 2500, 2500), ultimoBotao: -1 });
-  certo(jogar(m, 0, 'subir', CEGO_GRANDE + 10), 'subir 10 não chega');
-  igual(jogar(m, 0, 'subir', 150), null, 'subir para 150 chega');
-  igual(m.subidaMinima, 100);
-  certo(jogar(m, 1, 'subir', 200), 'a seguir tem de ir a 250');
-  igual(jogar(m, 1, 'subir', 250), null);
+  certo(jogar(m, 0, 'subir', CEGO_GRANDE + 1), 'subir um torrao nao chega');
+  igual(jogar(m, 0, 'subir', CEGO_GRANDE * 3), null, 'subir ao triplo do cego chega');
+  igual(m.subidaMinima, CEGO_GRANDE * 2);
+  certo(jogar(m, 1, 'subir', CEGO_GRANDE * 4), 'a seguir tem de ir ao quintuplo');
+  igual(jogar(m, 1, 'subir', CEGO_GRANDE * 5), null);
 });
 
 prova('com tudo dentro pode-se subir menos do que o mínimo', () => {
   const m = maoNova({ numero: 1, lugares: mesaDe(2500, 2500, 180), ultimoBotao: -1 });
   igual(jogar(m, 0, 'subir', 150), null);
   igual(jogar(m, 1, 'desistir'), null);
-  // o lugar 2 tem 180 ao todo e já lá pôs 50: só pode ir a 180
+  // o lugar 2 tem 180 ao todo: só pode ir a 180
   certo(jogar(m, 2, 'subir', 300), 'não pode apostar o que não tem');
   igual(jogar(m, 2, 'subir', 180), null, 'mas pode ir com tudo:');
   igual(m.jogadores[2].estado, 'tudo');
@@ -236,7 +236,7 @@ prova('uma mão inteira até ao fim, com as fichas todas contadas', () => {
   igual(somaDe(m), antes, 'as fichas de uma mão são sempre as mesmas:');
   igual(m.jogadores[0].mao ? 1 : 1, 1);
   igual(nomeDaMao(m.jogadores[0].avaliacao), 'Trio de ases');
-  igual(m.jogadores[0].ganhou, 550, 'o trio de ases leva o bolo todo:');
+  igual(m.jogadores[0].ganhou, 3 * CEGO_GRANDE + 400, 'o trio de ases leva o bolo todo:');
   igual(m.jogadores[1].ganhou, 0);
   certo(!m.jogadores[2].mostra, 'quem desistiu não mostra as cartas');
 });
@@ -300,7 +300,7 @@ prova('um empate divide, e a ficha a mais fica para quem está depois do botão'
   igual(m.bolos[0].para, [1, 2, 0], 'ganham os três, a contar da esquerda do botão:');
   igual(
     m.jogadores.map((j) => j.ganhou),
-    [50, 50, 50]
+    [CEGO_GRANDE, CEGO_GRANDE, CEGO_GRANDE]
   );
 });
 

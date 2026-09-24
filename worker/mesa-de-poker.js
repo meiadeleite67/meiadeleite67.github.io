@@ -23,11 +23,11 @@
  * vê o que veria sentado à mesa, e mais nada.
  */
 import { DurableObject } from 'cloudflare:workers';
-import { passeBate } from './chaves.js';
 import {
   CEGO_GRANDE,
   CEGO_PEQUENO,
-  FICHAS_INICIAIS,
+  COMPRA_MAXIMA,
+  COMPRA_MINIMA,
   MAX_LUGARES,
   MINIMO_PARA_JOGAR,
   jogar,
@@ -59,16 +59,25 @@ const MAX_LIGACOES = 30;
    de servidor sem dar por isso. */
 const MAX_POR_MINUTO = 120;
 const MAX_NARRACAO = 7;
-/** O quadro de honra lido do armazenamento fica válido este tempo. */
-const QUADRO_DURA = 30_000;
 
 const nomeLimpo = (v) => (typeof v === 'string' ? v.trim().slice(0, 24) : '');
+
+/* As fichas desta mesa sao torroes a serio: compram-se ao banco quando alguem
+   se senta e voltam para la quando se levanta. Nao ha fichas proprias da mesa
+   nenhuma, e por isso nao ha nada a inventar aqui dentro. */
+const aoBanco = async (env, rota, corpo) => {
+  const banco = env.BANCO.get(env.BANCO.idFromName('mdl'));
+  const r = await banco.fetch(`https://banco${rota}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(corpo)
+  });
+  return r.json();
+};
 
 export class MesaDePoker extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
-    this.quadro = null;
-    this.quadroDe = 0;
     /* Quantas mensagens cada ligacao ja mandou. Vive so na memoria: quando a
        mesa adormece e porque ninguem esta a mandar nada. */
     this.contagens = new Map();
@@ -115,7 +124,7 @@ export class MesaDePoker extends DurableObject {
        para os lugares de quem ja la nao esta voltarem a ficar livres. */
     if (!this.dados.mao) {
       const antes = this.dados.lugares.length;
-      this.arrumarLugares();
+      await this.arrumarLugares();
       if (this.dados.lugares.length !== antes) await this.gravarEEspalhar();
     }
 
@@ -163,9 +172,9 @@ export class MesaDePoker extends DurableObject {
       this.deuSinal(quem.nome);
       return this.gravarEEspalhar();
     }
-    if (veio.a === 'sentar') return this.sentar(ws, quem.nome, veio.lugar);
+    if (veio.a === 'sentar') return this.sentar(ws, quem.nome, veio.lugar, veio.compra);
     if (veio.a === 'levantar') return this.levantar(ws, quem.nome);
-    if (veio.a === 'comprar') return this.comprar(ws, quem.nome);
+    if (veio.a === 'comprar') return this.comprar(ws, quem.nome, veio.compra);
     if (veio.a === 'jogada') return this.jogada(ws, quem.nome, veio);
   }
 
@@ -214,27 +223,15 @@ export class MesaDePoker extends DurableObject {
   /**
    * O passe é o mesmo do quadro de honra: quem não tiver escrito o PIN daquele
    * nome não se senta com ele. Era o buraco de sempre, e não se abre aqui.
+   *
+   * Quem responde é o banco, que é quem guarda os nomes. Não se guarda aqui
+   * cópia nenhuma: uma cópia com uns segundos deixava de fora quem tivesse
+   * acabado de escrever o PIN, e mandava-o embora da mesa sem razão.
    */
   async eMesmoEle(nome, passe) {
     if (nome.length < 2 || !/^[a-f0-9]{32}$/.test(String(passe || ''))) return false;
-    /* A lista de nomes fica em memória uns segundos para não se ir buscá-la a
-       cada ligação. Quem acabou de escrever o PIN noutro separador ainda não
-       estaria nela, por isso, se não bater, vale a pena ir ver outra vez antes
-       de lhe dizer que o nome não é dele. */
-    const tinhaGuardada = this.quadro && Date.now() - this.quadroDe <= QUADRO_DURA;
-    if (await this.confere(nome, passe, false)) return true;
-    return tinhaGuardada ? this.confere(nome, passe, true) : false;
-  }
-
-  async confere(nome, passe, outraVez) {
-    const agora = Date.now();
-    if (outraVez || !this.quadro || agora - this.quadroDe > QUADRO_DURA) {
-      const guardado = await this.env.QUADRO.get('quadro');
-      this.quadro = guardado ? JSON.parse(guardado) : {};
-      this.quadroDe = agora;
-    }
-    const linha = this.quadro[nome];
-    return linha ? passeBate(passe, linha) : false;
+    const r = await aoBanco(this.env, '/ver', { nome, passe });
+    return !r.erro;
   }
 
   lugarDe(nome) {
@@ -249,28 +246,67 @@ export class MesaDePoker extends DurableObject {
 
   /* ========================== as jogadas ========================== */
 
-  sentar(ws, nome, onde) {
+  async sentar(ws, nome, onde, quanto) {
     const lugar = Math.trunc(Number(onde));
     if (!(lugar >= 0 && lugar < MAX_LUGARES)) return this.recado(ws, 'Esse lugar não existe.');
     if (this.lugarDe(nome)) return this.recado(ws, 'Já estás sentado.');
     if (this.dados.lugares.some((l) => l.lugar === lugar))
       return this.recado(ws, 'Esse lugar já é de alguém.');
 
+    const comprou = await this.comprarFichas(nome, quanto);
+    if (comprou.erro) return this.recado(ws, comprou.erro);
+
     this.dados.lugares.push({
       lugar,
       nome,
-      fichas: FICHAS_INICIAIS,
+      fichas: comprou.levou,
       ligado: true,
       caiuEm: 0,
       ultimoSinal: Date.now(),
-      faltas: 0
+      faltas: 0,
+      /* O que esta mesa lhe fez, para ir com as fichas quando ele se
+         levantar: o quadro conta as mãos e não as sessões. */
+      contas: { maos: 0, ganhas: 0, maiorPote: 0 }
     });
     this.dados.lugares.sort((a, b) => a.lugar - b.lugar);
-    this.contar(`${nome} sentou-se com ${FICHAS_INICIAIS} torrões.`);
+    this.contar(`${nome} sentou-se com ${comprou.levou} torrões.`);
     return this.gravarEEspalhar();
   }
 
-  levantar(ws, nome) {
+  /** Compra fichas ao banco. Quem tem menos do que a compra normal entra com o
+   *  que tem, desde que chegue para o mínimo da mesa. */
+  async comprarFichas(nome, quanto) {
+    const pedido = Number.isFinite(Number(quanto))
+      ? Math.max(COMPRA_MINIMA, Math.min(COMPRA_MAXIMA, Math.round(Number(quanto))))
+      : COMPRA_MAXIMA;
+    const feito = await aoBanco(this.env, '/cobrar', { nome, quanto: pedido });
+    if (feito.erro || !feito.levou)
+      return { erro: `Precisas de ${COMPRA_MINIMA} torrões para te sentares a esta mesa.` };
+    if (feito.levou < COMPRA_MINIMA) {
+      // levou menos do que o minimo: devolve-se e nao se senta
+      await aoBanco(this.env, '/creditar', { nome, quanto: feito.levou });
+      return { erro: `Precisas de ${COMPRA_MINIMA} torrões para te sentares a esta mesa.` };
+    }
+    return { levou: feito.levou };
+  }
+
+  /**
+   * Tira alguém da mesa e manda as fichas dele de volta para a carteira, com
+   * as contas do que fez por aqui. É por aqui que toda a gente sai: quem se
+   * levanta, quem se desliga e não volta, e quem deixa de jogar.
+   */
+  async tirarDaMesa(nome) {
+    const lugar = this.lugarDe(nome);
+    if (!lugar) return;
+    this.dados.lugares = this.dados.lugares.filter((l) => l.nome !== nome);
+    await aoBanco(this.env, '/creditar', {
+      nome,
+      quanto: lugar.fichas,
+      contas: { poquer: lugar.contas || { maos: 0, ganhas: 0, maiorPote: 0 } }
+    });
+  }
+
+  async levantar(ws, nome) {
     const lugar = this.lugarDe(nome);
     if (!lugar) return this.recado(ws, 'Não estás sentado.');
     /* Com uma mão a meio, quem se levanta deita as cartas fora: sair da mesa
@@ -280,20 +316,24 @@ export class MesaDePoker extends DurableObject {
       jogar(this.dados.mao, naMao.lugar, 'desistir');
       this.depoisDaJogada(`${nome} levantou-se e desistiu.`);
     }
-    this.dados.lugares = this.dados.lugares.filter((l) => l.nome !== nome);
-    this.contar(`${nome} levantou-se.`);
+    const levou = lugar.fichas;
+    await this.tirarDaMesa(nome);
+    this.contar(`${nome} levantou-se e levou ${levou} torrões.`);
     return this.gravarEEspalhar();
   }
 
-  comprar(ws, nome) {
+  async comprar(ws, nome, quanto) {
     const lugar = this.lugarDe(nome);
     if (!lugar) return this.recado(ws, 'Não estás sentado.');
     if (lugar.fichas > 0) return this.recado(ws, 'Ainda tens fichas.');
     if (this.dados.mao && this.dados.mao.fase !== 'acabou')
       return this.recado(ws, 'Espera que esta mão acabe.');
-    lugar.fichas = FICHAS_INICIAIS;
+
+    const comprou = await this.comprarFichas(nome, quanto);
+    if (comprou.erro) return this.recado(ws, comprou.erro);
+    lugar.fichas = comprou.levou;
     this.deuSinal(nome);
-    this.contar(`${nome} comprou mais ${FICHAS_INICIAIS} torrões.`);
+    this.contar(`${nome} comprou mais ${comprou.levou} torrões.`);
     return this.gravarEEspalhar();
   }
 
@@ -342,10 +382,19 @@ export class MesaDePoker extends DurableObject {
 
     if (m.fase === 'acabou') {
       m.prazo = 0;
-      // as fichas voltam do sítio da mão para o lugar de cada um
+      /* As fichas voltam do sítio da mão para o lugar de cada um, e as contas
+         desta mão ficam guardadas no lugar. Vão para o quadro quando ele se
+         levantar: assim o quadro conta mãos e não sessões. */
       for (const j of m.jogadores) {
         const l = this.dados.lugares.find((x) => x.nome === j.nome);
-        if (l) l.fichas = j.fichas;
+        if (!l) continue;
+        l.fichas = j.fichas;
+        l.contas = l.contas || { maos: 0, ganhas: 0, maiorPote: 0 };
+        l.contas.maos++;
+        if (j.ganhou > 0) {
+          l.contas.ganhas++;
+          l.contas.maiorPote = Math.max(l.contas.maiorPote, j.ganhou);
+        }
       }
       /* Os bolos que vão para os mesmos donos contam-se como um só: quem está
          a ver quer saber quanto ganhou, e não como as camadas ficaram. */
@@ -404,26 +453,32 @@ export class MesaDePoker extends DurableObject {
    * sinal de vida há muito tempo também. Sem isto, cinco separadores esquecidos
    * tomavam a mesa até alguém se lembrar de sair.
    */
-  arrumarLugares() {
+  async arrumarLugares() {
     const agora = Date.now();
-    const ficam = [];
+    const fora = [];
     for (const l of this.dados.lugares) {
-      if (!l.ligado && agora - (l.caiuEm || 0) >= GUARDA_O_LUGAR) continue;
-      if (l.ligado && agora - (l.ultimoSinal || agora) >= PARADO_DEMAIS) {
-        this.contar(`${l.nome} esteve demasiado tempo parado e saiu da mesa.`);
-        this.recadoPara(l.nome, 'Estiveste muito tempo sem jogar e saíste da mesa.');
-        continue;
-      }
-      ficam.push(l);
+      if (!l.ligado && agora - (l.caiuEm || 0) >= GUARDA_O_LUGAR)
+        fora.push([l.nome, 'desligou-se e o lugar dele ficou livre.', 'Estiveste desligado e saíste da mesa.']);
+      else if (l.ligado && agora - (l.ultimoSinal || agora) >= PARADO_DEMAIS)
+        fora.push([
+          l.nome,
+          'esteve demasiado tempo parado e saiu da mesa.',
+          'Estiveste muito tempo sem jogar e saíste da mesa.'
+        ]);
     }
-    if (ficam.length !== this.dados.lugares.length) this.dados.lugares = ficam;
+    for (const [nome, conta, recado] of fora) {
+      this.contar(`${nome} ${conta}`);
+      this.recadoPara(nome, recado);
+      // as fichas voltam sempre com quem sai, seja qual for a razão
+      await this.tirarDaMesa(nome);
+    }
   }
 
-  /** Tira alguém da mesa e diz-lhe porquê. */
-  levantarPorFalta(nome, porque) {
-    this.dados.lugares = this.dados.lugares.filter((l) => l.nome !== nome);
+  /** Tira alguém da mesa por não jogar, e diz-lhe porquê. */
+  async levantarPorFalta(nome, porque) {
     this.contar(`${nome} ${porque}`);
     this.recadoPara(nome, 'Deixaste passar a vez vezes de mais e saíste da mesa.');
+    await this.tirarDaMesa(nome);
   }
 
   async alarm() {
@@ -446,14 +501,14 @@ export class MesaDePoker extends DurableObject {
       if (lugar) {
         lugar.faltas = (lugar.faltas || 0) + 1;
         if (lugar.faltas >= FALTAS_PARA_SAIR)
-          this.levantarPorFalta(j.nome, 'deixou passar a vez vezes de mais e saiu da mesa.');
+          await this.levantarPorFalta(j.nome, 'deixou passar a vez vezes de mais e saiu da mesa.');
       }
     } else if (m && m.fase === 'acabou' && agora >= (this.dados.fimEm || 0) - 1000) {
       this.dados.mao = null;
       this.dados.fimEm = 0;
-      this.arrumarLugares();
+      await this.arrumarLugares();
     } else if (!m) {
-      this.arrumarLugares();
+      await this.arrumarLugares();
       if (this.dados.comecaEm && agora >= this.dados.comecaEm - 1000) this.comecar();
     }
 

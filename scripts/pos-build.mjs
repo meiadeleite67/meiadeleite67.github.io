@@ -14,8 +14,10 @@ import { join } from 'node:path';
 
 const PAGINAS = [
   'membros',
+  'quadro',
   'blackjack',
   'poker',
+  'roleta',
   'instagram',
   'agenda',
   'admin',

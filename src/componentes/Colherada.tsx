@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { fotoDoMembro } from '../lib/api';
+import { fotoDoMembro, mandarRecorde } from '../lib/api';
 import { guardar, lido } from '../lib/dados';
 import type { Estado, Membro } from '../lib/tipos';
 
@@ -157,6 +157,7 @@ export function Colherada({ estado }: { estado: Estado }) {
     const antes = Number(lido(RECORDE)) || 0;
     if (j.acertos > antes) {
       guardar(RECORDE, String(j.acertos));
+      mandarRecorde('colherada', j.acertos);
       setRecorde(j.acertos);
       setBateuRecorde(true);
     }
