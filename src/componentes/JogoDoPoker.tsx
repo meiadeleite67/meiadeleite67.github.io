@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MesaEm3D, useSegundos } from './MesaDePoker';
-import { api, fotoDoMembro, quantosNasMesas, temServidor } from '../lib/api';
-import { chaveDe, guardarChave, guardarNome, nomeGuardado } from '../lib/nick';
+import { Entrada } from './Entrada';
+import { fotoDoMembro, quantosNasMesas, temServidor } from '../lib/api';
+import { nomeGuardado, passeDe } from '../lib/nick';
 import { restam, useMesaViva } from '../lib/poker';
 import { guardar, lido } from '../lib/dados';
 import type { Estado, Membro, QuantosNaMesa } from '../lib/tipos';
@@ -15,8 +16,8 @@ import type { Estado, Membro, QuantosNaMesa } from '../lib/tipos';
  * quadro de honra do blackjack não se mexe com isto, senão um blefe mal dado
  * deitava abaixo a tabela toda.
  *
- * O nome é o mesmo do blackjack, e prova-se com a mesma chave: ninguém se
- * senta com o nickname de outra pessoa.
+ * O nome é o mesmo do blackjack, e prova-se com o mesmo PIN: ninguém se senta
+ * com o nickname de outra pessoa.
  */
 
 const MAX_MESAS = 5;
@@ -27,21 +28,16 @@ const PRAZO = 30;
 const mesaDe = (membro: Membro) => `m-${membro.id}`;
 
 export function JogoDoPoker({ estado, recarregar }: { estado: Estado; recarregar: () => void }) {
-  /* Um nome sem chave e um nome que nao se pode provar: e de antes de as
-     chaves existirem, ou de outro browser. Pede-se outra vez, como no
-     blackjack, senao a mesa dizia so que nao sabe quem somos. */
+  /* Um nome sem passe e um nome que nao se pode provar neste aparelho: pede-se
+     o PIN outra vez, como no blackjack, senao a mesa dizia so que nao sabe
+     quem somos. */
   const [nome, setNome] = useState(() => {
     const posto = nomeGuardado();
-    return posto && chaveDe(posto) ? posto : '';
+    return posto && passeDe(posto) ? posto : '';
   });
-  const [rascunho, setRascunho] = useState(nomeGuardado);
-  const [aSentar, setASentar] = useState(false);
-  const [queixa, setQueixa] = useState('');
   const [mesa, setMesa] = useState<string | null>(() => lido(ONDE_ESTAVA) || null);
   const [quantos, setQuantos] = useState<QuantosNaMesa[]>([]);
   const [subida, setSubida] = useState(0);
-
-  const ocupado = useRef(false);
 
   /* As mesas são os primeiros cinco membros, por ordem, e cada um dá as cartas
      na sua. A mascote fica de fora: quem dá as cartas é gente. */
@@ -59,15 +55,17 @@ export function JogoDoPoker({ estado, recarregar }: { estado: Estado; recarregar
     [croupiers, mesa]
   );
 
-  const chave = nome ? chaveDe(nome) : '';
-  const { estado: viva, ligacao, recado, limparRecado, manda } = useMesaViva(mesa, nome, chave);
+  const passe = nome ? passeDe(nome) : '';
+  const { estado: viva, ligacao, recado, limparRecado, manda } = useMesaViva(mesa, nome, passe);
 
   const mao = viva ? viva.mao : null;
   const meuLugar = viva && viva.eu ? viva.eu.lugar : -1;
   const minhaVez = !!mao && mao.vez >= 0 && mao.vez === meuLugar;
   const podes = minhaVez && mao ? mao.podes : null;
 
-  const agora = useSegundos(!!mao && mao.vez >= 0);
+  /* O relogio anda enquanto ha vez a contar, e tambem enquanto estivermos
+     sentados: e dele que sai o aviso de quem esta prestes a perder o lugar. */
+  const agora = useSegundos(meuLugar >= 0 || (!!mao && mao.vez >= 0));
   const faltam = restam(viva, agora);
 
   /* Quanta gente está em cada mesa. Pergunta-se ao chegar e quando se volta à
@@ -103,27 +101,6 @@ export function JogoDoPoker({ estado, recarregar }: { estado: Estado; recarregar
     setSubida((s) => (s < podes.minimo || s > podes.maximo ? podes.minimo : s));
   }, [podes]);
 
-  /** Estrear ou reclamar um nickname. É a mesma porta do blackjack. */
-  async function tratarDoNome() {
-    const limpo = rascunho.trim();
-    if (limpo.length < 2 || ocupado.current) return;
-    ocupado.current = true;
-    setASentar(true);
-    setQueixa('');
-    try {
-      const r = await api.sentar(limpo, chaveDe(limpo));
-      if (r.chave) guardarChave(limpo, r.chave);
-      guardarNome(limpo);
-      setNome(limpo);
-      recarregar();
-    } catch (e) {
-      setQueixa(e instanceof Error ? e.message : 'Não deu para guardar o nome.');
-    } finally {
-      ocupado.current = false;
-      setASentar(false);
-    }
-  }
-
   const jogar = (acao: string, valor?: number) => {
     if (!mao) return;
     manda({ a: 'jogada', passo: mao.passo, acao, valor });
@@ -149,28 +126,15 @@ export function JogoDoPoker({ estado, recarregar }: { estado: Estado; recarregar
         <p className="eyebrow">Texas Hold'em a torrões</p>
         <h1>Poker</h1>
         <p className="lead">
-          À mesa senta-se com o mesmo nickname do blackjack. É ele que prova de quem são as fichas,
-          e por isso ninguém se pode sentar com o nome de outra pessoa.
+          À mesa senta-se com o mesmo nickname do blackjack, e com o mesmo PIN. É ele que prova de
+          quem são as fichas, e por isso ninguém se pode sentar com o nome de outra pessoa.
         </p>
-        <form
-          className="pk-nome"
-          onSubmit={(e) => {
-            e.preventDefault();
-            tratarDoNome();
+        <Entrada
+          aoEntrar={(quem) => {
+            setNome(quem);
+            recarregar();
           }}
-        >
-          <input
-            value={rascunho}
-            onChange={(e) => setRascunho(e.target.value)}
-            placeholder="O teu nickname"
-            maxLength={24}
-            aria-label="O teu nickname"
-          />
-          <button className="btn azul" type="submit" disabled={aSentar || rascunho.trim().length < 2}>
-            {aSentar ? 'Um instante...' : 'Entrar'}
-          </button>
-        </form>
-        {queixa && <p className="recado mal">{queixa}</p>}
+        />
       </section>
     );
 
@@ -228,6 +192,14 @@ export function JogoDoPoker({ estado, recarregar }: { estado: Estado; recarregar
 
   const meuLugarNaMesa = viva ? viva.lugares.find((l) => l.lugar === meuLugar) : null;
   const semFichas = !!meuLugarNaMesa && meuLugarNaMesa.fichas === 0;
+  /* Quanto falta para o lugar se perder por estar parado. So se avisa perto do
+     fim: antes disso e barulho. */
+  const desvio = viva ? viva.agora - viva.recebidoEm : 0;
+  const ateSair =
+    meuLugarNaMesa && meuLugarNaMesa.saiEm
+      ? Math.max(0, Math.round((meuLugarNaMesa.saiEm - (agora + desvio)) / 1000))
+      : 0;
+  const quaseFora = ateSair > 0 && ateSair <= 120;
   const naMao = !!mao && !!mao.jogadores.find((j) => j.lugar === meuLugar);
 
   return (
@@ -265,6 +237,15 @@ export function JogoDoPoker({ estado, recarregar }: { estado: Estado; recarregar
       )}
 
       {recado && <p className="recado mal pk-recado">{recado}</p>}
+
+      {quaseFora && (
+        <p className="pk-aviso">
+          Sais da mesa daqui a {ateSair}s se não jogares.
+          <button type="button" onClick={() => manda({ a: 'aqui' })}>
+            Continuo aqui
+          </button>
+        </p>
+      )}
 
       <div className="pk-comandos">
         {minhaVez && podes ? (

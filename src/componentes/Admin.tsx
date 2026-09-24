@@ -301,6 +301,9 @@ function Cozinha({
 function LinhaDoQuadro({ linha, recarregar }: { linha: Pontuacao; recarregar: () => void }) {
   const [aConfirmar, setAConfirmar] = useState(false);
   const [aApagar, setAApagar] = useState(false);
+  /** O PIN e outra conversa: tira-se sem tirar o nome nem os torroes. */
+  const [aTirarPin, setATirarPin] = useState(false);
+  const [semPin, setSemPin] = useState(false);
 
   async function apagar() {
     setAApagar(true);
@@ -310,6 +313,19 @@ function LinhaDoQuadro({ linha, recarregar }: { linha: Pontuacao; recarregar: ()
     } finally {
       setAApagar(false);
       setAConfirmar(false);
+    }
+  }
+
+  /* Alguem se meteu no nome de outra pessoa? Tira-se o PIN e o nome fica
+     outra vez a espera de quem lhe ponha um. Os torroes ficam onde estao. */
+  async function tirarPin() {
+    setAApagar(true);
+    try {
+      await api.limparPin(linha.nome);
+      setSemPin(true);
+    } finally {
+      setAApagar(false);
+      setATirarPin(false);
     }
   }
 
@@ -330,10 +346,29 @@ function LinhaDoQuadro({ linha, recarregar }: { linha: Pontuacao; recarregar: ()
             Não
           </button>
         </div>
+      ) : aTirarPin ? (
+        <div className="acoes">
+          <button className="btn mini" type="button" onClick={tirarPin} disabled={aApagar}>
+            {aApagar ? 'A limpar...' : 'Limpar mesmo'}
+          </button>
+          <button className="btn claro mini" type="button" onClick={() => setATirarPin(false)}>
+            Não
+          </button>
+        </div>
       ) : (
-        <button className="btn claro mini" type="button" onClick={() => setAConfirmar(true)}>
-          Tirar do quadro
-        </button>
+        <div className="acoes">
+          <button
+            className="btn claro mini"
+            type="button"
+            onClick={() => setATirarPin(true)}
+            title="O nome volta a poder receber um PIN novo"
+          >
+            {semPin ? 'PIN limpo' : 'Limpar PIN'}
+          </button>
+          <button className="btn claro mini" type="button" onClick={() => setAConfirmar(true)}>
+            Tirar do quadro
+          </button>
+        </div>
       )}
     </div>
   );

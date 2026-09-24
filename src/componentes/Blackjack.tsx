@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { api, temServidor } from '../lib/api';
-import { chaveDe, guardarChave, guardarNome, nomeGuardado } from '../lib/nick';
+import { Entrada } from './Entrada';
+import { nomeGuardado, passeDe } from '../lib/nick';
 import { APOSTAS, conta, mesaNova, porFicha, soma, suave, tirarFichas } from '../lib/blackjack';
 import type { Carta, Mao, Mesa, Resultado } from '../lib/blackjack';
 import type { Estado, RespostaDaMesa } from '../lib/tipos';
@@ -27,7 +28,6 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
   const [mesa, setMesa] = useState<Mesa>(() => mesaNova(0));
   const [nome, setNome] = useState(nomeGuardado);
   const [aPedirNome, setAPedirNome] = useState(() => !nomeGuardado());
-  const [rascunho, setRascunho] = useState(nomeGuardado);
   const [podem, setPodem] = useState({ dobrar: false, dividir: false });
   const [passo, setPasso] = useState(0);
   const [aEsperar, setAEsperar] = useState(false);
@@ -35,13 +35,8 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
   /** Em que pagina do quadro de honra vamos. */
   const [pagina, setPagina] = useState(0);
 
-  const campoNome = useRef<HTMLInputElement>(null);
   /* Um pedido de cada vez: dois a andar juntos davam uma carta a mais. */
   const ocupado = useRef(false);
-
-  useEffect(() => {
-    if (aPedirNome) campoNome.current?.focus({ preventScroll: true });
-  }, [aPedirNome]);
 
   /** Poe no ecra o que o servidor mandou, e mais nada. */
   function mostrar(r: RespostaDaMesa) {
@@ -82,45 +77,27 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
     }
   }
 
-  /* quem chega com o nome e a chave ja postos volta a mesa onde a deixou */
+  /* Quem chega com o nome e o passe ja postos volta a mesa onde a deixou. Sem
+     passe pede-se o PIN, que e o caso de quem vem de outro browser ou de antes
+     dos PINs existirem. */
   useEffect(() => {
     const posto = nomeGuardado();
     if (!posto) return;
-    const chave = chaveDe(posto);
-    if (!chave) {
-      // nome sem chave, de antes de isto existir: pede-se outra vez
-      setRascunho(posto);
+    if (!passeDe(posto)) {
       setAPedirNome(true);
       return;
     }
-    aoServidor(() => api.sentar(posto, chave));
+    aoServidor(() => api.sentar(posto, passeDe(posto)));
     // uma vez, ao entrar na mesa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** Sentar-se. Um nome por estrear fica nosso, e o servidor devolve a chave
-   *  dele uma unica vez; um nome que ja e de outra pessoa nao abre. */
-  async function sentar() {
-    const limpo = rascunho.trim();
-    if (limpo.length < 2 || ocupado.current) return;
-    ocupado.current = true;
-    setAEsperar(true);
-    setRecado('');
-    try {
-      const r = await api.sentar(limpo, chaveDe(limpo));
-      if (r.chave) guardarChave(limpo, r.chave);
-      setNome(limpo);
-      guardarNome(limpo);
-      setMesa(mesaNova(r.linha.torroes));
-      mostrar(r);
-      setAPedirNome(false);
-      recarregar();
-    } catch (e) {
-      setRecado(e instanceof Error ? e.message : 'Nao deu para sentar.');
-    } finally {
-      ocupado.current = false;
-      setAEsperar(false);
-    }
+  /** Quem acabou de escrever o nome e o PIN senta-se a mesa onde a deixou. */
+  function jaEntrou(quem: string) {
+    setNome(quem);
+    setAPedirNome(false);
+    setMesa(mesaNova(0));
+    aoServidor(() => api.sentar(quem, passeDe(quem)));
   }
 
   /* Da primeira vez que o quadro chega, abre na pagina de quem esta a jogar:
@@ -137,13 +114,14 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
   function darCartas() {
     const aposta = soma(mesa.fichas);
     if (aposta <= 0 || aposta > mesa.saldo) return;
-    aoServidor(() => api.apostarNaMesa(nome.trim(), chaveDe(nome.trim()), aposta));
+    aoServidor(() => api.apostarNaMesa(nome.trim(), passeDe(nome.trim()), aposta));
   }
 
   const jogar = (acao: string) =>
-    aoServidor(() => api.jogar(nome.trim(), chaveDe(nome.trim()), acao, passo));
+    aoServidor(() => api.jogar(nome.trim(), passeDe(nome.trim()), acao, passo));
 
-  const pedirEmprestado = () => aoServidor(() => api.emprestimo(nome.trim(), chaveDe(nome.trim())));
+  const pedirEmprestado = () =>
+    aoServidor(() => api.emprestimo(nome.trim(), passeDe(nome.trim())));
 
   /** Limpar a mesa para a proxima aposta. So muda o que se ve: a mao anterior
    *  ja esta fechada e paga do lado de la. */
@@ -384,13 +362,7 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
           {nome.trim() && (
             <p className="a-jogar-como">
               A jogar como <b>{nome.trim()}</b>
-              <button
-                type="button"
-                onClick={() => {
-                  setRascunho(nome);
-                  setAPedirNome(true);
-                }}
-              >
+              <button type="button" onClick={() => setAPedirNome(true)}>
                 mudar
               </button>
             </p>
@@ -400,13 +372,7 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
 
       {aPedirNome && (
         <div className="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">
-          <form
-            className="modal"
-            onSubmit={(e) => {
-              e.preventDefault();
-              sentar();
-            }}
-          >
+          <div className="modal">
             <svg width="40" height="54" viewBox="0 0 30 40" aria-hidden="true">
               <path
                 d="M5 3 h20 l-2.5 32 a4 4 0 0 1 -4 3.6 h-7 a4 4 0 0 1 -4 -3.6 Z"
@@ -420,26 +386,11 @@ export function Blackjack({ estado, recarregar }: { estado: Estado; recarregar: 
             </svg>
             <h2 id="modal-titulo">Quem se senta à mesa?</h2>
             <p>
-              Escreve um nome antes de jogar. É só para o quadro de honra saber a quem tirar os
-              torrões.
+              O nome é o do quadro de honra, e o PIN é o que prova que ele é teu. Com ele entras no
+              teu nome em qualquer telemóvel.
             </p>
-            <input
-              id="bj-nome"
-              type="text"
-              maxLength={24}
-              ref={campoNome}
-              value={rascunho}
-              placeholder="nickname"
-              onChange={(e) => setRascunho(e.target.value)}
-            />
-            <button className="btn azul" type="submit" disabled={rascunho.trim().length < 2}>
-              Sentar à mesa
-            </button>
-            {rascunho.trim().length > 0 && rascunho.trim().length < 2 && (
-              <p className="recado">Duas letras, pelo menos.</p>
-            )}
-            {recado && <p className="recado mal">{recado}</p>}
-          </form>
+            <Entrada aoEntrar={jaEntrou} />
+          </div>
         </div>
       )}
 

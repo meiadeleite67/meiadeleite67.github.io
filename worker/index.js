@@ -7,7 +7,8 @@
  *
  *   GET    /tudo            a agenda, o quadro, os membros e o mural de uma vez
  *   GET    /quadro          o quadro de honra
- *   POST   /quadro/sentar     entra na mesa, e é aqui que um nome fica de alguém
+ *   POST   /quadro/entrar     nome mais PIN; devolve o passe deste aparelho
+ *   POST   /quadro/sentar     volta à mesa com o passe que já se tem
  *   POST   /quadro/emprestimo os cem do costume, para quem está sem nada
  *   POST   /mesa              a mão que está a decorrer, se houver
  *   POST   /mesa/apostar      aposta e dá cartas
@@ -16,6 +17,7 @@
  *   GET    /poker/<mesa>     a ligacao viva a uma mesa de poker (WebSocket)
  *   POST   /quadro/apagar     tira um nome do quadro (precisa da chave)
  *   POST   /quadro/limpar     deita o quadro abaixo (precisa da chave)
+ *   POST   /quadro/pin/apagar  tira o PIN de um nome (precisa da chave)
  *   GET    /agenda          a agenda
  *   GET    /membros         os membros do grupo
  *   GET    /membros/<id>/foto   a fotografia de um membro
@@ -38,7 +40,16 @@
  * repositório nem viaja pela internet.
  */
 
-import { aoCalhasEmHex, chaveBate, resumoDe } from './chaves.js';
+import {
+  PIN_MAXIMO,
+  PIN_MINIMO,
+  passeBate,
+  passeNovo,
+  pinBate,
+  pinLimpo,
+  pinNovo,
+  pinServe
+} from './chaves.js';
 import { MesaDePoker } from './mesa-de-poker.js';
 import {
   APOSTA_MAXIMA,
@@ -84,6 +95,16 @@ const TIPOS_DE_MEDIA = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'v
    numero que se quisesse e fazer uma aposta pequena para o gravar. Agora o
    cliente so diz o que apostou e o que lhe saiu, e as contas sao daqui. */
 const SALDO_INICIAL = 250;
+/* Quantos PINs errados antes de o nome ficar de castigo, e por quanto tempo.
+   E o que defende mesmo um PIN de quatro algarismos: a conta do resumo e
+   dificil de fazer aos milhoes, mas quem defende a serio e isto. */
+const MAX_PIN_ERRADO = 5;
+const CASTIGO_PIN = 15 * 60 * 1000;
+/* E o mesmo por quem pergunta, para ninguem andar a experimentar PINs em
+   muitos nomes de uma vez. Folgado de proposito: o grupo vive na mesma casa e
+   sai tudo pelo mesmo endereco, e um numero curto aqui trancava-os uns aos
+   outros. Quem defende mesmo cada PIN e o limite por nome, ali em cima. */
+const MAX_PIN_ERRADO_DAQUI = 40;
 const EMPRESTIMO = 100;
 const SALDO_PARA_EMPRESTAR = 5;
 const MAX_MAOS_POR_JOGADA = 4;
@@ -135,15 +156,41 @@ const linhaNova = (nome) => ({
   vitorias: 0,
   bjs: 0,
   pico: SALDO_INICIAL,
-  /* O resumo da chave de quem joga com este nome. A chave em si nunca fica
-     guardada, nem aqui nem em lado nenhum: so este resumo, que serve para a
-     confirmar e nao para a descobrir. */
+  /* O PIN deste nome, e os passes dos aparelhos que ja o acertaram. Nem o PIN
+     nem os passes ficam guardados: so os resumos deles, que servem para os
+     confirmar e nao para os descobrir. */
+  pin: null,
+  passes: [],
+  erros: null,
+  /* O resumo da chave antiga, do tempo em que o nome era do browser que o
+     estreasse. Fica para nao se apagar nada, mas ja nao abre nada. */
   resumo: '',
   atualizado: new Date().toISOString()
 });
 
-/** O que pode sair daqui para fora. */
-const semSegredos = ({ resumo, pendente, ...resto }) => resto;
+const minutosAte = (quando) => {
+  const m = Math.max(1, Math.ceil((quando - Date.now()) / 60000));
+  return `${m} minuto${m === 1 ? '' : 's'}`;
+};
+
+/** Quem anda a experimentar PINs em muitos nomes tambem fica de castigo, e nao
+ *  so o nome que esta a ser tentado. */
+async function castigarQuemPergunta(env, daqui, castigo) {
+  const enganos = (castigo?.enganos ?? 0) + 1;
+  await env.QUADRO.put(
+    `pin:${daqui}`,
+    JSON.stringify(
+      enganos >= MAX_PIN_ERRADO_DAQUI
+        ? { enganos: 0, ate: Date.now() + CASTIGO_PIN }
+        : { enganos, ate: 0 }
+    ),
+    { expirationTtl: 3600 }
+  );
+}
+
+/** O que pode sair daqui para fora. O PIN, os passes e as tentativas falhadas
+ *  ficam todos deste lado. */
+const semSegredos = ({ resumo, pendente, pin, passes, erros, ...resto }) => resto;
 
 /**
  * Tudo o que e jogar passa por aqui: confirma que quem pede e mesmo o dono do
@@ -164,8 +211,8 @@ async function comOJogador(request, env, trabalho) {
   const quadro = await ler(env, 'quadro', {});
   const linha = quadro[nome];
   if (!linha) return responder({ erro: 'Senta-te à mesa primeiro.' }, request, 401);
-  if (!(await chaveBate(veio?.chave, linha.resumo)))
-    return responder({ erro: 'Essa não é a tua chave.' }, request, 403);
+  if (!(await passeBate(veio?.passe, linha)))
+    return responder({ erro: 'Escreve outra vez o teu PIN.' }, request, 403);
 
   const mesa = await ler(env, `mesa:${nome}`, null);
   const feito = trabalho({ linha, mesa, veio });
@@ -392,50 +439,116 @@ export default {
       );
     }
 
-    /* Sentar-se a mesa. Quem chega com um nome por estrear fica dono dele: o
-       servidor inventa uma chave, guarda so o resumo dela e devolve-a uma
-       unica vez, para o browser dessa pessoa a guardar. Sem essa chave mais
-       ninguem joga com esse nome.
+    /* A porta de entrada: o nome e o PIN.
 
-       Era este o outro buraco: bastava escrever o nickname de outra pessoa
-       para jogar com os torroes dela. */
-    if (caminho === '/quadro/sentar' && metodo === 'POST') {
+       Uma porta so para as tres coisas que podem acontecer. O nome e novo, e
+       fica com este PIN. O nome ja existe mas ainda nao tem PIN, e fica com
+       este. Ou o nome ja tem PIN, e e preciso acerta-lo.
+
+       Quem acerta leva um passe, e e o passe que fica neste aparelho. Assim o
+       PIN escreve-se uma vez por aparelho e nao anda a viajar a cada jogada, e
+       quem perder o telemovel apaga o passe sem mexer no PIN.
+
+       Antes disto o nome era de quem o estreasse e a prova vivia no browser:
+       quem mudasse de telemovel perdia o nome, e quem limpasse o historico
+       perdia os torroes com ele. */
+    if (caminho === '/quadro/entrar' && metodo === 'POST') {
+      const daqui = request.headers.get('CF-Connecting-IP') || 'desconhecido';
+      const castigo = await ler(env, `pin:${daqui}`, null);
+      if (castigo && castigo.ate > Date.now())
+        return responder(
+          { erro: `Demasiadas tentativas. Tenta daqui a ${minutosAte(castigo.ate)}.` },
+          request,
+          429
+        );
+
       let veio;
       try {
         veio = await request.json();
       } catch {
         return responder({ erro: 'Corpo inválido.' }, request, 400);
       }
+
       const nome = texto(veio?.nome, 24);
+      const pin = pinLimpo(veio?.pin);
       if (nome.length < 2) return responder({ erro: 'Falta o nome.' }, request, 400);
+      if (!pinServe(pin))
+        return responder(
+          { erro: `O PIN são ${PIN_MINIMO} a ${PIN_MAXIMO} algarismos.` },
+          request,
+          400
+        );
 
       const quadro = await ler(env, 'quadro', {});
-      if (!quadro[nome] && Object.keys(quadro).length >= MAX_NOMES)
+      const havia = quadro[nome];
+      if (!havia && Object.keys(quadro).length >= MAX_NOMES)
         return responder({ erro: 'O quadro está cheio.' }, request, 409);
 
-      const linha = { ...linhaNova(nome), ...(quadro[nome] || {}) };
-      let chaveNova = '';
-      if (!linha.resumo) {
-        // nome novo, ou de antes de isto existir: fica de quem se sentar primeiro
-        chaveNova = aoCalhasEmHex(16);
-        linha.resumo = await resumoDe(chaveNova);
-      } else if (!(await chaveBate(veio?.chave, linha.resumo))) {
-        return responder({ erro: 'Esse nome já é de alguém. Escolhe outro.' }, request, 403);
+      const linha = { ...linhaNova(nome), ...(havia || {}) };
+      const agora = Date.now();
+      let estreou = '';
+
+      if (!linha.pin) {
+        // nome novo, ou de antes de haver PINs: fica com este
+        linha.pin = await pinNovo(pin);
+        estreou = havia ? 'pin' : 'nome';
+      } else {
+        if (linha.erros && linha.erros.ate > agora)
+          return responder(
+            { erro: `Esse nome está de castigo. Tenta daqui a ${minutosAte(linha.erros.ate)}.` },
+            request,
+            429
+          );
+
+        if (!(await pinBate(pin, linha.pin))) {
+          const quantas = ((linha.erros && linha.erros.quantas) || 0) + 1;
+          const trancado = quantas >= MAX_PIN_ERRADO;
+          linha.erros = trancado ? { quantas: 0, ate: agora + CASTIGO_PIN } : { quantas, ate: 0 };
+          quadro[nome] = linha;
+          await env.QUADRO.put('quadro', JSON.stringify(quadro));
+          await castigarQuemPergunta(env, daqui, castigo);
+          return responder(
+            trancado
+              ? {
+                  erro: `PIN errado. Esse nome fica de castigo ${Math.round(
+                    CASTIGO_PIN / 60000
+                  )} minutos.`
+                }
+              : {
+                  erro: `PIN errado. ${
+                    MAX_PIN_ERRADO - quantas === 1
+                      ? 'Falta uma tentativa'
+                      : `Faltam ${MAX_PIN_ERRADO - quantas} tentativas`
+                  }.`
+                },
+            request,
+            401
+          );
+        }
+        linha.erros = null;
       }
 
+      const passe = await passeNovo(linha);
       linha.atualizado = new Date().toISOString();
       quadro[nome] = linha;
       await env.QUADRO.put('quadro', JSON.stringify(quadro));
+      await env.QUADRO.delete(`pin:${daqui}`);
 
       const mesa = await ler(env, `mesa:${nome}`, null);
       return responder(
         {
           linha: semSegredos(linha),
-          chave: chaveNova || undefined,
+          passe,
+          estreou,
           mesa: mesa ? vista(mesa, linha.torroes) : null
         },
         request
       );
+    }
+
+    /* Voltar a mesa com o passe que este aparelho ja tem. */
+    if (caminho === '/quadro/sentar' && metodo === 'POST') {
+      return comOJogador(request, env, ({ mesa }) => mesa);
     }
 
     /* ---- a mesa: e aqui que as cartas saem ----
@@ -558,6 +671,29 @@ export default {
       if (origem && !CASAS.includes(origem))
         return responder({ erro: 'Essa mesa nao e para aqui.' }, request, 403);
       return env.MESAS.get(env.MESAS.idFromName(daMesa[1])).fetch(request);
+    }
+
+    /* Tirar o PIN a um nome. E a unica saida quando alguem se mete no nome de
+       outra pessoa: sem PIN o nome volta a poder ser reclamado, e os passes de
+       quem la estava deixam de servir. */
+    if (caminho === '/quadro/pin/apagar' && metodo === 'POST') {
+      if (!(await temChave(request, env)))
+        return responder({ erro: 'Precisas de entrar outra vez.' }, request, 401);
+      let veio;
+      try {
+        veio = await request.json();
+      } catch {
+        return responder({ erro: 'Corpo inválido.' }, request, 400);
+      }
+      const nome = texto(veio?.nome, 24);
+      const guardado = await ler(env, 'quadro', {});
+      if (!nome || !guardado[nome])
+        return responder({ erro: 'Esse nome não está lá.' }, request, 404);
+      guardado[nome].pin = null;
+      guardado[nome].passes = [];
+      guardado[nome].erros = null;
+      await env.QUADRO.put('quadro', JSON.stringify(guardado));
+      return responder({ ok: true, nome }, request);
     }
 
     /* Os cem emprestados: so para quem esta mesmo sem nada. */

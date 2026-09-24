@@ -4830,3 +4830,77 @@ footer {
     --px: 84%;
   }
 }
+
+/* ====================== a porta de entrada ======================
+
+   O nome e o PIN, a mesma coisa para o blackjack e para o poker. */
+
+.porta {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+.porta-campos {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.porta-campos input {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+.porta-campos input[type='password'] {
+  flex: 0 1 120px;
+  font-family: var(--mono);
+  letter-spacing: 0.3em;
+}
+.porta-campos input[type='password']::placeholder {
+  letter-spacing: normal;
+}
+.porta-campos .btn {
+  flex: 0 0 auto;
+}
+.porta-dica {
+  margin: 0;
+  text-align: left;
+  font-size: 13px;
+}
+.porta .recado {
+  margin: 0;
+}
+.porta-feita {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  text-align: center;
+}
+.porta-feita .notas {
+  margin: 0;
+}
+
+/* o aviso de quem está prestes a perder o lugar na mesa */
+.pk-aviso {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 8px auto 0;
+  padding: 7px 14px;
+  border: 1px solid var(--crema-2);
+  border-radius: 999px;
+  background: var(--papel);
+  color: var(--tinta-2);
+  font-size: 14px;
+}
+.pk-aviso button {
+  background: var(--crema);
+  color: #241a13;
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}

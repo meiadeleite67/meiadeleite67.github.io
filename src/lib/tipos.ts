@@ -75,8 +75,11 @@ export type MesaVista = {
 
 export type RespostaDaMesa = {
   linha: Pontuacao;
-  /** So vem quando um nome e estreado: e a chave desse nome, e so aparece uma vez. */
-  chave?: string;
+  /** So vem de /quadro/entrar: o passe deste aparelho, que fica guardado. */
+  passe?: string;
+  /** 'nome' quando o nickname foi estreado agora, 'pin' quando o nome ja
+   *  existia e acabou de ficar com um PIN. Vazio quando so se entrou. */
+  estreou?: string;
   mesa: MesaVista | null;
 };
 
@@ -137,6 +140,10 @@ export type LugarDaMesa = {
   nome: string;
   fichas: number;
   ligado: boolean;
+  /** Quantas vezes seguidas deixou passar a vez. */
+  faltas: number;
+  /** A hora, no relogio do servidor, a que perde o lugar por estar parado. */
+  saiEm: number;
 };
 
 export type MesaViva = {

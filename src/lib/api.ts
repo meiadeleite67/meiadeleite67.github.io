@@ -138,17 +138,19 @@ export const api = {
   /* ---- blackjack ----
      As cartas saem do servidor e e ele que decide o que vale cada mao. O site
      pede jogadas e mostra o que recebe: nao tem como dizer que ganhou, nem
-     como jogar com o nome de outra pessoa, que e para isso que serve a chave.
+     como jogar com o nome de outra pessoa, que e para isso que serve o passe.
      Sem servidor nao ha jogo, porque nao ha quem de as cartas. */
 
-  sentar: (nome: string, chave?: string) =>
-    naMesa('/quadro/sentar', { nome, chave: chave || undefined }),
-  mesa: (nome: string, chave: string) => naMesa('/mesa', { nome, chave }),
-  apostarNaMesa: (nome: string, chave: string, aposta: number) =>
-    naMesa('/mesa/apostar', { nome, chave, aposta }),
-  jogar: (nome: string, chave: string, acao: string, passo: number) =>
-    naMesa('/mesa/jogar', { nome, chave, acao, passo }),
-  emprestimo: (nome: string, chave: string) => naMesa('/quadro/emprestimo', { nome, chave }),
+  /** A porta de entrada: o nome e o PIN. Um nome novo fica com este PIN, um
+   *  nome sem PIN passa a ter este, e um nome com PIN tem de o acertar. */
+  entrarComPin: (nome: string, pin: string) => naMesa('/quadro/entrar', { nome, pin }),
+  sentar: (nome: string, passe: string) => naMesa('/quadro/sentar', { nome, passe }),
+  mesa: (nome: string, passe: string) => naMesa('/mesa', { nome, passe }),
+  apostarNaMesa: (nome: string, passe: string, aposta: number) =>
+    naMesa('/mesa/apostar', { nome, passe, aposta }),
+  jogar: (nome: string, passe: string, acao: string, passo: number) =>
+    naMesa('/mesa/jogar', { nome, passe, acao, passo }),
+  emprestimo: (nome: string, passe: string) => naMesa('/quadro/emprestimo', { nome, passe }),
 
   /* ---- o mural do Instagram ---- */
 
@@ -207,6 +209,14 @@ export const api = {
   /** Tira um nome do quadro. Precisa da chave de admin. */
   apagarDoQuadro: (nome: string) =>
     pedir<{ ok: boolean; nome: string }>('/quadro/apagar', {
+      method: 'POST',
+      body: JSON.stringify({ nome })
+    }),
+
+  /** Tira o PIN a um nome, para ele poder ser reclamado outra vez. E a saida
+   *  para quando alguem se mete no nome de outra pessoa. */
+  limparPin: (nome: string) =>
+    pedir<{ ok: boolean; nome: string }>('/quadro/pin/apagar', {
       method: 'POST',
       body: JSON.stringify({ nome })
     }),

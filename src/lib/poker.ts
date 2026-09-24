@@ -23,7 +23,7 @@ export type Ligacao = 'parada' | 'a-ligar' | 'ligada' | 'caiu' | 'sem-servidor';
 
 export type Jogada = { a: string; [k: string]: unknown };
 
-export function useMesaViva(mesa: string | null, nome: string, chave: string) {
+export function useMesaViva(mesa: string | null, nome: string, passe: string) {
   const [estado, setEstado] = useState<MesaViva | null>(null);
   const [ligacao, setLigacao] = useState<Ligacao>('parada');
   const [recado, setRecado] = useState('');
@@ -31,8 +31,8 @@ export function useMesaViva(mesa: string | null, nome: string, chave: string) {
   const cano = useRef<WebSocket | null>(null);
   /* Quem somos, numa referência: a ligação abre uma vez e o nome pode ser
      escolhido depois dela estar aberta. */
-  const quem = useRef({ nome, chave });
-  quem.current = { nome, chave };
+  const quem = useRef({ nome, passe });
+  quem.current = { nome, passe };
 
   const manda = useCallback((o: Jogada) => {
     const c = cano.current;
@@ -65,7 +65,7 @@ export function useMesaViva(mesa: string | null, nome: string, chave: string) {
         tentativas = 0;
         setLigacao('ligada');
         const eu = quem.current;
-        if (eu.nome && eu.chave) c.send(JSON.stringify({ a: 'entrar', ...eu }));
+        if (eu.nome && eu.passe) c.send(JSON.stringify({ a: 'entrar', ...eu }));
         bate = window.setInterval(() => {
           if (c.readyState === WebSocket.OPEN) c.send('ola');
         }, OLA);
@@ -112,8 +112,8 @@ export function useMesaViva(mesa: string | null, nome: string, chave: string) {
   /* O nome pode ser escolhido com a ligação já aberta: quando isso acontece,
      diz-se quem somos sem fechar nada. */
   useEffect(() => {
-    if (nome && chave) manda({ a: 'entrar', nome, chave });
-  }, [nome, chave, manda]);
+    if (nome && passe) manda({ a: 'entrar', nome, passe });
+  }, [nome, passe, manda]);
 
   return { estado, ligacao, recado, limparRecado: () => setRecado(''), manda };
 }

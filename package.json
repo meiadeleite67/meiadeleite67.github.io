@@ -9,6 +9,8 @@
     "build": "vite build && node scripts/pos-build.mjs",
     "preview": "vite preview",
     "tipos": "tsc --noEmit",
+    "provas": "node scripts/testes-poker.mjs",
+    "provas-ao-vivo": "node scripts/testes-pin.mjs && node scripts/testes-mesa.mjs && node scripts/testes-lugares.mjs",
     "admin": "node scripts/admin.mjs"
   },
   "dependencies": {

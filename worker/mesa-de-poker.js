@@ -23,7 +23,7 @@
  * vê o que veria sentado à mesa, e mais nada.
  */
 import { DurableObject } from 'cloudflare:workers';
-import { chaveBate } from './chaves.js';
+import { passeBate } from './chaves.js';
 import {
   CEGO_GRANDE,
   CEGO_PEQUENO,
@@ -37,12 +37,22 @@ import {
 
 /** Quanto tempo cada um tem para jogar antes de a mesa jogar por ele. */
 const PRAZO = 30_000;
+/** E quanto tem quem já deixou passar a vez uma vez. */
+const PRAZO_AUSENTE = 10_000;
 /** A pausa no fim da mão, para se ver quem ganhou o quê. */
 const PAUSA = 8_000;
 /** O tempo entre haver gente que chegue e a mão começar. */
 const ESPERA = 5_000;
 /** Um lugar de quem se desligou fica à espera dele este tempo. */
 const GUARDA_O_LUGAR = 60_000;
+/* Quem deixa passar a vez três vezes seguidas perde o lugar. Uma mesa de cinco
+   não pode ficar tomada por quem se esqueceu do separador aberto: o lugar não
+   é de quem lá chegou primeiro, é de quem está a jogar. */
+const FALTAS_PARA_SAIR = 3;
+/* E quem se senta e não faz nada durante este tempo também sai, mesmo sem
+   nenhuma mão ter acontecido. É o caso de quem se senta sozinho a uma mesa e
+   fica à espera que apareça alguém, e depois vai-se embora sem sair. */
+const PARADO_DEMAIS = 8 * 60_000;
 const MAX_LIGACOES = 30;
 /* Ninguem a jogar manda mais do que isto num minuto. Quem manda e um cliente
    estragado a responder aos proprios recados em ciclo, e ficava a gastar tempo
@@ -100,6 +110,15 @@ export class MesaDePoker extends DurableObject {
     if (this.ctx.getWebSockets().length >= MAX_LIGACOES)
       return new Response('A mesa está cheia de gente a ver.', { status: 503 });
 
+    /* Rede de seguranca: quem chega arruma a mesa. O alarme e que trata disto
+       de costume, mas se algum dia se perder um, basta alguem abrir a pagina
+       para os lugares de quem ja la nao esta voltarem a ficar livres. */
+    if (!this.dados.mao) {
+      const antes = this.dados.lugares.length;
+      this.arrumarLugares();
+      if (this.dados.lugares.length !== antes) await this.gravarEEspalhar();
+    }
+
     const par = new WebSocketPair();
     this.ctx.acceptWebSocket(par[1]);
     par[1].serializeAttachment({ nome: '' });
@@ -124,8 +143,8 @@ export class MesaDePoker extends DurableObject {
 
     if (veio.a === 'entrar') {
       const nome = nomeLimpo(veio.nome);
-      if (!(await this.eMesmoEle(nome, veio.chave)))
-        return this.recado(ws, 'Esse nome não é teu. Senta-te primeiro no blackjack.');
+      if (!(await this.eMesmoEle(nome, veio.passe)))
+        return this.recado(ws, 'Escreve outra vez o teu PIN no blackjack.');
       ws.serializeAttachment({ nome });
       const lugar = this.lugarDe(nome);
       if (lugar) {
@@ -137,6 +156,13 @@ export class MesaDePoker extends DurableObject {
 
     if (!quem.nome) return this.recado(ws, 'Diz primeiro quem és.');
 
+    /* Quem esta a ver a mesa sem jogar pode dizer que ainda ali esta, e o
+       relogio de quem esta parado volta ao principio. Um separador esquecido
+       nao carrega em nada, que e o que se quer. */
+    if (veio.a === 'aqui') {
+      this.deuSinal(quem.nome);
+      return this.gravarEEspalhar();
+    }
     if (veio.a === 'sentar') return this.sentar(ws, quem.nome, veio.lugar);
     if (veio.a === 'levantar') return this.levantar(ws, quem.nome);
     if (veio.a === 'comprar') return this.comprar(ws, quem.nome);
@@ -186,20 +212,29 @@ export class MesaDePoker extends DurableObject {
   /* ======================= quem é quem à mesa ======================= */
 
   /**
-   * A chave do nickname é a mesma do quadro de honra: quem não a tiver não se
-   * senta com esse nome. Era o buraco de sempre, e não se abre outra vez aqui.
+   * O passe é o mesmo do quadro de honra: quem não tiver escrito o PIN daquele
+   * nome não se senta com ele. Era o buraco de sempre, e não se abre aqui.
    */
-  async eMesmoEle(nome, chave) {
-    if (nome.length < 2) return false;
+  async eMesmoEle(nome, passe) {
+    if (nome.length < 2 || !/^[a-f0-9]{32}$/.test(String(passe || ''))) return false;
+    /* A lista de nomes fica em memória uns segundos para não se ir buscá-la a
+       cada ligação. Quem acabou de escrever o PIN noutro separador ainda não
+       estaria nela, por isso, se não bater, vale a pena ir ver outra vez antes
+       de lhe dizer que o nome não é dele. */
+    const tinhaGuardada = this.quadro && Date.now() - this.quadroDe <= QUADRO_DURA;
+    if (await this.confere(nome, passe, false)) return true;
+    return tinhaGuardada ? this.confere(nome, passe, true) : false;
+  }
+
+  async confere(nome, passe, outraVez) {
     const agora = Date.now();
-    if (!this.quadro || agora - this.quadroDe > QUADRO_DURA) {
+    if (outraVez || !this.quadro || agora - this.quadroDe > QUADRO_DURA) {
       const guardado = await this.env.QUADRO.get('quadro');
       this.quadro = guardado ? JSON.parse(guardado) : {};
       this.quadroDe = agora;
     }
     const linha = this.quadro[nome];
-    if (!linha || !linha.resumo) return false;
-    return chaveBate(chave, linha.resumo);
+    return linha ? passeBate(passe, linha) : false;
   }
 
   lugarDe(nome) {
@@ -226,7 +261,9 @@ export class MesaDePoker extends DurableObject {
       nome,
       fichas: FICHAS_INICIAIS,
       ligado: true,
-      caiuEm: 0
+      caiuEm: 0,
+      ultimoSinal: Date.now(),
+      faltas: 0
     });
     this.dados.lugares.sort((a, b) => a.lugar - b.lugar);
     this.contar(`${nome} sentou-se com ${FICHAS_INICIAIS} torrões.`);
@@ -255,6 +292,7 @@ export class MesaDePoker extends DurableObject {
     if (this.dados.mao && this.dados.mao.fase !== 'acabou')
       return this.recado(ws, 'Espera que esta mão acabe.');
     lugar.fichas = FICHAS_INICIAIS;
+    this.deuSinal(nome);
     this.contar(`${nome} comprou mais ${FICHAS_INICIAIS} torrões.`);
     return this.gravarEEspalhar();
   }
@@ -272,9 +310,19 @@ export class MesaDePoker extends DurableObject {
 
     const queixa = jogar(m, j.lugar, String(veio.acao || ''), veio.valor);
     if (queixa) return this.recado(ws, queixa);
+    this.deuSinal(nome);
 
     this.depoisDaJogada(this.contarJogada(nome, veio, m));
     return this.gravarEEspalhar();
+  }
+
+  /** Quem joga, compra ou se senta está ali. O relógio de quem está parado
+   *  volta ao princípio, e as faltas perdoam-se. */
+  deuSinal(nome) {
+    const lugar = this.lugarDe(nome);
+    if (!lugar) return;
+    lugar.ultimoSinal = Date.now();
+    lugar.faltas = 0;
   }
 
   contarJogada(nome, veio, m) {
@@ -321,7 +369,11 @@ export class MesaDePoker extends DurableObject {
       this.dados.ultimoBotao = m.botaoNoLugar;
       this.dados.fimEm = Date.now() + PAUSA;
     } else {
-      m.prazo = Date.now() + PRAZO;
+      /* Quem já deixou passar uma vez tem menos tempo na seguinte. Uma falta
+         perdoa-se a quem estava distraído; a partir daí a mesa não pode ficar
+         meio minuto parada de cada vez à espera de quem já não está. */
+      const dele = m.vez >= 0 ? this.lugarDe(m.jogadores[m.vez].nome) : null;
+      m.prazo = Date.now() + (dele && dele.faltas > 0 ? PRAZO_AUSENTE : PRAZO);
     }
   }
 
@@ -347,14 +399,31 @@ export class MesaDePoker extends DurableObject {
     this.depoisDaJogada('');
   }
 
-  /** Quem se desligou e não voltou perde o lugar. */
+  /**
+   * Quem se desligou e não voltou perde o lugar, e quem está ligado mas não dá
+   * sinal de vida há muito tempo também. Sem isto, cinco separadores esquecidos
+   * tomavam a mesa até alguém se lembrar de sair.
+   */
   arrumarLugares() {
     const agora = Date.now();
-    const antes = this.dados.lugares.length;
-    this.dados.lugares = this.dados.lugares.filter(
-      (l) => l.ligado || agora - (l.caiuEm || 0) < GUARDA_O_LUGAR
-    );
-    if (this.dados.lugares.length !== antes) this.contar('Saiu quem se desligou.');
+    const ficam = [];
+    for (const l of this.dados.lugares) {
+      if (!l.ligado && agora - (l.caiuEm || 0) >= GUARDA_O_LUGAR) continue;
+      if (l.ligado && agora - (l.ultimoSinal || agora) >= PARADO_DEMAIS) {
+        this.contar(`${l.nome} esteve demasiado tempo parado e saiu da mesa.`);
+        this.recadoPara(l.nome, 'Estiveste muito tempo sem jogar e saíste da mesa.');
+        continue;
+      }
+      ficam.push(l);
+    }
+    if (ficam.length !== this.dados.lugares.length) this.dados.lugares = ficam;
+  }
+
+  /** Tira alguém da mesa e diz-lhe porquê. */
+  levantarPorFalta(nome, porque) {
+    this.dados.lugares = this.dados.lugares.filter((l) => l.nome !== nome);
+    this.contar(`${nome} ${porque}`);
+    this.recadoPara(nome, 'Deixaste passar a vez vezes de mais e saíste da mesa.');
   }
 
   async alarm() {
@@ -370,13 +439,22 @@ export class MesaDePoker extends DurableObject {
       this.depoisDaJogada(
         acao === 'desistir' ? `${j.nome} demorou e desistiu.` : `${j.nome} demorou e passou.`
       );
+
+      /* Uma falta perdoa-se, três não: o lugar volta a ficar livre para quem
+         queira mesmo jogar. */
+      const lugar = this.lugarDe(j.nome);
+      if (lugar) {
+        lugar.faltas = (lugar.faltas || 0) + 1;
+        if (lugar.faltas >= FALTAS_PARA_SAIR)
+          this.levantarPorFalta(j.nome, 'deixou passar a vez vezes de mais e saiu da mesa.');
+      }
     } else if (m && m.fase === 'acabou' && agora >= (this.dados.fimEm || 0) - 1000) {
       this.dados.mao = null;
       this.dados.fimEm = 0;
       this.arrumarLugares();
-    } else if (!m && this.dados.comecaEm && agora >= this.dados.comecaEm - 1000) {
+    } else if (!m) {
       this.arrumarLugares();
-      this.comecar();
+      if (this.dados.comecaEm && agora >= this.dados.comecaEm - 1000) this.comecar();
     }
 
     await this.gravarEEspalhar();
@@ -394,9 +472,19 @@ export class MesaDePoker extends DurableObject {
       quando = this.dados.comecaEm;
     } else {
       this.dados.comecaEm = 0;
-      // ainda pode haver um lugar desligado à espera de ser arrumado
-      const espera = this.dados.lugares.filter((l) => !l.ligado).map((l) => l.caiuEm || 0);
-      if (espera.length) quando = Math.min(...espera) + GUARDA_O_LUGAR;
+    }
+
+    /* Haja mão ou não, há sempre a arrumação dos lugares para fazer: quem se
+       desligou e não voltou, e quem está parado há muito tempo. O alarme fica
+       para o que vier primeiro. */
+    const arrumacao = [];
+    for (const l of this.dados.lugares) {
+      if (!l.ligado) arrumacao.push((l.caiuEm || 0) + GUARDA_O_LUGAR);
+      else arrumacao.push((l.ultimoSinal || agora) + PARADO_DEMAIS);
+    }
+    if (arrumacao.length) {
+      const cedo = Math.min(...arrumacao);
+      quando = quando ? Math.min(quando, cedo) : cedo;
     }
 
     if (quando) await this.ctx.storage.setAlarm(Math.max(quando, agora + 300));
@@ -408,6 +496,12 @@ export class MesaDePoker extends DurableObject {
   contar(linha) {
     if (!linha) return;
     this.dados.narracao = [...this.dados.narracao, linha].slice(-MAX_NARRACAO);
+  }
+
+  /** Um recado para todos os separadores de uma pessoa. */
+  recadoPara(nome, texto) {
+    for (const ws of this.ctx.getWebSockets())
+      if ((ws.deserializeAttachment() || {}).nome === nome) this.recado(ws, texto);
   }
 
   recado(ws, texto) {
@@ -436,7 +530,11 @@ export class MesaDePoker extends DurableObject {
             lugar: l.lugar,
             nome: l.nome,
             fichas: l.fichas,
-            ligado: l.ligado
+            ligado: l.ligado,
+            faltas: l.faltas || 0,
+            /* A hora a que o lugar se perde por estar parado, para o site poder
+               avisar quem esta quase la. */
+            saiEm: l.ligado ? (l.ultimoSinal || 0) + PARADO_DEMAIS : 0
           })),
           mao: vista(this.dados.mao, meu ? meu.lugar : -1)
         })
