@@ -4,7 +4,7 @@ import { nomeGuardado } from '../lib/nick';
 import type { Estado, Pontuacao } from '../lib/tipos';
 
 /**
- * O quadro de honra, com todos os jogos.
+ * A Leader Board, com todos os jogos.
  *
  * Os torrões são uns só e servem o blackjack, o poker e a roleta, mas cada
  * jogo conta coisas diferentes, e metê-las todas na mesma tabela dava uma
@@ -130,7 +130,7 @@ export function Quadro({ estado }: { estado: Estado }) {
   return (
     <section className="qd">
       <p className="eyebrow">Quem manda no balcão</p>
-      <h1>Quadro de honra</h1>
+      <h1>Leader Board</h1>
       <p className="lead">
         Os torrões são os mesmos em todos os jogos onde é o servidor que dá as cartas. Os outros
         entram com o recorde de cada um.

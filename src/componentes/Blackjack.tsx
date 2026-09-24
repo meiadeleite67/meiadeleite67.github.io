@@ -370,7 +370,7 @@ export function Blackjack({
             </svg>
             <h2 id="modal-titulo">Quem se senta à mesa?</h2>
             <p>
-              O nome é o do quadro de honra, e o PIN é o que prova que ele é teu. Com ele entras no
+              O nome é o da Leader Board, e o PIN é o que prova que ele é teu. Com ele entras no
               teu nome em qualquer telemóvel.
             </p>
             <Entrada aoEntrar={jaEntrou} />
@@ -379,13 +379,13 @@ export function Blackjack({
       )}
 
       <section className="bj-quadro">
-        <h2 style={{ fontSize: 24, marginBottom: 6 }}>Quadro de honra</h2>
+        <h2 style={{ fontSize: 24, marginBottom: 6 }}>Leader Board</h2>
         <p className="notas">
           Os torrões são os mesmos no poker e na roleta, e o quadro mostra tudo o que cada um fez
           em cada jogo.
         </p>
         <button className="btn claro" type="button" onClick={() => irPara('quadro')}>
-          Ver o quadro de honra
+          Ver a Leader Board
         </button>
       </section>
     </>

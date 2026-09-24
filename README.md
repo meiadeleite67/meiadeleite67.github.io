@@ -153,11 +153,11 @@ Correm todos dentro do browser e o servidor não tem como saber se alguém fez m
 pagá-los reabria o buraco que se fechou no blackjack. Entram no quadro com o recorde, e o quadro
 diz de onde é que esse número vem.
 
-### O quadro de honra
+### A Leader Board
 
-Está em [meiadeleite.pt/quadro](https://meiadeleite.pt/quadro), e é uma tabela por jogo com uma à
-vista de cada vez: torrões, blackjack, poker, roleta, e o recorde de cada um dos outros três.
-Metê-las todas na mesma dava uma tabela de vinte colunas que ninguém lia.
+Está em [meiadeleite.pt/quadro](https://meiadeleite.pt/quadro), a primeira da lista dos Jogos, e é
+uma tabela por jogo com uma à vista de cada vez: torrões, blackjack, poker, roleta, e o recorde de
+cada um dos outros três. Metê-las todas na mesma dava uma tabela de vinte colunas que ninguém lia.
 
 ### O nome de cada um, e o PIN
 
