@@ -7,9 +7,14 @@ import type { Aposta, Pontuacao, Rodada, TipoDeAposta } from '../lib/tipos';
  * A roleta, com o prato e a bola em três dimensões.
  *
  * É feita como o troféu, como o Cusco e como a mesa de poker: com as
- * transformações 3D do próprio CSS e mais nada. O prato é um disco inclinado
- * com trinta e sete casas à volta, e a bola anda numa pista por fora, ao
- * contrário do prato, como numa roleta a sério.
+ * transformações 3D do próprio CSS e mais nada. A bacia está inclinada, como
+ * se estivéssemos de pé ao lado dela: é por isso que se vê como uma elipse, e
+ * não porque esteja esmagada. Uma roleta a sério vista de frente também o é.
+ *
+ * A bola não anda em círculo até parar. Faz o que faz uma bola: corre na pista
+ * de cima enquanto tem força, e quando a perde desce pela parede da bacia,
+ * vai-se aproximando do meio, bate numa casa e assenta nela. O número já está
+ * decidido antes de ela andar; o que se vê é a encenação dele.
  *
  * O número sai no servidor e só depois é que a bola anda: o que se vê aqui é a
  * encenação de um resultado que já está decidido. É de propósito. Se a conta
@@ -30,9 +35,30 @@ const cor = (n: number) => (n === 0 ? 'verde' : VERMELHOS.has(n) ? 'vermelho' : 
 
 /** Quanto vale cada ficha que se pode pegar da bancada. */
 const FICHAS = [1, 5, 10, 25, 100];
-/** Quanto tempo a bola anda antes de parar. */
-const A_RODAR = 5200;
+
+/** A cor de cada ficha, a mesma na bancada e em cima do pano. */
+const COR_DA_FICHA: Record<number, string> = {
+  1: '#3f8d63',
+  5: '#4f7fc0',
+  10: '#a52725',
+  25: '#6d6d7c',
+  100: '#9d6fc4'
+};
+
+/** Quanto tempo a bola anda antes de assentar. */
+const A_RODAR = 5600;
 const PASSO = 360 / RODA.length;
+
+/* Onde a bola anda, em percentagem da altura da cena a contar do topo. Na
+   pista, lá em cima na madeira; e na casa, já dentro do prato. */
+const NA_PISTA = 13;
+const NA_CASA = 31;
+/** E a que fundura, que ela desce para dentro da bacia enquanto cai. */
+const Z_PISTA = -2;
+const Z_CASA = -30;
+/** O quanto a bacia está inclinada. A bola contra-roda isto, que uma bola é
+ *  redonda de todos os lados. */
+const INCLINA = 34;
 
 const DE_FORA: { tipo: TipoDeAposta; nome: string; paga: string }[] = [
   { tipo: 'baixo', nome: '1 a 18', paga: 'paga a dobrar' },
@@ -53,10 +79,12 @@ const DUZIAS: { tipo: TipoDeAposta; nome: string }[] = [
 const chaveDa = (tipo: TipoDeAposta, valor?: number) =>
   tipo === 'numero' ? `numero:${valor}` : tipo;
 
-const apostaDa = (chave: string, quanto: number): Aposta =>
-  chave.startsWith('numero:')
+const apostaDa = (chave: string, fichas: number[]): Aposta => {
+  const quanto = fichas.reduce((s, f) => s + f, 0);
+  return chave.startsWith('numero:')
     ? { tipo: 'numero', valor: Number(chave.slice(7)), quanto }
     : { tipo: chave as TipoDeAposta, quanto };
+};
 
 export function Roleta({
   nome,
@@ -70,19 +98,23 @@ export function Roleta({
   const [linha, setLinha] = useState<Pontuacao | null>(null);
   const [recado, setRecado] = useState('');
   const [ficha, setFicha] = useState(FICHAS[1]);
-  /** O que está na mesa, por chave de aposta. */
-  const [mesa, setMesa] = useState<Record<string, number>>({});
+  /* O que está na mesa, ficha a ficha. Guardam-se uma a uma e não somadas,
+     para se poderem empilhar em cima da casa como se empilham numa mesa. */
+  const [mesa, setMesa] = useState<Record<string, number[]>>({});
   const [aRodar, setARodar] = useState(false);
   const [aPedir, setAPedir] = useState(false);
   const [saiu, setSaiu] = useState<Rodada | null>(null);
-  /** As voltas do prato e da bola. Só crescem, para nunca andarem para trás. */
-  const [giro, setGiro] = useState({ prato: 0, bola: 0 });
+  /** A casa onde a bola tem de assentar, e a conta das rodadas. */
+  const [alvo, setAlvo] = useState<{ casa: number; n: number } | null>(null);
 
   const ocupado = useRef(false);
   const relogios = useRef<number[]>([]);
 
   const passe = nome ? passeDe(nome) : '';
-  const naMesa = useMemo(() => Object.values(mesa).reduce((s, q) => s + q, 0), [mesa]);
+  const naMesa = useMemo(
+    () => Object.values(mesa).reduce((s, fichas) => s + fichas.reduce((x, f) => x + f, 0), 0),
+    [mesa]
+  );
   const saldo = linha ? linha.torroes : 0;
 
   useEffect(
@@ -111,11 +143,10 @@ export function Roleta({
   function por(tipo: TipoDeAposta, valor?: number) {
     if (aRodar) return;
     const chave = chaveDa(tipo, valor);
-    const ja = mesa[chave] || 0;
     if (naMesa + ficha > saldo) return setRecado('Não tens torrões que cheguem para mais fichas.');
     setRecado('');
     setSaiu(null);
-    setMesa({ ...mesa, [chave]: ja + ficha });
+    setMesa({ ...mesa, [chave]: [...(mesa[chave] || []), ficha] });
   }
 
   /** Os cem do costume, para quem está mesmo sem nada. A carteira é a mesma de
@@ -150,21 +181,11 @@ export function Roleta({
     setSaiu(null);
 
     try {
-      const apostas = Object.entries(mesa).map(([chave, quanto]) => apostaDa(chave, quanto));
+      const apostas = Object.entries(mesa).map(([chave, fichas]) => apostaDa(chave, fichas));
       const r = await api.roleta(nome, passe, apostas);
 
-      /* O prato roda até pôr a casa que saiu debaixo da marca, e a bola anda
-         ao contrário até parar lá em cima. Como os dois números só crescem,
-         nunca se vê nada a andar para trás entre rodadas. */
-      setGiro((antes) => {
-        const alvo = -r.rodada.casa * PASSO;
-        const resto = ((antes.prato % 360) + 360) % 360;
-        const falta = (((alvo - resto) % 360) + 360) % 360;
-        return {
-          prato: antes.prato + 6 * 360 + falta,
-          bola: antes.bola - 5 * 360 - (((antes.bola % 360) + 360) % 360)
-        };
-      });
+      // a casa já está decidida; o que se segue é só a bola a lá chegar
+      setAlvo((antes) => ({ casa: r.rodada.casa, n: (antes?.n ?? 0) + 1 }));
 
       // o número só aparece quando a bola parar, senão estragava a surpresa
       relogios.current.push(
@@ -222,7 +243,7 @@ export function Roleta({
         </p>
       </header>
 
-      <Prato giro={giro} aRodar={aRodar} saiu={saiu} />
+      <Prato alvo={alvo} aRodar={aRodar} saiu={saiu} />
 
       {saiu && (
         <p className={`rol-veredito ${saiu.lucro > 0 ? 'bem' : saiu.lucro < 0 ? 'mal' : ''}`}>
@@ -294,17 +315,23 @@ export function Roleta({
 /* ======================== o prato, em três dimensões ======================== */
 
 function Prato({
-  giro,
+  alvo,
   aRodar,
   saiu
 }: {
-  giro: { prato: number; bola: number };
+  alvo: { casa: number; n: number } | null;
   aRodar: boolean;
   saiu: Rodada | null;
 }) {
-  /* As trinta e sete casas pintam-se de uma vez num gradiente em leque, em vez
-     de trinta e sete triangulos. A primeira fica centrada em cima, que e onde
-     a bola para. */
+  const prato = useRef<HTMLDivElement>(null);
+  const eixo = useRef<HTMLDivElement>(null);
+  /** Onde o prato e a bola ficaram da última vez. Só crescem, para nunca se
+   *  ver nada a andar para trás de uma rodada para a outra. */
+  const parado = useRef({ prato: 0, bola: 0 });
+  const pedido = useRef(0);
+
+  /* As casas pintam-se de uma vez num gradiente em leque, em vez de trinta e
+     sete triângulos. A primeira fica centrada em cima, que é onde a bola para. */
   const casas = useMemo(() => {
     const partes = RODA.map((n, i) => {
       const c = cor(n) === 'verde' ? '#1d7a4c' : cor(n) === 'vermelho' ? '#a52725' : '#1a1a1c';
@@ -313,25 +340,76 @@ function Prato({
     return `conic-gradient(from ${-PASSO / 2}deg, ${partes.join(', ')})`;
   }, []);
 
-  const estilo = {
-    '--prato': `${giro.prato}deg`,
-    '--bola': `${giro.bola}deg`,
-    '--anda': `${A_RODAR}ms`,
-    '--passo': `${PASSO}deg`,
-    '--casas': casas
-  } as CSSProperties;
+  /**
+   * A bola, imagem a imagem.
+   *
+   * Não se faz isto com uma transição do CSS porque uma transição leva um valor
+   * a outro e mais nada. Aqui há três coisas ao mesmo tempo: a bola trava, vai
+   * descendo pela parede da bacia para dentro, e dá um saltinho quando bate na
+   * casa. O prato anda com ela, e acaba com a casa que saiu debaixo da marca.
+   */
+  useEffect(() => {
+    if (!alvo || !prato.current || !eixo.current) return;
+    const de = { ...parado.current };
+
+    const queroPrato = -alvo.casa * PASSO;
+    const restoP = ((de.prato % 360) + 360) % 360;
+    const faltaP = (((queroPrato - restoP) % 360) + 360) % 360;
+    const paraPrato = de.prato + 5 * 360 + faltaP;
+    // a bola corre ao contrário do prato e acaba em cima, onde a casa vai estar
+    const paraBola = de.bola - (8 * 360 + (((de.bola % 360) + 360) % 360));
+
+    const inicio = performance.now();
+    const oPrato = prato.current;
+    const oEixo = eixo.current;
+
+    const imagem = (agora: number) => {
+      const t = Math.min(1, (agora - inicio) / A_RODAR);
+      // depressa ao princípio, quase nada no fim: é uma bola a perder força
+      const trava = 1 - Math.pow(1 - t, 3);
+
+      oPrato.style.setProperty('--prato', `${de.prato + (paraPrato - de.prato) * trava}deg`);
+      oEixo.style.setProperty('--ang', `${de.bola + (paraBola - de.bola) * trava}deg`);
+
+      /* Só começa a cair depois de perder velocidade. Antes disso a força
+         chega-lhe para se manter encostada à pista, como numa roleta a sério. */
+      const cai = Math.min(1, Math.max(0, (t - 0.5) / 0.4));
+      const suave = cai * cai * (3 - 2 * cai);
+      const salto = t > 0.86 ? Math.sin(((t - 0.86) / 0.14) * Math.PI) * 1.8 : 0;
+
+      oEixo.style.setProperty('--raio', `${NA_PISTA + (NA_CASA - NA_PISTA) * suave - salto}%`);
+      oEixo.style.setProperty('--z', `${Z_PISTA + (Z_CASA - Z_PISTA) * suave}px`);
+
+      if (t < 1) pedido.current = requestAnimationFrame(imagem);
+      else parado.current = { prato: paraPrato, bola: paraBola };
+    };
+
+    pedido.current = requestAnimationFrame(imagem);
+    return () => cancelAnimationFrame(pedido.current);
+  }, [alvo]);
 
   return (
-    <div className="rol-cena" style={estilo} role="img" aria-label="A roleta">
+    <div
+      className="rol-cena"
+      style={
+        {
+          '--casas': casas,
+          '--inclina': `${INCLINA}deg`,
+          '--passo': `${PASSO}deg`
+        } as CSSProperties
+      }
+      role="img"
+      aria-label="A roleta"
+    >
       <div className="rol-mundo">
-        {/* a bacia de madeira e a pista da bola, as duas em anel para se ver
-            lá para dentro: um disco cheio tapava a roda, que está mais fundo */}
-        <div className="rol-bacia">
-          <i className="rol-pista" />
-        </div>
+        {/* A bacia: o aro em cima, a pista por onde a bola corre, e a parede a
+            descer para dentro. Tudo em anel, senão tapavam a roda, que está
+            mais fundo do que eles. */}
+        <i className="rol-aro" />
+        <i className="rol-pista" />
+        <i className="rol-parede" />
 
-        {/* o prato que roda, com as casas todas */}
-        <div className="rol-prato" data-a-rodar={aRodar ? 'sim' : 'nao'}>
+        <div className="rol-prato" ref={prato}>
           {RODA.map((n, i) => (
             <div key={n} className={`rol-casa ${cor(n)}`} style={{ '--i': i } as CSSProperties}>
               <span>{n}</span>
@@ -340,18 +418,14 @@ function Prato({
           <i className="rol-meio" />
         </div>
 
-        {/* a bola, numa pista por fora, ao contrário do prato */}
-        <div className="rol-orbita">
+        {/* a bola, no seu eixo: o ângulo roda-a à volta e o raio afasta-a do meio */}
+        <div className="rol-bola-eixo" ref={eixo}>
           <i className="rol-bola" />
         </div>
       </div>
 
       <span className="rol-marca" aria-hidden="true" />
-      {saiu && !aRodar && (
-        <span className={`rol-saiu ${saiu.cor}`}>
-          {saiu.saiu}
-        </span>
-      )}
+      {saiu && !aRodar && <span className={`rol-saiu ${saiu.cor}`}>{saiu.saiu}</span>}
     </div>
   );
 }
@@ -443,27 +517,36 @@ function Tabuleiro({
   aRodar,
   saiu
 }: {
-  mesa: Record<string, number>;
+  mesa: Record<string, number[]>;
   por: (tipo: TipoDeAposta, valor?: number) => void;
   tirar: (chave: string) => void;
   aRodar: boolean;
   saiu: Rodada | null;
 }) {
-  /** A ficha que esta em cima de uma casa, se houver. Carregar com o botao do
-   *  lado direito tira-a de la. */
+  /** As fichas que estao em cima de uma casa, empilhadas como numa mesa a
+   *  serio. Carregar com o botao do lado direito tira-as de la. */
   const emCima = (chave: string) => {
-    const quanto = mesa[chave];
-    if (!quanto) return null;
+    const fichas = mesa[chave];
+    if (!fichas || fichas.length === 0) return null;
+    const total = fichas.reduce((s, f) => s + f, 0);
+    // desenham-se as ultimas: uma pilha de trinta nao se ve nem cabe
+    const aVista = fichas.slice(-6);
     return (
-      <b
-        className="rol-posta"
+      <span
+        className="rol-pilha"
         onContextMenu={(e) => {
           e.preventDefault();
           tirar(chave);
         }}
       >
-        {quanto}
-      </b>
+        {aVista.map((f, i) => (
+          <i
+            key={i}
+            style={{ '--n': i, '--cor': COR_DA_FICHA[f] || COR_DA_FICHA[1] } as CSSProperties}
+          />
+        ))}
+        <b>{total}</b>
+      </span>
     );
   };
 

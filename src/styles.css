@@ -1823,6 +1823,12 @@ footer {
     flex-direction: column;
     align-items: stretch;
     gap: 6px;
+    /* Sem isto a gaveta nao rola: com direction column e wrap, o flex, quando
+       o conteudo e mais alto do que o ecra, abre uma segunda coluna ao lado em
+       vez de deixar rolar, e metade do menu ia parar fora da gaveta. */
+    flex-wrap: nowrap;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     background: #1b100b;
     border-left: 1px solid #3a2a1e;
     padding: calc(env(safe-area-inset-top, 0px) + 72px) 16px 16px;
@@ -3748,15 +3754,15 @@ footer {
   opacity: 0.75;
 }
 
-@media (max-width: 899px) {
-  /* na gaveta nao ha lista a cair: os jogos ficam sempre a vista, so mais
-     para dentro, para se perceber que pertencem ao grupo */
+/* Na gaveta a lista dos jogos nao cai por cima de nada: abre para dentro, com
+   um risco ao lado para se perceber que pertencem ao grupo. E abre fechada:
+   sao sete jogos, e escancarados enchiam a gaveta a quem so queria ir a
+   agenda. Quem decide e quem esta a ver. */
+@media (max-width: 700px) {
   .jogos-fundo {
     display: none;
   }
-  .jogos-lista,
-  .menu-jogos[data-aberto='nao'] .jogos-lista {
-    display: block;
+  .jogos-lista {
     position: static;
     width: auto;
     padding: 0 0 0 12px;
@@ -3766,17 +3772,9 @@ footer {
     border-radius: 0;
     background: none;
     box-shadow: none;
+  }
+  .menu-jogos[data-aberto='sim'] .jogos-lista {
     animation: none;
-  }
-  .jogos-botao svg {
-    display: none;
-  }
-  /* na gaveta a lista esta a vista, por isso nao vale a pena acender tambem o
-     botao do grupo: bastava acender o jogo onde se esta */
-  .jogos-botao[aria-current='page'] {
-    background: transparent;
-    border-color: transparent;
-    color: var(--crema);
   }
   .jogos-lista button {
     font-size: 15px;
@@ -4917,14 +4915,19 @@ footer {
 
 /* ============================== a roleta ==============================
 
-   A roleta ve-se de cima, e por isso e um circulo e nao uma elipse. A fundura
-   continua a ser a serio: a cena tem perspectiva e os discos da bacia estao
-   uns atras dos outros, o que os faz encolher para dentro e da o funil. Uma
-   roleta inclinada era mais bonita de lado mas ficava oval, e uma roleta oval
-   nao parece uma roleta.
+   A bacia esta inclinada, como se estivessemos de pe ao lado dela. E por isso
+   que se ve como uma elipse, e nao porque esteja esmagada: uma roleta a serio
+   vista de frente tambem o e. O que faltava antes era a parede da bacia e a
+   bola a cair para dentro; sem elas, redonda ou oval, parecia um desenho.
 
-   As casas sao pintadas de uma vez num gradiente em leque, o que poupa trinta
-   e sete triangulos. */
+   O mundo e um quadrado dentro de uma cena mais baixa do que larga. Tem de ser
+   quadrado: se fosse a cena a dar-lhe a forma, os aneis ja nasciam elipses
+   antes de se inclinar coisa nenhuma, e ai sim, ficava esmagada.
+
+   Nada disto leva filtros. Um filter num contexto de tres dimensoes achata o
+   elemento e tira-o do empilhamento. E o centro de um gradiente que desenha um
+   anel tem de ser o centro do circulo: posto de lado para dar brilho, e o
+   proprio anel que sai do sitio e fica so meia madeira. */
 
 .rol {
   max-width: 1000px;
@@ -4959,69 +4962,78 @@ footer {
 .rol-cena {
   position: relative;
   width: 100%;
-  /* quadrada, senao a bacia era uma elipse antes mesmo de rodar */
-  max-width: 340px;
-  aspect-ratio: 1 / 1;
-  margin: 18px auto 10px;
-  perspective: 760px;
+  max-width: 380px;
+  aspect-ratio: 1 / 0.88;
+  margin: 14px auto 18px;
+  perspective: 820px;
+  perspective-origin: 50% 40%;
 }
 .rol-mundo {
   position: absolute;
-  inset: 0;
+  left: 0;
+  right: 0;
+  top: 50%;
+  aspect-ratio: 1 / 1;
   transform-style: preserve-3d;
+  transform: translateY(-50%) rotateX(var(--inclina));
 }
 
-/* A bacia e a pista sao aneis e nao discos: um disco cheio tapava tudo o que
-   esta mais fundo, e o que esta mais fundo e a roda.
-
-   Nao ha filtros aqui dentro de proposito. Um filter num contexto de tres
-   dimensoes achata o elemento e tira-o do empilhamento, e a bacia aparecia
-   fora do sitio, de lado, como uma foice. */
-.rol-bacia {
+/* o aro de madeira, em cima de tudo */
+.rol-aro {
   position: absolute;
   inset: 0;
-  transform-style: preserve-3d;
-  border-radius: 50%;
-  /* O centro do gradiente tem de ser o centro do circulo. Posto de lado para
-     dar brilho, e o proprio anel que sai do sitio: fica so meia madeira, de um
-     lado. O brilho vem do box-shadow, que se agarra a borda. */
-  background: radial-gradient(
-    circle at 50% 50%,
-    transparent 0 71%,
-    #c98a56 71.5%,
-    #a86d3d 76%,
-    #7d5029 85%,
-    #513418 93%,
-    #2c1c0c 100%
-  );
-  box-shadow:
-    inset 0 0.45em 0.9em rgba(255, 228, 184, 0.12),
-    inset 0 -0.35em 0.7em rgba(0, 0, 0, 0.5),
-    0 1.1em 2.2em -0.8em rgba(0, 0, 0, 0.8);
-}
-/* a pista por onde a bola anda, encavada entre a madeira e a roda */
-.rol-pista {
-  position: absolute;
-  inset: 5%;
   display: block;
   border-radius: 50%;
   background: radial-gradient(
     circle at 50% 50%,
     transparent 0 78%,
-    #4a2e11 78.5%,
-    #26170a 90%,
-    #150c04 100%
+    #c98a56 78.5%,
+    #a86d3d 84%,
+    #744a26 93%,
+    #3d2712 100%
   );
-  box-shadow: inset 0 0.3em 0.7em rgba(0, 0, 0, 0.6);
-  transform: translateZ(-11px);
 }
+/* a pista por onde a bola corre, uma calha logo por dentro do aro */
+.rol-pista {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 50% 50%,
+    transparent 0 66%,
+    #2a1a0b 66.5%,
+    #3b2510 72%,
+    #1d1207 79%,
+    transparent 80%
+  );
+  transform: translateZ(-10px);
+}
+/* a parede da bacia, a descer para dentro */
+.rol-parede {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 50% 50%,
+    transparent 0 44%,
+    #2b1d0f 44.5%,
+    #4a3118 56%,
+    #6b4623 66%,
+    #3a2513 68%,
+    transparent 69%
+  );
+  transform: translateZ(-26px);
+}
+
+/* o prato que roda, com as casas todas */
 .rol-prato {
   position: absolute;
-  inset: 19%;
+  inset: 26%;
   border-radius: 50%;
   background: var(--casas);
-  transform: translateZ(-24px) rotate(var(--prato));
-  transition: transform var(--anda) cubic-bezier(0.12, 0.72, 0.12, 1);
+  transform: translateZ(-42px) rotate(var(--prato, 0deg));
   box-shadow:
     inset 0 0 0 2px rgba(240, 220, 192, 0.22),
     0 0 1.6em rgba(0, 0, 0, 0.6);
@@ -5029,13 +5041,13 @@ footer {
 .rol-casa {
   position: absolute;
   inset: 0;
-  transform: rotate(calc(var(--i) * var(--passo)));
+  transform: rotate(calc(var(--i) * var(--passo, 9.7297deg)));
   pointer-events: none;
 }
 .rol-casa span {
   position: absolute;
   left: 50%;
-  top: 3.5%;
+  top: 3%;
   transform: translateX(-50%);
   font-family: var(--mono);
   font-size: 8px;
@@ -5053,26 +5065,33 @@ footer {
     0 0 0 2px rgba(0, 0, 0, 0.4),
     inset -3px -5px 10px rgba(0, 0, 0, 0.45),
     inset 3px 4px 8px rgba(255, 240, 210, 0.35);
-  transform: translateZ(6px);
+  transform: translateZ(12px);
 }
 
-/* A bola anda na pista, por fora do prato e ao contrario dele. E uma bola a
-   serio e nao um ponto: tem o brilho de um lado, a sombra do outro, e a
-   sombra dela na madeira por baixo. */
-.rol-orbita {
+/* A bola. O eixo roda-a a volta e o raio afasta-a do meio, e os dois sao
+   escritos imagem a imagem pelo componente: e assim que ela trava, desce pela
+   parede e assenta numa casa. */
+.rol-bola-eixo {
   position: absolute;
-  inset: 11%;
-  transform: translateZ(6px) rotate(var(--bola));
-  transition: transform var(--anda) cubic-bezier(0.1, 0.68, 0.16, 1);
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: translateZ(var(--z, -2px)) rotate(var(--ang, 0deg));
   pointer-events: none;
 }
 .rol-bola {
   position: absolute;
   left: 50%;
-  top: 0;
-  width: 19px;
-  height: 19px;
+  top: var(--raio, 13%);
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
+  /* A bola e um disco a fingir de esfera, e por isso tem de ficar sempre de
+     frente para quem ve. Desfaz as duas voltas que lhe deram: primeiro a do
+     eixo, que a levou a volta da bacia, e depois a inclinacao da bacia. Pela
+     ordem inversa, que rotacoes nao se trocam a vontade: desfazer so a
+     inclinacao deixava-a ovalada em todos os angulos menos um. */
+  transform: translate(-50%, -50%) rotate(calc(var(--ang, 0deg) * -1))
+    rotateX(calc(var(--inclina) * -1));
   background: radial-gradient(
     circle at 32% 26%,
     #ffffff 0%,
@@ -5081,22 +5100,20 @@ footer {
     #948d7d 82%,
     #6a6456 100%
   );
-  transform: translate(-50%, -50%);
   box-shadow:
     inset -2px -3px 5px rgba(0, 0, 0, 0.35),
     inset 2px 2px 3px rgba(255, 255, 255, 0.5),
-    0 4px 7px rgba(0, 0, 0, 0.7);
+    0 4px 8px rgba(0, 0, 0, 0.75);
 }
 
 /* a marca de onde a bola para, e o numero que saiu */
-/* a marca fica no cimo da bacia, que e onde a bola para */
 .rol-marca {
   position: absolute;
   left: 50%;
   top: 0;
   width: 0;
   height: 0;
-  transform: translate(-50%, -4px);
+  transform: translate(-50%, -2px);
   border-left: 8px solid transparent;
   border-right: 8px solid transparent;
   border-top: 13px solid var(--crema);
@@ -5105,7 +5122,7 @@ footer {
 .rol-saiu {
   position: absolute;
   left: 50%;
-  bottom: -6%;
+  bottom: -4%;
   transform: translateX(-50%);
   min-width: 2.2em;
   padding: 0.15em 0.5em;
@@ -5206,7 +5223,7 @@ footer {
 .rol-pano {
   display: grid;
   grid-template-columns: 0.85fr repeat(12, 1fr) 1.05fr;
-  grid-auto-rows: minmax(34px, auto);
+  grid-auto-rows: minmax(36px, auto);
   gap: 4px;
   background: radial-gradient(120% 130% at 50% 10%, #186145, #114434 60%, #08291f);
   border: 6px solid #3d2616;
@@ -5257,22 +5274,43 @@ footer {
   outline-offset: -2px;
   box-shadow: 0 0 1em rgba(224, 158, 89, 0.5);
 }
-.rol-posta {
+
+/* As fichas empilham-se em cima da casa, como numa mesa a serio: cada uma
+   assenta na anterior e o total fica em cima da pilha. */
+.rol-pilha {
   position: absolute;
-  right: -4px;
-  top: -6px;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: var(--crema);
-  color: #241a13;
-  font-size: 11px;
-  font-weight: 700;
-  display: grid;
-  place-items: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+  right: 1px;
+  bottom: 1px;
+  width: 22px;
+  height: 22px;
+  pointer-events: auto;
 }
+.rol-pilha i {
+  position: absolute;
+  left: 0;
+  bottom: calc(var(--n) * 3px);
+  width: 22px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--cor);
+  border: 1.5px dashed rgba(255, 255, 255, 0.6);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.55);
+}
+.rol-pilha b {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% - 2px);
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--tinta);
+  text-shadow:
+    0 1px 2px #000,
+    0 0 3px #000;
+  white-space: nowrap;
+}
+
 
 .rol-fim {
   display: flex;
