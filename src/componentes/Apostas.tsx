@@ -280,7 +280,7 @@ export function Apostas({
         </p>
       )}
 
-      <div className="apo-corpo">
+      <div className={`apo-corpo${arrumados.size > 0 ? ' com-lado' : ''}`}>
         {/* ---- a coluna dos desportos ---- */}
         {arrumados.size > 0 && (
           <aside className="apo-lado">

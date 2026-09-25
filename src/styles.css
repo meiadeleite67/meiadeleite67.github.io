@@ -1608,8 +1608,11 @@ footer {
   margin-top: 18px;
   align-items: start;
 }
+/* A segunda coluna so existe quando a coluna dos desportos esta la. Sem esta
+   condicao, uma pagina sem jogos punha o recado a viver nos 210px da coluna
+   que nao foi desenhada, e ele saia encostado a esquerda e todo estreito. */
 @media (min-width: 860px) {
-  .apo-corpo {
+  .apo-corpo.com-lado {
     grid-template-columns: 210px 1fr;
   }
 }
