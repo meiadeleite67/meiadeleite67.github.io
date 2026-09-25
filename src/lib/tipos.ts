@@ -58,6 +58,40 @@ export type Pontuacao = {
   recordes: { jogo: number; cusco: number; colherada: number };
 };
 
+/* ---------------------- como vai o jogo ---------------------- */
+
+/** Uma linha de estatistica, com o valor dos dois lados. O numero e para
+ *  desenhar a barra; o texto e para mostrar, que uma posse de bola diz-se
+ *  "67%" e nao "67". */
+export type LinhaDeEstatistica = {
+  nome: string;
+  casa: { mostra: string; numero: number | null };
+  fora: { mostra: string; numero: number | null };
+};
+
+export type EventoDoJogo = {
+  minuto: number;
+  extra: number | null;
+  tipo: 'golo' | 'cartao' | 'troca' | 'outro';
+  detalhe: string;
+  equipa: string;
+  quem: string;
+  outro: string;
+};
+
+export type ComoVaiOJogo = {
+  estatisticas: LinhaDeEstatistica[];
+  eventos: EventoDoJogo[];
+  quando: string | null;
+  /** Veio da copia guardada, e nao da feed. */
+  daCopia?: boolean;
+  /** Nao se foi buscar por nao haver orcamento do dia. */
+  semOrcamento?: boolean;
+  /** Este desporto nao tem estatisticas nesta fonte. */
+  semFonte?: boolean;
+  erro?: string;
+};
+
 /* ------------------- os avisos de coisas partidas ------------------- */
 
 export type Ticket = {

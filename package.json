@@ -9,7 +9,7 @@
     "build": "vite build && node scripts/pos-build.mjs",
     "preview": "vite preview",
     "tipos": "tsc --noEmit",
-    "provas": "node scripts/testes-poker.mjs && node scripts/testes-roleta.mjs && node scripts/testes-apostas.mjs && node scripts/testes-tickets.mjs",
+    "provas": "node scripts/testes-poker.mjs && node scripts/testes-roleta.mjs && node scripts/testes-apostas.mjs && node scripts/testes-tickets.mjs && node scripts/testes-estatisticas.mjs",
     "provas-ao-vivo": "node scripts/testes-pin.mjs && node scripts/testes-banco.mjs && node scripts/testes-mesa.mjs && node scripts/testes-lugares.mjs && node scripts/testes-desporto.mjs",
     "admin": "node scripts/admin.mjs"
   },

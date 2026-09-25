@@ -394,8 +394,10 @@ import {
   temChaveDaFeed
 } from './desporto.js';
 import { quemGanhou } from './apostas.js';
+import { CAMINHOS, lerEstatisticas, lerEventos } from './estatisticas.js';
 import {
   CASAS as DESPORTOS_NOVOS,
+  pedir as pedirANova,
   cotacoesDoDia,
   jogosDaFeedNova,
   quemGanhouNova,
@@ -523,6 +525,88 @@ export async function jogosNovosGuardados(env) {
     .filter((j) => !j.acabou || Date.parse(j.comeca) > agora - 4 * 60 * 60 * 1000)
     .filter((j) => j.cotacoes || aDecorrer(j))
     .sort((a, b) => Date.parse(a.comeca) - Date.parse(b.comeca));
+}
+
+/* ==================== como vai o jogo ====================
+
+   As estatisticas de um jogo, com copia guardada. A copia e o que faz isto
+   caber no orcamento: guarda-se por jogo e nao por pessoa, e por isso vinte da
+   malta a abrir o mesmo Benfica-Porto custa dois pedidos e nao quarenta. Numa
+   noite de jogo e precisamente isso que acontece, que estao todos a ver o
+   mesmo.
+
+   Um jogo acabado guarda-se para sempre: aquilo ja nao muda. Um a decorrer
+   guarda-se tres minutos. E quando o que resta do dia for pouco, deixa-se de
+   pedir e mostra-se a ultima fotografia com a hora dela, que e melhor do que
+   gastar no ultimo pedido do dia a refrescar uma posse de bola. */
+
+/** Quantos pedidos a fonte nova leva por dia fora das voltas. O resto do cento
+ *  fica para as voltas, que sao o que garante que ha jogos na pagina. */
+const PEDIDOS_DE_FORA_POR_DIA = 60;
+
+const diaDeHoje = () => new Date().toISOString().slice(0, 10);
+
+async function jaSeGastou(env) {
+  const g = await ler(env, 'desporto:gastos-de-fora', null);
+  return g && g.dia === diaDeHoje() ? g.quantos : 0;
+}
+
+async function apontarGasto(env, quantos) {
+  const antes = await jaSeGastou(env);
+  await env.QUADRO.put(
+    'desporto:gastos-de-fora',
+    JSON.stringify({ dia: diaDeHoje(), quantos: antes + quantos })
+  );
+}
+
+/**
+ * As estatisticas de um jogo, do que estiver guardado ou da feed.
+ *
+ * Devolve sempre alguma coisa: se nao houver copia nem orcamento, devolve o
+ * que tem com uma nota a dizer porque nao foi buscar mais.
+ */
+async function comoVaiOJogo(env, jogo) {
+  const onde = CAMINHOS[jogo.desporto];
+  const casa = DESPORTOS_NOVOS[jogo.desporto];
+  const guardado = await ler(env, `desporto:stats:${jogo.id}`, null);
+
+  const acabou = !!jogo.acabou;
+  const idade = guardado ? Date.now() - Date.parse(guardado.quando) : Infinity;
+  /* Um jogo acabado nunca mais muda; um a decorrer vale tres minutos. */
+  const serve = guardado && (acabou || idade < 3 * 60 * 1000);
+  if (serve) return { ...guardado, daCopia: true };
+
+  if (!onde || !casa || !temChaveNova(env))
+    return guardado || { estatisticas: [], eventos: [], quando: null, semFonte: true };
+
+  const quantosPedidos = onde.eventos ? 2 : 1;
+  if ((await jaSeGastou(env)) + quantosPedidos > PEDIDOS_DE_FORA_POR_DIA)
+    return guardado
+      ? { ...guardado, daCopia: true, semOrcamento: true }
+      : { estatisticas: [], eventos: [], quando: null, semOrcamento: true };
+
+  const st = await pedirANova(env, casa.casa, onde.caminho, { [onde.chave]: jogo.id });
+  await apontarGasto(env, 1);
+  if (st.erro) return guardado ? { ...guardado, daCopia: true } : { estatisticas: [], eventos: [], erro: st.erro };
+
+  let eventos = [];
+  if (onde.eventos) {
+    const ev = await pedirANova(env, casa.casa, onde.eventos, { [onde.chave]: jogo.id });
+    await apontarGasto(env, 1);
+    if (!ev.erro) eventos = lerEventos(ev.lista);
+  }
+
+  const novo = {
+    estatisticas: lerEstatisticas(st.lista),
+    eventos,
+    quando: new Date().toISOString()
+  };
+  /* Um jogo acabado fica guardado para sempre; um a decorrer tem prazo, para o
+     KV nao ficar a guardar fotografias de jogos do ano passado. */
+  await env.QUADRO.put(`desporto:stats:${jogo.id}`, JSON.stringify(novo), {
+    expirationTtl: acabou ? 60 * 60 * 24 * 30 : 60 * 60 * 6
+  });
+  return novo;
 }
 
 /* ====================== a volta ======================
@@ -1075,6 +1159,14 @@ export default {
       });
       if (feito.erro) return responder({ erro: feito.erro }, request, feito.estado || 400);
       return responder(feito, request);
+    }
+
+    /* Como vai o jogo: as estatisticas e os eventos. */
+    if (caminho.startsWith('/desporto/stats/') && metodo === 'GET') {
+      const qual = texto(caminho.slice(16), 64);
+      const jogo = (await todosOsJogos(env)).find((j) => j.id === qual);
+      if (!jogo) return responder({ erro: 'Esse jogo já não está à vista.' }, request, 404);
+      return responder(await comoVaiOJogo(env, jogo), request);
     }
 
     /* Um jogo só, para a página de detalhe. Sai do que já está guardado, por

@@ -1,0 +1,191 @@
+/**
+ * Como vai o jogo: as estatísticas, e o que se faz com o que vem.
+ *
+ * Cada desporto da API-Sports responde a isto de uma maneira diferente. O
+ * futebol manda uma lista de duas equipas, cada uma com a sua lista de pares
+ * tipo/valor; outros mandam um objeto com "home" e "away" lá dentro; outros
+ * mandam a lista de pares como objeto em vez de lista. Escrever um leitor para
+ * cada um dava doze leitores para manter, e bastava um deles mudar de forma
+ * para se perder as estatísticas desse desporto sem ninguém dar por isso.
+ *
+ * Por isso aqui há um leitor só, tolerante: tenta as formas que se conhecem,
+ * aceita a primeira que resulte, e quando não entende nada devolve lista
+ * vazia em vez de atirar. Uma página de jogo sem estatísticas é uma página
+ * sem estatísticas; uma página que rebenta é uma página perdida.
+ *
+ * O que não está aqui, e não está de propósito: a posição da bola. Isso não
+ * vem desta feed nem de nenhuma que se consiga sem contrato, porque é
+ * recolhido no estádio por quem tem câmaras lá montadas.
+ */
+
+/** Onde cada desporto guarda as estatísticas de um jogo. Quem não estiver aqui
+ *  simplesmente não as tem, e a página do jogo mostra o resto sem elas. */
+export const CAMINHOS = {
+  Futebol: { caminho: '/fixtures/statistics', chave: 'fixture', eventos: '/fixtures/events' },
+  Basquetebol: { caminho: '/games/statistics/teams', chave: 'id' },
+  NBA: { caminho: '/games/statistics', chave: 'id' },
+  'Futebol americano': { caminho: '/games/statistics/teams', chave: 'id' },
+  Basebol: { caminho: '/games/statistics/teams', chave: 'id' },
+  'Hóquei no gelo': { caminho: '/games/statistics', chave: 'id' },
+  Andebol: { caminho: '/games/statistics', chave: 'id' },
+  Voleibol: { caminho: '/games/statistics', chave: 'id' },
+  Rugby: { caminho: '/games/statistics', chave: 'id' },
+  AFL: { caminho: '/games/statistics', chave: 'id' }
+};
+
+/** Os nomes em português das estatísticas que aparecem mais. O que não estiver
+ *  aqui mostra-se como veio: mais vale um nome em inglês do que nada. */
+const EM_PORTUGUES = {
+  'ball possession': 'Posse de bola',
+  possession: 'Posse de bola',
+  'total shots': 'Remates',
+  'shots on goal': 'Remates enquadrados',
+  'shots off goal': 'Remates para fora',
+  'shots insidebox': 'Remates dentro da área',
+  'shots outsidebox': 'Remates de fora',
+  'blocked shots': 'Remates bloqueados',
+  'corner kicks': 'Cantos',
+  corners: 'Cantos',
+  offsides: 'Foras de jogo',
+  fouls: 'Faltas',
+  'yellow cards': 'Cartões amarelos',
+  'red cards': 'Cartões vermelhos',
+  'goalkeeper saves': 'Defesas',
+  'free kicks': 'Livres',
+  'throw ins': 'Lançamentos',
+  'goal kicks': 'Pontapés de baliza',
+  'shots total': 'Remates',
+  'ball safe': 'Bola controlada',
+  attacks: 'Ataques',
+  'dangerous attacks': 'Ataques perigosos',
+  'substitutions': 'Substituições',
+  'penalties': 'Penáltis',
+  'field goals': 'Cestos de campo',
+  'free throws': 'Lances livres',
+  'three point goals': 'Triplos',
+  hits: 'Batidas',
+  errors: 'Erros',
+  runs: 'Corridas',
+  'total passes': 'Passes',
+  'passes accurate': 'Passes certos',
+  'passes %': 'Precisão de passe',
+  'expected goals': 'Golos esperados',
+  points: 'Pontos',
+  assists: 'Assistências',
+  rebounds: 'Ressaltos',
+  turnovers: 'Perdas de bola',
+  steals: 'Roubos de bola',
+  blocks: 'Bloqueios'
+};
+
+const emPortugues = (nome) => EM_PORTUGUES[String(nome).toLowerCase().trim()] || String(nome);
+
+/** Um valor pode vir como número, como texto, ou como "67%". Guarda-se o que
+ *  se mostra e o número que dá para comparar, se houver. */
+function valorDe(v) {
+  if (v === null || v === undefined || v === '') return { mostra: '0', numero: 0 };
+  const texto = String(v);
+  const limpo = texto.replace('%', '').replace(',', '.').trim();
+  const n = Number(limpo);
+  return { mostra: texto, numero: Number.isFinite(n) ? n : null };
+}
+
+/** Uma lista de pares tipo/valor, venha ela como lista ou como objeto. */
+function paresDe(o) {
+  if (Array.isArray(o))
+    return o
+      .filter((x) => x && (x.type || x.name))
+      .map((x) => [String(x.type || x.name), x.value]);
+  if (o && typeof o === 'object') return Object.entries(o);
+  return [];
+}
+
+/**
+ * Lê as estatísticas de um jogo e devolve-as numa forma só.
+ *
+ * Sai uma lista de linhas, cada uma com o nome e o valor dos dois lados, pela
+ * ordem em que vieram. Devolve lista vazia quando não se entende o que veio.
+ */
+export function lerEstatisticas(cru) {
+  const lados = ladosDe(cru);
+  if (!lados) return [];
+
+  const daCasa = new Map(paresDe(lados.casa).map(([k, v]) => [String(k).toLowerCase(), v]));
+  const daFora = new Map(paresDe(lados.fora).map(([k, v]) => [String(k).toLowerCase(), v]));
+
+  const nomes = [];
+  paresDe(lados.casa).forEach(([k]) => nomes.push(k));
+  paresDe(lados.fora).forEach(([k]) => {
+    if (!nomes.some((n) => n.toLowerCase() === String(k).toLowerCase())) nomes.push(k);
+  });
+
+  return nomes
+    .map((nome) => {
+      const chave = String(nome).toLowerCase();
+      const casa = valorDe(daCasa.get(chave));
+      const fora = valorDe(daFora.get(chave));
+      return { nome: emPortugues(nome), casa, fora };
+    })
+    /* Uma linha em que os dois lados estão a zero não diz nada a ninguém. */
+    .filter((l) => l.casa.mostra !== '0' || l.fora.mostra !== '0');
+}
+
+/**
+ * Descobre qual é o lado de casa e qual é o de fora, nas formas que se
+ * conhecem. Devolve nada quando nenhuma resulta.
+ */
+function ladosDe(cru) {
+  /* Uma lista de dois, cada um com a sua equipa e as suas estatísticas: é o
+     futebol e a maior parte dos outros. */
+  if (Array.isArray(cru) && cru.length >= 2) {
+    const [a, b] = cru;
+    if (a && b && ('statistics' in a || 'statistics' in b))
+      return { casa: a.statistics, fora: b.statistics };
+    /* Ou dois objetos que já são as próprias estatísticas. */
+    if (a && b) return { casa: a, fora: b };
+  }
+
+  /* Um objeto com os dois lados dentro, com nomes conhecidos. */
+  const o = Array.isArray(cru) ? cru[0] : cru;
+  if (o && typeof o === 'object') {
+    const casa = o.home ?? o.casa ?? o.team_home ?? o.local;
+    const fora = o.away ?? o.fora ?? o.team_away ?? o.visitor;
+    if (casa && fora) return { casa: casa.statistics ?? casa, fora: fora.statistics ?? fora };
+  }
+
+  return null;
+}
+
+/**
+ * Os eventos de um jogo: golos, cartões, substituições, ao minuto.
+ *
+ * É isto que substitui o campo animado que não se consegue ter. Não mostra
+ * onde a bola está, mas mostra o que aconteceu e quando, que é a parte que se
+ * conta depois no café.
+ */
+export function lerEventos(cru) {
+  if (!Array.isArray(cru)) return [];
+  return cru
+    .map((e) => {
+      const minuto = Number(e?.time?.elapsed ?? e?.minute ?? e?.time);
+      const tipo = String(e?.type || '').toLowerCase();
+      return {
+        minuto: Number.isFinite(minuto) ? minuto : null,
+        extra: Number(e?.time?.extra) || null,
+        tipo: tipo.includes('goal')
+          ? 'golo'
+          : tipo.includes('card')
+            ? 'cartao'
+            : tipo.includes('subst')
+              ? 'troca'
+              : 'outro',
+        detalhe: String(e?.detail || e?.type || ''),
+        equipa: String(e?.team?.name || ''),
+        quem: String(e?.player?.name || ''),
+        /* Numa substituição, este é quem entra. */
+        outro: String(e?.assist?.name || '')
+      };
+    })
+    .filter((e) => e.minuto !== null)
+    .sort((a, b) => a.minuto - b.minuto || (a.extra || 0) - (b.extra || 0));
+}

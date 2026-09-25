@@ -5,6 +5,7 @@ import type {
   Escolha,
   Estado,
   Evento,
+  ComoVaiOJogo,
   ItemDaGaleria,
   JogoDeApostas,
   Membro,
@@ -205,6 +206,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ nome, passe })
     }),
+
+  /** Como vai o jogo: estatisticas e eventos. O servidor guarda uma copia por
+   *  jogo, por isso muita gente a abrir o mesmo jogo custa o mesmo que uma. */
+  comoVaiOJogo: (id: string) =>
+    pedir<ComoVaiOJogo>(`/desporto/stats/${encodeURIComponent(id)}`),
 
   /* ---- os avisos de coisas partidas ----
 

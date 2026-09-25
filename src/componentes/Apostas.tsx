@@ -4,6 +4,7 @@ import { passeDe } from '../lib/nick';
 import { quandoEmPalavras } from '../lib/dados';
 import type {
   ApostaDesportiva,
+  ComoVaiOJogo,
   Escolha,
   Escolhida,
   JogoDeApostas,
@@ -839,6 +840,9 @@ function DetalheDoJogo({
           </p>
         )}
 
+        {/* As estatisticas so fazem sentido depois de a bola rolar. */}
+        {jaComecou(jogo) && <ComoVai jogo={jogo} />}
+
         <h3>A ficha do jogo</h3>
         <dl className="apo-ficha">
           <div>
@@ -900,6 +904,130 @@ function DetalheDoJogo({
 
       </div>
     </div>
+  );
+}
+
+/* ========================= como vai o jogo =========================
+
+   As estatisticas e os eventos de um jogo. Nao ha aqui campo com a bola a
+   andar, e nao ha de propósito: a posicao da bola e recolhida no estadio por
+   quem tem camaras la montadas, e nao vem de nenhuma feed que se consiga sem
+   contrato. O que se pode mostrar com verdade e o que aconteceu e quando, que
+   e a parte que se conta depois no cafe.
+
+   O servidor guarda uma copia por jogo, e e isso que faz isto caber no
+   orcamento: vinte pessoas a abrir o mesmo jogo custam o mesmo que uma. */
+
+function ComoVai({ jogo }: { jogo: JogoDeApostas }) {
+  const [dados, setDados] = useState<ComoVaiOJogo | null>(null);
+  const [aCarregar, setACarregar] = useState(true);
+
+  useEffect(() => {
+    let vivo = true;
+    setACarregar(true);
+    api
+      .comoVaiOJogo(jogo.id)
+      .then((r) => {
+        if (vivo) setDados(r);
+      })
+      .catch(() => {
+        /* Sem estatisticas a pagina do jogo vale na mesma: tem as cotacoes, a
+           ficha e as apostas de quem la esta. */
+      })
+      .finally(() => {
+        if (vivo) setACarregar(false);
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [jogo.id]);
+
+  if (aCarregar) return <p className="notas">A ver como vai o jogo...</p>;
+  if (!dados) return null;
+
+  const linhas = dados.estatisticas || [];
+  const eventos = dados.eventos || [];
+  if (linhas.length === 0 && eventos.length === 0)
+    return (
+      <p className="notas">
+        {dados.semOrcamento
+          ? 'Hoje já não dá para ir buscar estatísticas novas. Voltam amanhã.'
+          : 'Esta competição não dá estatísticas. Nem todas dão, e as pequenas quase nunca.'}
+      </p>
+    );
+
+  return (
+    <>
+      {linhas.length > 0 && (
+        <>
+          <h3>Como vai o jogo</h3>
+          <ul className="jogo-stats">
+            {linhas.map((l) => {
+              /* A barra so se desenha quando os dois lados dao numero. Uma
+                 estatistica de texto mostra-se so com os valores. */
+              const a = l.casa.numero;
+              const b = l.fora.numero;
+              const total = (a || 0) + (b || 0);
+              const parte = a !== null && b !== null && total > 0 ? ((a || 0) / total) * 100 : null;
+              return (
+                <li key={l.nome}>
+                  <span className="jogo-stat-valor">{l.casa.mostra}</span>
+                  <span className="jogo-stat-nome">{l.nome}</span>
+                  <span className="jogo-stat-valor direita">{l.fora.mostra}</span>
+                  {parte !== null && (
+                    <span className="jogo-stat-barra" aria-hidden="true">
+                      <i style={{ width: `${parte}%` }} />
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+
+      {eventos.length > 0 && (
+        <>
+          <h3>O que aconteceu</h3>
+          <ul className="jogo-eventos">
+            {eventos.map((e, i) => (
+              <li key={`${e.minuto}-${i}`} className={e.tipo}>
+                <b>
+                  {e.minuto}'{e.extra ? `+${e.extra}` : ''}
+                </b>
+                <span className="jogo-evento-que">
+                  {e.tipo === 'golo'
+                    ? 'Golo'
+                    : e.tipo === 'cartao'
+                      ? e.detalhe.toLowerCase().includes('red')
+                        ? 'Cartão vermelho'
+                        : 'Cartão amarelo'
+                      : e.tipo === 'troca'
+                        ? 'Substituição'
+                        : e.detalhe}
+                </span>
+                <span className="jogo-evento-quem">
+                  {e.quem}
+                  {e.tipo === 'troca' && e.outro ? ` sai, ${e.outro} entra` : ''}
+                  {e.equipa ? ` · ${e.equipa}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {dados.quando && (
+        <p className="notas jogo-stats-quando">
+          Atualizado a{' '}
+          {new Date(dados.quando).toLocaleTimeString('pt-PT', {
+            hour: '2-digit',
+            minute: '2-digit'
+          })}
+          {dados.daCopia ? ', da última vez que se foi buscar' : ''}.
+        </p>
+      )}
+    </>
   );
 }
 
