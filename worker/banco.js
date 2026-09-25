@@ -21,6 +21,7 @@ import { DurableObject } from 'cloudflare:workers';
 import {
   PIN_MAXIMO,
   PIN_MINIMO,
+  aoCalhasEmHex,
   passeBate,
   passeNovo,
   pinBate,
@@ -28,6 +29,7 @@ import {
   pinNovo,
   pinServe
 } from './chaves.js';
+import { fecharAposta, limparAposta } from './apostas.js';
 
 export const SALDO_INICIAL = 250;
 export const EMPRESTIMO = 100;
@@ -66,6 +68,7 @@ export const linhaNova = (nome) => ({
   pico: SALDO_INICIAL,
   poquer: { maos: 0, ganhas: 0, maiorPote: 0 },
   roleta: { rodadas: 0, ganhas: 0, maior: 0 },
+  desporto: { apostas: 0, ganhas: 0, maior: 0 },
   recordes: { jogo: 0, cusco: 0, colherada: 0 },
   /* O PIN deste nome, e os passes dos aparelhos que já o acertaram. Nem o PIN
      nem os passes ficam guardados: só os resumos deles. */
@@ -87,8 +90,14 @@ const completa = (linha, nome) => ({
   ...linha,
   poquer: { maos: 0, ganhas: 0, maiorPote: 0, ...(linha.poquer || {}) },
   roleta: { rodadas: 0, ganhas: 0, maior: 0, ...(linha.roleta || {}) },
+  desporto: { apostas: 0, ganhas: 0, maior: 0, ...(linha.desporto || {}) },
   recordes: { jogo: 0, cusco: 0, colherada: 0, ...(linha.recordes || {}) }
 });
+
+/** Quantas apostas ja fechadas se guardam ao todo. Servem para cada um ver o
+ *  que lhe aconteceu, e por isso guardam-se; mas nao para sempre, que isto
+ *  vive todo em memoria e nao pode crescer sem fim. */
+const HISTORIA_NO_MAXIMO = 600;
 
 export class Banco extends DurableObject {
   constructor(ctx, env) {
@@ -103,11 +112,19 @@ export class Banco extends DurableObject {
         this.nomes = antes ? JSON.parse(antes) : {};
         await ctx.storage.put('nomes', this.nomes);
       }
+      /* As apostas desportivas vivem aqui e nao no KV pela mesma razao por que
+         os torroes vivem aqui: pagar uma aposta e mexer na carteira, e as duas
+         coisas tem de acontecer juntas ou nao acontecer nenhuma. */
+      this.apostas = (await ctx.storage.get('apostas')) || [];
     });
   }
 
   async gravar() {
     await this.ctx.storage.put('nomes', this.nomes);
+  }
+
+  async gravarApostas() {
+    await this.ctx.storage.put('apostas', this.apostas);
   }
 
   /** A linha de um nome, já completa e já confirmada como sendo de quem pede. */
@@ -126,6 +143,161 @@ export class Banco extends DurableObject {
     this.nomes[nome] = linha;
     await this.gravar();
     return linha;
+  }
+
+  /* ==================== as apostas desportivas ====================
+
+     Uma aposta desportiva e a unica coisa neste banco que nao se resolve no
+     momento. Poe-se hoje, fecha-se quando o jogo acabar, e no meio ha horas ou
+     dias em que os torroes nao estao na carteira nem estao no premio: estao
+     presos na aposta. E por isso que elas vivem aqui dentro e nao noutro sitio
+     qualquer. Tirar da carteira e guardar a aposta tem de ser a mesma conta, e
+     pagar o premio e fechar a aposta tambem, senao havia sempre um instante em
+     que os torroes estavam nos dois sitios ou em nenhum. */
+
+  abertasDe(nome) {
+    return this.apostas.filter((a) => a.nome === nome && a.estado === 'aberta');
+  }
+
+  /**
+   * Poe uma aposta. Os torroes saem da carteira agora, que e o que faz com que
+   * ninguem possa apostar o que nao tem enquanto o jogo nao acaba.
+   *
+   * O jogo vem de quem atende a rua, ja lido da feed, e a cotacao sai de dentro
+   * dele. Nao se aceita cotacao vinda do site: bastava mexer no pedido para
+   * apostar a cinquenta para um.
+   */
+  async apostar(veio) {
+    const nome = texto(veio.nome, 24);
+    const achado = await this.daPessoa(nome, veio.passe);
+    if (achado.erro) return achado;
+    const linha = achado.linha;
+    const jogo = veio.jogo;
+
+    const limpa = limparAposta(veio, jogo, linha.torroes, this.abertasDe(nome).length);
+    if (limpa.erro) return { erro: limpa.erro, estado: 400 };
+
+    linha.torroes -= limpa.quanto;
+    linha.desporto.apostas += 1;
+
+    const aposta = {
+      id: aoCalhasEmHex(16),
+      nome,
+      jogo: jogo.id,
+      chave: jogo.chave,
+      desporto: jogo.desporto || '',
+      liga: jogo.liga || '',
+      casa: jogo.casa,
+      fora: jogo.fora,
+      comeca: jogo.comeca,
+      escolha: limpa.escolha,
+      cotacao: limpa.cotacao,
+      quanto: limpa.quanto,
+      /* Se neste jogo se podia apostar no empate. Fica guardado com a aposta
+         porque e o que decide, la mais para a frente, se um empate a anula ou
+         se a faz perder, e a essa altura o jogo ja nao esta a mao. */
+      tinhaEmpate: !!(jogo.cotacoes && jogo.cotacoes.empate),
+      estado: 'aberta',
+      posta: new Date().toISOString(),
+      fechada: null,
+      volta: 0,
+      lucro: 0
+    };
+
+    this.apostas.push(aposta);
+    await this.gravarApostas();
+    return { linha: semSegredos(await this.pousar(nome, linha)), aposta };
+  }
+
+  /** As apostas de quem prova ser dono do nome, as abertas a frente. */
+  async minhasApostas(veio) {
+    const nome = texto(veio.nome, 24);
+    const achado = await this.daPessoa(nome, veio.passe);
+    if (achado.erro) return achado;
+    const ordem = { aberta: 0, ganha: 1, anulada: 2, perdida: 3 };
+    const minhas = this.apostas
+      .filter((a) => a.nome === nome)
+      .sort((a, b) =>
+        a.estado === b.estado
+          ? Date.parse(b.posta) - Date.parse(a.posta)
+          : ordem[a.estado] - ordem[b.estado]
+      );
+    return { apostas: minhas, linha: semSegredos(achado.linha) };
+  }
+
+  /** As ligas onde ha apostas por fechar. E por aqui que se sabe a quem vale a
+   *  pena pedir resultados, em vez de os pedir a todas e gastar creditos a
+   *  perguntar por jogos que ninguem apostou. */
+  ligasPorFechar() {
+    const chaves = new Set();
+    let quantas = 0;
+    this.apostas.forEach((a) => {
+      if (a.estado !== 'aberta') return;
+      quantas += 1;
+      if (a.chave) chaves.add(a.chave);
+    });
+    return { chaves: [...chaves], quantas };
+  }
+
+  /**
+   * Fecha as apostas a que ja se sabe o fim.
+   *
+   * Recebe uma lista de {jogo, ganhou}, que quem atende a rua tirou dos
+   * resultados da feed. As apostas de jogos que nao estao na lista passam por
+   * aqui na mesma, para o caso de ja ter passado o prazo de desistir delas: e a
+   * unica maneira de nao ficarem torroes presos para sempre num jogo que foi
+   * adiado e nunca mais se fez.
+   */
+  async fechar(veio) {
+    const sabidos = new Map();
+    (Array.isArray(veio.resultados) ? veio.resultados : []).forEach((r) => {
+      if (r && r.jogo) sabidos.set(String(r.jogo), r.ganhou ?? null);
+    });
+
+    const agora = Date.now();
+    const fechadas = [];
+
+    for (const aposta of this.apostas) {
+      if (aposta.estado !== 'aberta') continue;
+      const quem = sabidos.has(aposta.jogo) ? sabidos.get(aposta.jogo) : null;
+      const fim = fecharAposta(aposta, quem, agora);
+      if (!fim) continue;
+
+      aposta.estado = fim.estado;
+      aposta.volta = fim.volta;
+      aposta.lucro = fim.lucro;
+      aposta.fechada = new Date(agora).toISOString();
+
+      const linha = this.nomes[aposta.nome];
+      if (linha) {
+        const cheia = completa(linha, aposta.nome);
+        cheia.torroes += fim.volta;
+        /* Uma aposta anulada nao conta como ganha nem como perdida: o jogo e
+           que nao se fez. A conta de apostas feitas foi somada quando ela foi
+           posta, e essa fica. */
+        if (fim.estado === 'ganha') {
+          cheia.desporto.ganhas += 1;
+          if (fim.volta > cheia.desporto.maior) cheia.desporto.maior = fim.volta;
+        }
+        await this.pousar(aposta.nome, cheia);
+      }
+      fechadas.push({ id: aposta.id, nome: aposta.nome, estado: fim.estado, volta: fim.volta });
+    }
+
+    this.arrumarApostas();
+    await this.gravarApostas();
+    return { fechadas: fechadas.length, detalhe: fechadas };
+  }
+
+  /** As apostas ja fechadas nao ficam para sempre: as mais velhas saem quando
+   *  passam do que cabe. As abertas nunca saem, que essas tem torroes dentro. */
+  arrumarApostas() {
+    const abertas = this.apostas.filter((a) => a.estado === 'aberta');
+    const resto = this.apostas
+      .filter((a) => a.estado !== 'aberta')
+      .sort((a, b) => Date.parse(b.fechada || b.posta) - Date.parse(a.fechada || a.posta))
+      .slice(0, HISTORIA_NO_MAXIMO);
+    this.apostas = [...abertas, ...resto];
   }
 
   /* ======================= a porta de entrada ======================= */
@@ -363,7 +535,15 @@ export class Banco extends DurableObject {
                         ? await this.limpar()
                         : caminho === '/pin/apagar'
                           ? await this.limparPin(veio)
-                          : { erro: 'O banco não sabe fazer isso.', estado: 404 };
+                          : caminho === '/apostar'
+                            ? await this.apostar(veio)
+                            : caminho === '/apostas'
+                              ? await this.minhasApostas(veio)
+                              : caminho === '/apostas/por-fechar'
+                                ? this.ligasPorFechar()
+                                : caminho === '/apostas/fechar'
+                                  ? await this.fechar(veio)
+                                  : { erro: 'O banco não sabe fazer isso.', estado: 404 };
 
     return Response.json(feito, { status: feito.estado || 200 });
   }

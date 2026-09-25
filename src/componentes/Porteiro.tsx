@@ -56,9 +56,9 @@ export function Porteiro({
         {SINAL}
         <h2 id="idade-titulo">Tens 18 anos?</h2>
         <p>
-          Aqui em casa há mesas de blackjack, de poker e de roleta. Joga-se com torrões, que não
-          valem nada, não se compram nem se trocam por nada, mas são na mesma jogos de casino e por
-          isso perguntamos à entrada.
+          Aqui em casa há blackjack, poker, roleta e apostas desportivas. Joga-se com torrões, que
+          não valem nada, não se compram nem se trocam por nada, mas são na mesma jogos de casino e
+          por isso perguntamos à entrada.
         </p>
         <button className="btn azul" type="button" ref={primeiro} onClick={() => aoResponder('sim')}>
           Tenho 18 ou mais
@@ -94,7 +94,7 @@ export function MesaFechada({ aoCorrigir }: { aoCorrigir: () => void }) {
       <p className="eyebrow">Porta fechada</p>
       <h1>Esta mesa é só para maiores de 18</h1>
       <p className="lead">
-        Disseste à entrada que ainda não tens 18 anos, e por isso as mesas de apostas ficam
+        Disseste à entrada que ainda não tens 18 anos, e por isso as mesas e as apostas ficam
         fechadas. É só isto que fica: o resto da casa é todo teu, e o Cusco, a Colherada, o jogo da
         meia de leite e a Leader Board estão à espera.
       </p>

@@ -380,7 +380,64 @@ function limparEvento(veio, antes) {
 
 /* Os objectos proprios vivem nos ficheiros deles, mas quem os tem de dar a
    conhecer e o ficheiro de entrada do Worker. */
+import {
+  contasDaFeed,
+  jogoGuardado,
+  jogosGuardados,
+  refrescarJogos,
+  resultadosDe,
+  temChaveDaFeed
+} from './desporto.js';
+import { quemGanhou } from './apostas.js';
+
 export { Banco, MesaDePoker };
+
+/* ==================== a volta do dia das apostas ====================
+
+   Isto corre pelo relogio da Cloudflare e nao quando alguem abre a pagina. A
+   feed gratuita da quinhentos creditos por mes, uns dezasseis por dia, e um
+   pedido por cada visita gastava-os antes do almoco.
+
+   Fecham-se as apostas primeiro e so depois se vao buscar jogos novos. E de
+   proposito: se os creditos estiverem a acabar, quem tem torroes presos numa
+   aposta por fechar tem mais direito ao que resta do que quem quer ver a
+   jornada seguinte. */
+
+async function aVoltaDoDia(env) {
+  const feito = { fechadas: 0, ligas: [], jogos: 0, erros: [] };
+
+  /* ---- fechar o que ja acabou ---- */
+  const porFechar = await doBanco(env, '/apostas/por-fechar');
+  const chaves = Array.isArray(porFechar?.chaves) ? porFechar.chaves.slice(0, 3) : [];
+  const resultados = [];
+
+  if (temChaveDaFeed(env)) {
+    for (const chave of chaves) {
+      const r = await resultadosDe(env, chave);
+      if (r.erro) {
+        feito.erros.push(`${chave}: ${r.erro}`);
+        continue;
+      }
+      feito.ligas.push(chave);
+      for (const cru of r.resultados) {
+        const ganhou = quemGanhou(cru, cru.home_team, cru.away_team);
+        if (ganhou) resultados.push({ jogo: cru.id, ganhou });
+      }
+    }
+  }
+
+  /* Chama-se sempre, mesmo sem resultado nenhum: e aqui que as apostas de
+     jogos adiados que nunca mais se fizeram devolvem os torroes. */
+  const fim = await aoBanco(env, '/apostas/fechar', { resultados });
+  feito.fechadas = fim?.fechadas || 0;
+
+  /* ---- e so depois ir buscar jogos novos ---- */
+  const novos = await refrescarJogos(env);
+  if (novos.erro) feito.erros.push(novos.erro);
+  else feito.jogos = novos.jogos.length;
+
+  return feito;
+}
 
 export default {
   async fetch(request, env) {
@@ -686,6 +743,96 @@ export default {
       if (feito.erro) return responder({ erro: feito.erro }, request, feito.estado || 400);
 
       return responder({ linha: feito.linha, rodada: r }, request);
+    }
+
+    /* ==================== as apostas desportivas ====================
+
+       Os jogos saem do que a volta do dia deixou guardado, e por isso esta
+       rota nao gasta crédito nenhum por muita gente que a abra. */
+
+    if (caminho === '/desporto' && metodo === 'GET') {
+      const guardado = await jogosGuardados(env);
+      return responder(
+        { ...guardado, temFeed: temChaveDaFeed(env), contas: await contasDaFeed(env) },
+        request
+      );
+    }
+
+    /* Pôr uma aposta. A cotação não vem do site: vai-se buscar ao jogo que
+       está guardado aqui. Se viesse do site, bastava mexer no pedido para
+       apostar a cinquenta para um. */
+    if (caminho === '/desporto/apostar' && metodo === 'POST') {
+      let veio;
+      try {
+        veio = await request.json();
+      } catch {
+        return responder({ erro: 'Corpo inválido.' }, request, 400);
+      }
+      const jogo = await jogoGuardado(env, texto(veio?.jogo, 64));
+      if (!jogo) return responder({ erro: 'Esse jogo já não está aberto a apostas.' }, request, 400);
+
+      const feito = await aoBanco(env, '/apostar', {
+        nome: texto(veio?.nome, 24),
+        passe: texto(veio?.passe, 40),
+        escolha: texto(veio?.escolha, 10),
+        quanto: veio?.quanto,
+        jogo
+      });
+      if (feito.erro) return responder({ erro: feito.erro }, request, feito.estado || 400);
+      return responder(feito, request);
+    }
+
+    /* As apostas de quem prova ser dono do nome. */
+    if (caminho === '/desporto/minhas' && metodo === 'POST') {
+      let veio;
+      try {
+        veio = await request.json();
+      } catch {
+        return responder({ erro: 'Corpo inválido.' }, request, 400);
+      }
+      const feito = await aoBanco(env, '/apostas', {
+        nome: texto(veio?.nome, 24),
+        passe: texto(veio?.passe, 40)
+      });
+      if (feito.erro) return responder({ erro: feito.erro }, request, feito.estado || 400);
+      return responder(feito, request);
+    }
+
+    /* Resolver jogos à mão, para quem manda na casa.
+
+       Uma feed perde jogos: um adiamento, uma liga que ela deixa de seguir, um
+       nome de equipa que muda a meio da época. Quando isso acontece, os torrões
+       de quem apostou ficam presos até ao prazo de desistência, que é uma
+       semana. Isto é a saída: diz-se aqui quem ganhou e as apostas fecham.
+
+       Quem responde por isto é quem tem a chave da administração, e fica dito
+       nos termos que é o grupo que decide estes casos. */
+    if (caminho === '/desporto/resolver' && metodo === 'POST') {
+      if (!(await temChave(request, env)))
+        return responder({ erro: 'Entra primeiro.' }, request, 401);
+
+      let veio;
+      try {
+        veio = await request.json();
+      } catch {
+        return responder({ erro: 'Corpo inválido.' }, request, 400);
+      }
+      const lista = Array.isArray(veio?.resultados) ? veio.resultados : [];
+      const limpos = lista
+        .map((r) => ({ jogo: texto(r?.jogo, 64), ganhou: texto(r?.ganhou, 10) }))
+        .filter((r) => r.jogo && ['casa', 'fora', 'empate'].includes(r.ganhou));
+      if (limpos.length === 0)
+        return responder({ erro: 'Não veio nenhum resultado que se aproveite.' }, request, 400);
+
+      return responder(await aoBanco(env, '/apostas/fechar', { resultados: limpos }), request);
+    }
+
+    /* Dar a volta do dia à mão, para quem manda na casa. Serve para não se ter
+       de esperar pelo relógio quando se está a estrear isto. */
+    if (caminho === '/desporto/volta' && metodo === 'POST') {
+      if (!(await temChave(request, env)))
+        return responder({ erro: 'Entra primeiro.' }, request, 401);
+      return responder(await aVoltaDoDia(env), request);
     }
 
     /* ---- entrada na página de admin ---- */
@@ -1106,5 +1253,11 @@ export default {
     }
 
     return responder({ erro: 'Não há nada aqui.' }, request, 404);
+  },
+
+  /* O relógio da Cloudflare. Uma volta por dia, de manhã, que é o que os
+     quinhentos créditos por mês dão com folga. Está em wrangler.toml. */
+  async scheduled(evento, env, ctx) {
+    ctx.waitUntil(aVoltaDoDia(env));
   }
 };

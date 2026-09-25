@@ -38,8 +38,8 @@ export function Termos({
 
       <h2>Os torrões não valem nada</h2>
       <p>
-        O blackjack, o poker e a roleta jogam-se com torrões de açúcar, que são um número guardado
-        num servidor e mais nada. Não se compram, não se vendem, não se trocam por dinheiro, por
+        O blackjack, o poker, a roleta e as apostas desportivas jogam-se com torrões de açúcar,
+        que são um número guardado num servidor e mais nada. Não se compram, não se vendem, não se trocam por dinheiro, por
         bebidas nem por seja o que for, no bar ou fora dele. Não há pagamentos neste site e nunca
         houve, nem é pedido nenhum dado de pagamento.
       </p>
@@ -51,8 +51,9 @@ export function Termos({
 
       <h2>A idade</h2>
       <p>
-        Pergunta-se à entrada se tens 18 anos. Quem responde que ainda não tem fica com o blackjack,
-        o poker e a roleta fechados, e o resto da casa aberto na mesma. A pergunta não prova nada,
+        Pergunta-se à entrada se tens 18 anos. Quem responde que ainda não tem fica com o
+        blackjack, o poker, a roleta e as apostas desportivas fechados, e o resto da casa aberto na
+        mesma. A pergunta não prova nada,
         como não prova em sítio nenhum, mas é feita às claras e a resposta é respeitada.
       </p>
 
@@ -78,6 +79,15 @@ export function Termos({
       <p>
         Quem faça disto um hábito perde o nome e os torrões, e não há aqui recurso nenhum a não ser
         falar connosco.
+      </p>
+
+      <h2>As apostas desportivas</h2>
+      <p>
+        Os jogos, as cotações e os resultados vêm de uma feed de fora. Uma feed engana-se, perde
+        jogos e às vezes muda o nome de uma equipa a meio da época. Quando isso acontece, somos nós
+        que decidimos o caso, e decidimos a favor de quem apostou: um jogo que não se faça devolve
+        o que lá foi posto, e um empate onde não se podia apostar no empate devolve também. A
+        cotação que vale é a que estava guardada com a aposta no momento em que a puseste.
       </p>
 
       <h2>Não prometemos nada</h2>

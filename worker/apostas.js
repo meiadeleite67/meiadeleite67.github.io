@@ -69,7 +69,9 @@ export function jogoDaFeed(cru, agora = Date.now()) {
 
   return {
     id,
-    desporto: String(cru.sport_key || ''),
+    /* A chave da liga na feed, que e por onde se pedem os resultados depois.
+       O nome bonito do desporto vem por cima, de quem foi buscar isto. */
+    chave: String(cru.sport_key || ''),
     liga: String(cru.sport_title || ''),
     casa,
     fora,

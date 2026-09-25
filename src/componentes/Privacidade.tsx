@@ -77,8 +77,11 @@ export function Privacidade({
       <ul>
         <li>o nickname, que escolheste tu e não tem de ser o teu nome verdadeiro;</li>
         <li>os torrões que tens e o máximo a que já chegaste;</li>
-        <li>as contas dos jogos: mãos, vitórias, blackjacks, mãos de poker, rodadas de roleta, o
-        maior pote, o maior prémio e os recordes do Cusco, da Colherada e do jogo do balcão;</li>
+        <li>as contas dos jogos: mãos, vitórias, blackjacks, mãos de poker, rodadas de roleta,
+        apostas desportivas feitas e ganhas, o maior pote, o maior prémio e os recordes do Cusco,
+        da Colherada e do jogo do balcão;</li>
+        <li>as apostas desportivas que puseste: em que jogo, em quem, quanto, a que cotação e como
+        acabaram. As que já fecharam vão saindo à medida que entram outras;</li>
         <li>a data da última vez que jogaste.</li>
       </ul>
       <p>
@@ -117,6 +120,14 @@ export function Privacidade({
       </ul>
       <p>Não há mais ninguém. Sem análise de tráfego, sem publicidade, sem redes de anúncios.</p>
 
+      <h2>Os jogos e as cotações</h2>
+      <p>
+        Os jogos, as cotações e os resultados das apostas desportivas vêm da The Odds API. O
+        servidor vai lá uma vez por dia e traz a lista; não é feito nenhum pedido quando abres a
+        página, e não lhes vai daqui nada a teu respeito. Eles não sabem quem tu és nem que
+        apostaste.
+      </p>
+
       <h2>As fotos</h2>
       <p>
         As fotos das pessoas do grupo estão cá com a autorização de quem aparece nelas. Quem
@@ -126,8 +137,9 @@ export function Privacidade({
       <h2>Quanto tempo fica</h2>
       <p>
         A linha do teu nickname fica enquanto o site existir, ou até pedires para a apagar. As
-        marcas dos PINs errados apagam-se sozinhas em uma hora. As sessões da administração duram
-        oito horas.
+        apostas por fechar ficam até o jogo acabar, e as já fechadas vão saindo à medida que
+        entram outras. As marcas dos PINs errados apagam-se sozinhas em uma hora. As sessões da
+        administração duram oito horas.
       </p>
 
       <h2>O que podes exigir</h2>

@@ -5,6 +5,7 @@ import { Membros } from './componentes/Membros';
 import { Blackjack } from './componentes/Blackjack';
 import { JogoDoPoker } from './componentes/JogoDoPoker';
 import { Roleta } from './componentes/Roleta';
+import { Apostas } from './componentes/Apostas';
 import { Quadro } from './componentes/Quadro';
 import { Mural } from './componentes/Mural';
 import { Agenda } from './componentes/Agenda';
@@ -337,6 +338,9 @@ export default function App() {
         )}
         {!mesaFechada && pagina === 'roleta' && (
           <Roleta nome={nome} pedirNome={() => setAPedirNome(true)} recarregar={recarregar} />
+        )}
+        {!mesaFechada && pagina === 'apostas' && (
+          <Apostas nome={nome} pedirNome={() => setAPedirNome(true)} recarregar={recarregar} />
         )}
         {pagina === 'quadro' && <Quadro estado={estado} />}
         {pagina === 'instagram' && <Mural estado={estado} />}

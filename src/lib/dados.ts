@@ -14,6 +14,7 @@ export const JOGOS: { id: Pagina; nome: string; nota: string }[] = [
   { id: 'blackjack', nome: 'Blackjack', nota: 'Cartas a torrões de açúcar' },
   { id: 'poker', nome: 'Poker', nota: 'Cinco lugares e um de nós a dar as cartas' },
   { id: 'roleta', nome: 'Roleta', nota: 'Trinta e sete casas e um zero só' },
+  { id: 'apostas', nome: 'Apostas', nota: 'Futebol, basquetebol e ténis, a sério' },
   { id: 'cusco', nome: 'O Cusco', nota: 'Faz-lhe uma meia de leite' },
   { id: 'colherada', nome: 'À colherada', nota: 'A toupeira da feira, com um de nós' },
   { id: 'jogo', nome: 'A fuga do balcão', nota: 'O que aparece quando falta a net' }
@@ -43,7 +44,7 @@ export const TODAS_AS_PAGINAS: Pagina[] = [
 
 /** Quando a papelada foi mexida pela última vez. Muda-se aqui e muda nas duas
  *  páginas, que é para não ficar uma a dizer uma coisa e a outra outra. */
-export const PAPELADA_MEXIDA = '25 de setembro de 2026';
+export const PAPELADA_MEXIDA = '26 de setembro de 2026';
 
 export const TIPOS: Record<TipoEvento, { nome: string; cls: string; cor: string }> = {
   copos: { nome: 'Copos', cls: 't-copos', cor: 'var(--crema)' },
@@ -87,14 +88,19 @@ export function dataCurta(iso: string): string {
 export function quandoEmPalavras(iso: string): string {
   const p = (iso || '').split('-');
   if (p.length !== 3) return '';
-  const alvo = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+  const [ano, mes, dia] = p.map(Number);
+  /* Uma data com horas dentro passava o teste de cima e saia daqui como
+     "ha NaN dias", que e pior do que nao dizer nada. */
+  if (![ano, mes, dia].every(Number.isInteger)) return '';
+  const alvo = new Date(ano, mes - 1, dia);
   const agora = new Date();
   const zero = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
   const dias = Math.round((alvo.getTime() - zero.getTime()) / 86400000);
   if (dias === 0) return 'hoje';
   if (dias === 1) return 'amanhã';
   if (dias === -1) return 'ontem';
-  if (dias > 1 && dias < 7) return ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'][alvo.getDay()];
+  if (dias > 1 && dias < 7)
+    return ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'][alvo.getDay()];
   if (dias > 0) return `daqui a ${dias} dias`;
   return `há ${Math.abs(dias)} dias`;
 }

@@ -40,4 +40,4 @@ export function guardarIdade(resposta: Resposta) {
 /** As páginas que ficam fechadas a quem disse que ainda não tem 18. São as
  *  mesas de apostas e mais nada: o Cusco, a Colherada, o jogo e a Leader Board
  *  não têm nada com isto. */
-export const SO_PARA_MAIORES = ['blackjack', 'poker', 'roleta'];
+export const SO_PARA_MAIORES = ['blackjack', 'poker', 'roleta', 'apostas'];

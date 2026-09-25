@@ -45,3 +45,11 @@ new_sqlite_classes = ["MesaDePoker"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["Banco"]
+
+# O relogio das apostas desportivas. Uma volta por dia, as oito da manha em
+# Lisboa (a Cloudflare conta em UTC), que e quando ja acabaram os jogos da
+# noite anterior. Nessa volta fecham-se as apostas dos jogos que acabaram e
+# vao-se buscar as cotacoes do dia. A feed gratuita da uns dezasseis creditos
+# por dia e uma volta destas gasta onze.
+[triggers]
+crons = ["0 8 * * *"]

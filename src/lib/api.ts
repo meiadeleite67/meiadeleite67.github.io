@@ -1,6 +1,8 @@
 import { nomeGuardado, passeDe } from './nick';
 import type {
   Aposta,
+  ApostaDesportiva,
+  Escolha,
   Estado,
   Evento,
   ItemDaGaleria,
@@ -8,6 +10,7 @@ import type {
   Pontuacao,
   Post,
   QuantosNaMesa,
+  QuadroDeJogos,
   RespostaDaMesa,
   RespostaDaRoleta
 } from './tipos';
@@ -163,6 +166,29 @@ export const api = {
     pedir<RespostaDaRoleta>('/roleta', {
       method: 'POST',
       body: JSON.stringify({ nome, passe, apostas })
+    }),
+
+  /* ---- as apostas desportivas ----
+
+     Os jogos vem do que o servidor tem guardado da ultima volta, e por isso
+     esta chamada nao gasta creditos da feed por muita gente que abra a pagina.
+
+     A cotacao nao se manda: quem manda nela e o servidor, que a vai buscar ao
+     jogo que tem guardado. Se viesse daqui, bastava mexer no pedido no browser
+     para apostar a cinquenta para um. */
+
+  jogosDeApostas: () => pedir<QuadroDeJogos>('/desporto'),
+
+  apostarNoJogo: (nome: string, passe: string, jogo: string, escolha: Escolha, quanto: number) =>
+    pedir<{ linha: Pontuacao; aposta: ApostaDesportiva }>('/desporto/apostar', {
+      method: 'POST',
+      body: JSON.stringify({ nome, passe, jogo, escolha, quanto })
+    }),
+
+  minhasApostas: (nome: string, passe: string) =>
+    pedir<{ apostas: ApostaDesportiva[]; linha: Pontuacao }>('/desporto/minhas', {
+      method: 'POST',
+      body: JSON.stringify({ nome, passe })
     }),
 
   /* ---- o mural do Instagram ---- */

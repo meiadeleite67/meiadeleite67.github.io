@@ -79,6 +79,17 @@ const TABELAS: Tabela[] = [
     entra: (l) => l.roleta.rodadas > 0
   },
   {
+    id: 'apostas',
+    nome: 'Apostas',
+    nota: 'As apostas desportivas. As feitas contam quando se poem, e as ganhas so quando o jogo acaba.',
+    colunas: [
+      { titulo: 'Maior prémio', de: (l) => l.desporto.maior },
+      { titulo: 'Ganhas', de: (l) => l.desporto.ganhas },
+      { titulo: 'Feitas', de: (l) => l.desporto.apostas }
+    ],
+    entra: (l) => l.desporto.apostas > 0
+  },
+  {
     id: 'jogo',
     nome: 'A fuga do balcão',
     nota: 'O recorde de cada um a saltar guardanapos.',

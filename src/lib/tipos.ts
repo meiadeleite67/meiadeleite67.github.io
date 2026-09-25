@@ -48,9 +48,64 @@ export type Pontuacao = {
   atualizado: string;
   poquer: { maos: number; ganhas: number; maiorPote: number };
   roleta: { rodadas: number; ganhas: number; maior: number };
+  /** As apostas desportivas. A conta de apostas sobe quando se poe a aposta e
+   *  a das ganhas so quando o jogo acaba, e por isso ha sempre um intervalo em
+   *  que a primeira esta a frente da segunda. Nao e engano: sao as que estao
+   *  por fechar. */
+  desporto: { apostas: number; ganhas: number; maior: number };
   /** Os jogos de um so jogador entram com o recorde e nao com torroes: o
    *  servidor nao tem como confirmar o que o browser lhe diz. */
   recordes: { jogo: number; cusco: number; colherada: number };
+};
+
+/* ---------------------- as apostas desportivas ---------------------- */
+
+/** Em que se pode apostar num jogo. O empate so existe onde existe. */
+export type Escolha = 'casa' | 'fora' | 'empate';
+
+export type JogoDeApostas = {
+  id: string;
+  /** A chave da liga na feed, por onde se vao buscar os resultados. */
+  chave: string;
+  liga: string;
+  /** O nome do desporto como se le: Futebol, Basquetebol, Tenis. */
+  desporto: string;
+  casa: string;
+  fora: string;
+  comeca: string;
+  cotacoes: { casa: number; fora: number; empate?: number };
+};
+
+export type ApostaDesportiva = {
+  id: string;
+  nome: string;
+  jogo: string;
+  chave: string;
+  desporto: string;
+  liga: string;
+  casa: string;
+  fora: string;
+  comeca: string;
+  escolha: Escolha;
+  cotacao: number;
+  quanto: number;
+  tinhaEmpate: boolean;
+  /** Anulada e a que nao chegou a valer: o jogo foi adiado ou deu empate onde
+   *  nao se podia apostar no empate. Devolve o que se pos. */
+  estado: 'aberta' | 'ganha' | 'perdida' | 'anulada';
+  posta: string;
+  fechada: string | null;
+  volta: number;
+  lucro: number;
+};
+
+export type QuadroDeJogos = {
+  jogos: JogoDeApostas[];
+  quando: string | null;
+  /** Se o servidor tem chave da feed. Sem ela nao ha jogos novos, e o site diz
+   *  isso em vez de mostrar uma pagina vazia sem explicacao. */
+  temFeed: boolean;
+  contas: { restam: number | null; gastos: number | null; quando: string | null };
 };
 
 /* ----------------------------- a roleta ----------------------------- */
@@ -242,4 +297,5 @@ export type Pagina =
   | 'roleta'
   | 'quadro'
   | 'termos'
-  | 'privacidade';
+  | 'privacidade'
+  | 'apostas';

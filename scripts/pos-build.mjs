@@ -18,6 +18,7 @@ const PAGINAS = [
   'blackjack',
   'poker',
   'roleta',
+  'apostas',
   'instagram',
   'agenda',
   'admin',
