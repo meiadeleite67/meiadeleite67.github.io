@@ -169,8 +169,11 @@ export async function pedir(env, casa, caminho, procura = {}) {
 /* ============================ ler um jogo ============================ */
 
 /** O que os estados curtos dela querem dizer, do que nos interessa. */
-const ACABOU = new Set(['FT', 'AET', 'PEN', 'AWD', 'WO', 'AOT', 'AP']);
-const NAO_SE_FEZ = new Set(['PST', 'CANC', 'ABD', 'SUSP', 'INT']);
+const ACABOU = new Set(['FT', 'AET', 'PEN', 'AWD', 'AOT', 'AP']);
+/* O hoquei escreve "POST" onde o futebol escreve "PST", e um jogo adiado que
+   nao seja reconhecido como adiado fica na pagina a dizer que esta a decorrer.
+   Apanhei tres assim. */
+const NAO_SE_FEZ = new Set(['PST', 'POST', 'CANC', 'CANCL', 'ABD', 'SUSP', 'INT', 'INTR', 'WO']);
 const POR_COMECAR = new Set(['NS', 'TBD']);
 
 const soNumero = (n) => (Number.isFinite(+n) ? +n : null);
@@ -279,6 +282,27 @@ function pesoDa(jogo, desporto) {
 }
 
 /**
+ * Se um jogo ainda tem lugar na página.
+ *
+ * Isto estava escrito só dentro da busca, e a prateleira não o usava ao juntar
+ * o que já sabia com o que chegava: ficava lá tudo para sempre. Por isso havia
+ * jogos adiados e jogos de há dias na página, e nenhum deles pode ter
+ * estatísticas. Agora a regra é uma e é usada nos dois lados.
+ */
+export function aindaServe(jogo, agora = Date.now()) {
+  if (!jogo) return false;
+  /* Lê-se a bandeira e também o estado em cru: um jogo que já estava na
+     prateleira quando a lista de estados cresceu tem a bandeira velha lá
+     dentro, e sem isto ficava à vista até à próxima busca daquele desporto. */
+  if (jogo.naoSeFez || NAO_SE_FEZ.has(String(jogo.estado || ''))) return false;
+  const quando = Date.parse(jogo.comeca);
+  if (!Number.isFinite(quando)) return false;
+  /* Um jogo acabado sai da página quando arrefece; um por começar fica até à
+     hora dele. */
+  return quando > agora - AINDA_A_DECORRER;
+}
+
+/**
  * Vai buscar os jogos de um desporto: hoje e os próximos dias.
  *
  * Um pedido por dia, e cada um traz tudo o que há nesse dia, com o resultado e
@@ -314,9 +338,7 @@ export async function jogosDaFeedNova(env, desporto, dias = SO_ATE_DIAS) {
   /* Fora os que já acabaram há muito e os que não se fizeram, e primeiro as
      competições que interessam e depois as que jogam mais cedo. */
   const agora = Date.now();
-  const servem = todos.filter(
-    (j) => !j.naoSeFez && Date.parse(j.comeca) > agora - AINDA_A_DECORRER
-  );
+  const servem = todos.filter((j) => aindaServe(j, agora));
   servem.sort((a, b) => {
     const pa = pesoDa(a, desporto);
     const pb = pesoDa(b, desporto);

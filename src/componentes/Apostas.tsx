@@ -924,21 +924,35 @@ function ComoVai({ jogo }: { jogo: JogoDeApostas }) {
 
   useEffect(() => {
     let vivo = true;
+    let relogio = 0;
     setACarregar(true);
-    api
-      .comoVaiOJogo(jogo.id)
-      .then((r) => {
-        if (vivo) setDados(r);
-      })
-      .catch(() => {
-        /* Sem estatisticas a pagina do jogo vale na mesma: tem as cotacoes, a
-           ficha e as apostas de quem la esta. */
-      })
-      .finally(() => {
-        if (vivo) setACarregar(false);
-      });
+
+    /* Quando a feed diz que o minuto está cheio, isso não é um jogo sem
+       estatísticas: é meia dúzia de pessoas a abrir jogos ao mesmo tempo. Dá-se
+       um tempo e tenta-se outra vez, uma só vez, que insistir em roda livre
+       seria ser parte do problema. */
+    const ir = (aindaPodeTentar: boolean) =>
+      api
+        .comoVaiOJogo(jogo.id)
+        .then((r) => {
+          if (!vivo) return;
+          if (r.ocupado && aindaPodeTentar && (r.estatisticas || []).length === 0) {
+            relogio = window.setTimeout(() => ir(false), 7000);
+            return;
+          }
+          setDados(r);
+          setACarregar(false);
+        })
+        .catch(() => {
+          /* Sem estatisticas a pagina do jogo vale na mesma: tem as cotacoes, a
+             ficha e as apostas de quem la esta. */
+          if (vivo) setACarregar(false);
+        });
+
+    ir(true);
     return () => {
       vivo = false;
+      window.clearTimeout(relogio);
     };
   }, [jogo.id]);
 
@@ -950,9 +964,17 @@ function ComoVai({ jogo }: { jogo: JogoDeApostas }) {
   if (linhas.length === 0 && eventos.length === 0)
     return (
       <p className="notas">
-        {dados.semOrcamento
-          ? 'Hoje já não dá para ir buscar estatísticas novas. Voltam amanhã.'
-          : 'Esta competição não dá estatísticas. Nem todas dão, e as pequenas quase nunca.'}
+        {dados.ocupado
+          ? 'Muita gente a ver jogos ao mesmo tempo. Volta a abrir daqui a pouco.'
+          : dados.semOrcamento
+            ? 'Hoje já não dá para ir buscar estatísticas novas. Voltam amanhã.'
+            : dados.semFonte
+              ? 'Este desporto não dá estatísticas, e não há volta a dar-lhe.'
+              : dados.semEstatisticas
+                ? 'Esta competição não dá estatísticas. As grandes ligas dão, as pequenas quase nunca.'
+                : (jogo.minuto || 0) > 0 && (jogo.minuto || 0) < 15
+                  ? 'O jogo começou agora. As estatísticas aparecem quando houver alguma coisa para contar.'
+                  : 'Ainda não há estatísticas deste jogo.'}
       </p>
     );
 

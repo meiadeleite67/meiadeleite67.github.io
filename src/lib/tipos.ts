@@ -89,6 +89,10 @@ export type ComoVaiOJogo = {
   semOrcamento?: boolean;
   /** Este desporto nao tem estatisticas nesta fonte. */
   semFonte?: boolean;
+  /** Esta competicao nao da estatisticas, e isso ja esta sabido. */
+  semEstatisticas?: boolean;
+  /** A feed bateu no travao do minuto: vale a pena tentar outra vez. */
+  ocupado?: boolean;
   erro?: string;
 };
 

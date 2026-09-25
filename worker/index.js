@@ -397,6 +397,7 @@ import { quemGanhou } from './apostas.js';
 import { CAMINHOS, NAO_EXISTE, lerEstatisticas, lerEventos } from './estatisticas.js';
 import {
   CASAS as DESPORTOS_NOVOS,
+  aindaServe,
   pedir as pedirANova,
   cotacoesDoDia,
   jogosDaFeedNova,
@@ -502,8 +503,17 @@ async function guardarJogosNovos(env, desporto, jogos) {
 async function todosOsJogos(env) {
   const novos = await jogosNovosGuardados(env);
   const velhos = (await jogosGuardados(env)).jogos || [];
+
+  /* A fonte antiga e rede e nao rival: num desporto onde a nova ja trouxe
+     jogos, os dela saem. As duas seguem quase os mesmos desportos e cada uma
+     numera os jogos a sua maneira, por isso deixa-las as duas na pagina daria
+     o mesmo Red Sox-Yankees duas vezes, uma delas sem resultado, sem minuto e
+     sem estatisticas nenhumas por o numero nao ser conhecido da nova.
+     O tenis e o caso que justifica manter isto: a nova nao o tem. */
+  const cobertos = new Set(novos.map((j) => j.desporto));
+
   const por = new Map();
-  [...velhos, ...novos].forEach((j) => por.set(j.id, j));
+  [...velhos.filter((j) => !cobertos.has(j.desporto)), ...novos].forEach((j) => por.set(j.id, j));
   return [...por.values()].sort((a, b) => Date.parse(a.comeca) - Date.parse(b.comeca));
 }
 
@@ -522,7 +532,10 @@ export async function jogosNovosGuardados(env) {
   const agora = Date.now();
   const aDecorrer = (j) => Date.parse(j.comeca) <= agora && !j.acabou;
   return tudo
-    .filter((j) => !j.acabou || Date.parse(j.comeca) > agora - 4 * 60 * 60 * 1000)
+    /* Um jogo adiado ou de ha dias nao tem lugar aqui, e e a mesma regra que a
+       busca usa. Sem isto ficavam na pagina a dizer que estavam a decorrer, e
+       era nesses que se ia procurar estatisticas que nunca podiam existir. */
+    .filter((j) => aindaServe(j, agora))
     .filter((j) => j.cotacoes || aDecorrer(j))
     .sort((a, b) => Date.parse(a.comeca) - Date.parse(b.comeca));
 }
@@ -596,6 +609,17 @@ async function pedirEstatisticas(env, jogo, onde, casa) {
   return { lista: null, pedidos, erro: ultimoErro || 'este desporto não dá estatísticas' };
 }
 
+/** Onde fica apontado que uma competição não dá estatísticas. */
+const LIGA_SEM_STATS = (jogo) => `desporto:liga-sem-stats:${jogo.desporto}:${jogo.chave || jogo.liga}`;
+
+/**
+ * Se já se sabe que aquela competição não dá estatísticas.
+ *
+ * A API-Football não cobre tudo por igual: as grandes ligas dão dezasseis
+ * linhas e as pequenas não dão nenhuma. Sem isto gastava-se um pedido por cada
+ * jogo da FAW Championship para ouvir o mesmo nada, e o orçamento do dia ia-se
+ * embora a confirmar uma coisa já sabida.
+ */
 async function comoVaiOJogo(env, jogo) {
   const onde = CAMINHOS[jogo.desporto];
   const casa = DESPORTOS_NOVOS[jogo.desporto];
@@ -619,12 +643,22 @@ async function comoVaiOJogo(env, jogo) {
       ? { ...guardado, daCopia: true, semOrcamento: true }
       : { estatisticas: [], eventos: [], quando: null, semOrcamento: true };
 
+  /* Uma competição já dada por sem estatísticas não se volta a pedir. */
+  if (await env.QUADRO.get(LIGA_SEM_STATS(jogo)))
+    return { estatisticas: [], eventos: [], quando: null, semEstatisticas: true };
+
   const st = await pedirEstatisticas(env, jogo, onde, casa);
   await apontarGasto(env, st.pedidos);
-  if (st.erro)
+  if (st.erro) {
+    /* O travao da feed e de dez pedidos por minuto, e e partilhado com a volta.
+       Numa noite de jogos com meia dúzia de pessoas a abrir jogos ao mesmo
+       tempo, isto bate: nao e um jogo sem estatisticas, e um minuto cheio, e a
+       pagina tem de dizer isso e tentar outra vez em vez de mentir. */
+    const ocupado = /too many requests|rate/i.test(String(st.erro));
     return guardado
-      ? { ...guardado, daCopia: true }
-      : { estatisticas: [], eventos: [], erro: st.erro };
+      ? { ...guardado, daCopia: true, ocupado }
+      : { estatisticas: [], eventos: [], erro: st.erro, ocupado };
+  }
 
   let eventos = [];
   if (onde.eventos) {
@@ -638,6 +672,16 @@ async function comoVaiOJogo(env, jogo) {
     eventos,
     quando: new Date().toISOString()
   };
+
+  /* Nada de nada num jogo que já vai adiantado não é o jogo, é a competição:
+     aponta-se por três dias. Num jogo que acabou de começar ainda não há nada
+     para haver, e apontar aí era enterrar uma liga boa por causa do minuto
+     cinco. */
+  const jaVaiLonge = !!jogo.acabou || (jogo.minuto || 0) >= 30;
+  if (novo.estatisticas.length === 0 && novo.eventos.length === 0 && jaVaiLonge) {
+    await env.QUADRO.put(LIGA_SEM_STATS(jogo), '1', { expirationTtl: 60 * 60 * 24 * 3 });
+    return { ...novo, semEstatisticas: true };
+  }
   /* Um jogo acabado fica guardado para sempre; um a decorrer tem prazo, para o
      KV nao ficar a guardar fotografias de jogos do ano passado. */
   await env.QUADRO.put(`desporto:stats:${jogo.id}`, JSON.stringify(novo), {
@@ -758,7 +802,10 @@ async function aVoltaDoDia(env) {
             j.fonte === 'api-sports' &&
             !j.acabou &&
             Date.parse(j.comeca) <= agora &&
-            j.desporto !== feito.desporto
+            /* A vez sao tres desportos, nao um: comparar com o array dava
+               sempre verdade e um desporto acabado de buscar era buscado
+               outra vez na mesma volta. */
+            !(feito.desporto || []).includes(j.desporto)
         )
         .map((j) => j.desporto)
     );
@@ -775,9 +822,15 @@ async function aVoltaDoDia(env) {
       const antes = await ler(env, ONDE_OS_NOVOS(desporto), null);
       const jaSabidas = new Map(((antes && antes.jogos) || []).map((j) => [j.id, j.cotacoes]));
       const juntos = (r.jogos || []).map((j) => ({ ...j, cotacoes: jaSabidas.get(j.id) || null }));
-      const por = new Map(((antes && antes.jogos) || []).map((j) => [j.id, j]));
+      /* Junta-se o que chegou com o que se sabia, mas podando: o que ja nao
+         serve sai. Antes nao saia nada, e por isso a prateleira crescia sem
+         nunca esquecer, com jogos adiados e jogos de ha dias la dentro. */
+      const quando = Date.now();
+      const por = new Map(
+        ((antes && antes.jogos) || []).filter((j) => aindaServe(j, quando)).map((j) => [j.id, j])
+      );
       juntos.forEach((j) => por.set(j.id, j));
-      await guardarJogosNovos(env, desporto, [...por.values()]);
+      await guardarJogosNovos(env, desporto, [...por.values()].filter((j) => aindaServe(j, quando)));
       feito.aoVivo = [...(feito.aoVivo || []), desporto];
     }
   }
