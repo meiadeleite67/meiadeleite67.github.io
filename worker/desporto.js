@@ -57,15 +57,25 @@ const A_SEGUIR = [
  *  permite cair para a seguinte quando as preferidas estão de férias: numa
  *  pausa de seleções a Primeira Liga e a Premier não têm jornada nenhuma, e
  *  quem tem jogos é a Liga das Nações. Perguntar a estas não custa nada. */
-const EXPERIMENTAR_MAIS = 4;
+const EXPERIMENTAR_MAIS = 8;
 
 /** Quando há mais ligas do que lugares, estas vão à frente. É a única parte
  *  disto que tem gosto pessoal lá dentro. */
 const PRIMEIRO = [
   'soccer_portugal_primeira_liga',
   'soccer_uefa_champs_league',
+  /* As competicoes de selecoes vao a frente das outras ligas grandes de
+     proposito: sao elas que jogam exatamente nas semanas em que as ligas
+     param, e sem estarem aqui ficava-se sem futebol nenhum nessas semanas. */
+  'soccer_uefa_nations_league',
+  'soccer_fifa_world_cup_qualifiers_europe',
   'soccer_epl',
   'soccer_spain_la_liga',
+  'soccer_italy_serie_a',
+  'soccer_germany_bundesliga',
+  'soccer_france_ligue_one',
+  'soccer_uefa_europa_league',
+  'soccer_uefa_europa_conference_league',
   'basketball_nba',
   'basketball_euroleague'
 ];
