@@ -144,11 +144,11 @@ export default function App() {
   useEffect(() => {
     if (!aPedirNome) return;
     const fechar = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && nome) setAPedirNome(false);
+      if (e.key === 'Escape') setAPedirNome(false);
     };
     window.addEventListener('keydown', fechar);
     return () => window.removeEventListener('keydown', fechar);
-  }, [aPedirNome, nome]);
+  }, [aPedirNome]);
 
   /* a lista dos jogos fecha-se com Escape, como tudo o resto que abre por cima */
   useEffect(() => {
@@ -356,8 +356,28 @@ export default function App() {
       </main>
 
       {aPedirNome && (
-        <div className="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="nome-titulo">
-          <div className="modal">
+        /* Ha sempre por onde sair daqui: o x, um toque no fundo, o Escape e o
+           botao de baixo. Antes a saida so aparecia a quem ja tinha nome, e
+           por isso quem abrisse isto sem nome ficava presa: no telemovel nao
+           ha Escape, e o unico caminho era recarregar a pagina. O nome nao e
+           obrigatorio em sitio nenhum, logo esta janela nao tem de ser uma
+           porta fechada. */
+        <div
+          className="modal-fundo"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="nome-titulo"
+          onClick={() => setAPedirNome(false)}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="modal-x"
+              type="button"
+              onClick={() => setAPedirNome(false)}
+              aria-label="Fechar"
+            >
+              ×
+            </button>
             <svg width="40" height="54" viewBox="0 0 30 40" aria-hidden="true">
               <path
                 d="M5 3 h20 l-2.5 32 a4 4 0 0 1 -4 3.6 h-7 a4 4 0 0 1 -4 -3.6 Z"
@@ -381,11 +401,9 @@ export default function App() {
                 recarregar();
               }}
             />
-            {nome && (
-              <button className="btn claro" type="button" onClick={() => setAPedirNome(false)}>
-                Deixa estar
-              </button>
-            )}
+            <button className="btn claro" type="button" onClick={() => setAPedirNome(false)}>
+              Deixa estar
+            </button>
           </div>
         </div>
       )}

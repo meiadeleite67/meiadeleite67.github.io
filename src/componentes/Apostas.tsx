@@ -101,6 +101,9 @@ export function Apostas({
   const [quanto, setQuanto] = useState(FICHAS[0]);
   const [aPor, setAPor] = useState(false);
 
+  /** Se se está a ver a lista dos jogos ou as apostas que já se puseram. */
+  const [vista, setVista] = useState<'jogos' | 'minhas'>('jogos');
+
   /** O que se está a ver: um desporto, ou uma competição dentro dele. Vazio é
    *  tudo. E que jogo está aberto em detalhe. */
   const [filtro, setFiltro] = useState<{ desporto: string; liga: string }>({
@@ -222,13 +225,18 @@ export function Apostas({
     if (jaComecou(jogo)) return;
     setRecado('');
     setBoletim((antes) => {
+      /* O boletim abre-se sozinho só quando a primeira escolha entra num
+         boletim vazio. Dali para a frente fica como a pessoa o deixou: no
+         telemóvel ele tapa meio ecrã, e abrir-se a cada escolha obrigava a
+         fechá-lo outra vez para se ir buscar a seguinte. */
+      if (antes.length === 0) setAberto(true);
+
       const igual = antes.find((e) => e.jogo.id === jogo.id && e.escolha === escolha);
       if (igual) return antes.filter((e) => e !== igual);
       const semEste = antes.filter((e) => e.jogo.id !== jogo.id);
       if (semEste.length >= PERNAS_NO_MAXIMO) return antes;
       return [...semEste, { jogo, escolha }];
     });
-    setAberto(true);
   }, []);
 
   async function apostar() {
@@ -250,6 +258,9 @@ export function Apostas({
       setMinhas((antes) => [r.aposta, ...antes]);
       setBoletim([]);
       setAberto(false);
+      /* Quem acaba de apostar quer ver a aposta, e não voltar para a lista dos
+         jogos como se nada tivesse acontecido. */
+      setVista('minhas');
       recarregar();
     } catch (e) {
       setRecado(e instanceof Error ? e.message : 'A aposta não foi aceite.');
@@ -308,13 +319,37 @@ export function Apostas({
         {/* ---- a coluna dos desportos ---- */}
         {arrumados.size > 0 && (
           <aside className="apo-lado">
+            {/* As apostas em curso estavam no fundo da página, debaixo de oitenta
+                jogos, o que é o mesmo que não estarem em sítio nenhum. Ficam
+                aqui, com a conta das que estão por fechar à vista. */}
+            {nome && (
+              <>
+                <h2>O teu boletim</h2>
+                <ul className="apo-lado-minhas">
+                  <li>
+                    <button
+                      type="button"
+                      className={vista === 'minhas' ? 'escolhido' : ''}
+                      onClick={() => setVista('minhas')}
+                    >
+                      <span>As minhas apostas</span>
+                      <b>{abertas.length || minhas.length}</b>
+                    </button>
+                  </li>
+                </ul>
+              </>
+            )}
+
             <h2>Desportos</h2>
             <ul>
               <li>
                 <button
                   type="button"
-                  className={aVer === '' ? 'escolhido' : ''}
-                  onClick={() => setFiltro({ desporto: '', liga: '' })}
+                  className={vista === 'jogos' && aVer === '' ? 'escolhido' : ''}
+                  onClick={() => {
+                    setVista('jogos');
+                    setFiltro({ desporto: '', liga: '' });
+                  }}
                 >
                   <span>Tudo</span>
                   <b>{quadro?.jogos.length || 0}</b>
@@ -328,10 +363,13 @@ export function Apostas({
                       nao abrisse. Para voltar a tudo ha o "Tudo". */}
                   <button
                     type="button"
-                    className={`${aVer === d ? 'escolhido' : ''}${
+                    className={`${vista === 'jogos' && aVer === d ? 'escolhido' : ''}${
                       contas.quantos === 0 ? ' vazio' : ''
                     }`}
-                    onClick={() => setFiltro({ desporto: d, liga: '' })}
+                    onClick={() => {
+                      setVista('jogos');
+                      setFiltro({ desporto: d, liga: '' });
+                    }}
                   >
                     <span>{d}</span>
                     <b>{contas.quantos}</b>
@@ -346,7 +384,10 @@ export function Apostas({
                           <button
                             type="button"
                             className={aVerLiga === liga ? 'escolhido' : ''}
-                            onClick={() => setFiltro({ desporto: d, liga })}
+                            onClick={() => {
+                              setVista('jogos');
+                              setFiltro({ desporto: d, liga });
+                            }}
                           >
                             <span>{liga}</span>
                             <b>{quantos}</b>
@@ -361,8 +402,18 @@ export function Apostas({
           </aside>
         )}
 
-        {/* ---- os jogos ---- */}
+        {/* ---- o meio: os jogos, ou as apostas que já se puseram ---- */}
         <div className="apo-meio">
+          {vista === 'minhas' ? (
+            <AsMinhas
+              minhas={minhas}
+              abertas={abertas}
+              fechadas={fechadas}
+              presos={presos}
+              aosJogos={() => setVista('jogos')}
+            />
+          ) : (
+            <>
           {!aCarregar && quadro?.temFeed && jogos.length === 0 && (
             <p className="notas">
               {aVer
@@ -420,24 +471,14 @@ export function Apostas({
               </article>
             ))}
           </div>
+            </>
+          )}
         </div>
       </div>
 
       {recado && <p className="recado mal">{recado}</p>}
 
       {/* ---- as minhas apostas ---- */}
-
-      {minhas.length > 0 && (
-        <div className="apo-minhas">
-          <h2>As tuas apostas</h2>
-          {abertas.length === 0 && <p className="notas">Não tens nenhuma por fechar.</p>}
-          <ul>
-            {[...abertas, ...fechadas].map((a) => (
-              <Bilhete key={a.id} aposta={a} />
-            ))}
-          </ul>
-        </div>
-      )}
 
       <p className="notas apo-regras">
         A cotação que conta é a que estava quando apostaste, e fica guardada com a aposta. Numa
@@ -474,6 +515,59 @@ export function Apostas({
         />
       )}
     </section>
+  );
+}
+
+/* ==================== as apostas que ja se puseram ==================== */
+
+/**
+ * O que a pessoa tem em curso e o que já lhe aconteceu.
+ *
+ * As que estão por fechar vêm à frente, que são as que interessam: são aquelas
+ * em que há torrões presos à espera de um jogo acabar.
+ */
+function AsMinhas({
+  minhas,
+  abertas,
+  fechadas,
+  presos,
+  aosJogos
+}: {
+  minhas: ApostaDesportiva[];
+  abertas: ApostaDesportiva[];
+  fechadas: ApostaDesportiva[];
+  presos: number;
+  aosJogos: () => void;
+}) {
+  return (
+    <div className="apo-minhas">
+      <div className="apo-minhas-cima">
+        <h2>As tuas apostas</h2>
+        <button type="button" className="como-link" onClick={aosJogos}>
+          Ver os jogos
+        </button>
+      </div>
+
+      {minhas.length === 0 && (
+        <p className="notas">
+          Ainda não puseste nenhuma. Escolhe uma cotação na lista dos jogos e ela aparece aqui.
+        </p>
+      )}
+
+      {minhas.length > 0 && (
+        <p className="notas apo-minhas-conta">
+          {abertas.length === 0
+            ? 'Não tens nenhuma por fechar.'
+            : `${abertas.length} por fechar, com ${presos} torrões presos.`}
+        </p>
+      )}
+
+      <ul>
+        {[...abertas, ...fechadas].map((a) => (
+          <Bilhete key={a.id} aposta={a} />
+        ))}
+      </ul>
+    </div>
   );
 }
 

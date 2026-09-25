@@ -725,6 +725,75 @@ label .rotulo {
   margin-top: 12px;
   width: 100%;
 }
+/* A saida da janela do nome. No telemovel nao ha Escape, e um x no canto e a
+   unica saida que se ve sem se ter de adivinhar. */
+.modal {
+  position: relative;
+}
+.modal-x {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--tinta-3);
+  font-size: 28px;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.modal-x:hover {
+  color: var(--tinta);
+}
+
+/* ---- a coluna, a parte de cima: as apostas em curso ---- */
+.apo-lado-minhas {
+  margin-bottom: 16px;
+}
+.apo-lado-minhas button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  border: 1px solid var(--linha);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tinta-2);
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 9px;
+  cursor: pointer;
+  text-align: left;
+}
+.apo-lado-minhas button:hover {
+  border-color: var(--crema-2);
+  color: var(--tinta);
+}
+.apo-lado-minhas button b {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--crema);
+}
+.apo-lado-minhas button.escolhido {
+  background: var(--crema);
+  border-color: var(--crema);
+  color: #201208;
+  font-weight: 600;
+}
+.apo-lado-minhas button.escolhido b {
+  color: #201208;
+}
+.apo-minhas-cima {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.apo-minhas-conta {
+  margin-top: 0;
+}
 
 /* ============================== o porteiro ==============================
 
