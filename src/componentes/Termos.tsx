@@ -101,12 +101,6 @@ export function Termos({
         porque não temos o correio de ninguém.
       </p>
 
-      <h2>A lei</h2>
-      <p>
-        Vale a lei portuguesa. Se houver alguma chatice que não se resolva a falar, resolve-se nos
-        tribunais portugueses, mas há de ser preciso muito para isso.
-      </p>
-
       <p className="legal-fim">
         O que se faz com os teus dados está na página da{' '}
         <button type="button" className="como-link" onClick={() => irPara('privacidade')}>
