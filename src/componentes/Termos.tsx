@@ -73,7 +73,6 @@ export function Termos({
       <ul>
         <li>Andar a experimentar PINs de nomes que não são teus.</li>
         <li>Tentar arrancar torrões ao servidor por fora dos jogos.</li>
-        <li>Atirar pedidos ao servidor em catadupa só para ver se ele cai.</li>
         <li>Pôr no site, num nickname ou numa foto, coisas que não podias pôr em voz alta.</li>
       </ul>
       <p>
