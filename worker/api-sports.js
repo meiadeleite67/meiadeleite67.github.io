@@ -35,13 +35,25 @@
  * género de coisa que só se sabe a perguntar.
  */
 export const CASAS = {
-  Futebol: 'https://v3.football.api-sports.io',
-  Basquetebol: 'https://v1.basketball.api-sports.io',
-  'Futebol americano': 'https://v1.american-football.api-sports.io',
-  'Hóquei no gelo': 'https://v1.hockey.api-sports.io',
-  Basebol: 'https://v1.baseball.api-sports.io',
-  MMA: 'https://v1.mma.api-sports.io'
+  Futebol: { casa: 'https://v3.football.api-sports.io', jogos: '/fixtures' },
+  Basquetebol: { casa: 'https://v1.basketball.api-sports.io', jogos: '/games' },
+  NBA: { casa: 'https://v2.nba.api-sports.io', jogos: '/games' },
+  'Futebol americano': { casa: 'https://v1.american-football.api-sports.io', jogos: '/games' },
+  Basebol: { casa: 'https://v1.baseball.api-sports.io', jogos: '/games' },
+  'Hóquei no gelo': { casa: 'https://v1.hockey.api-sports.io', jogos: '/games' },
+  Andebol: { casa: 'https://v1.handball.api-sports.io', jogos: '/games' },
+  Voleibol: { casa: 'https://v1.volleyball.api-sports.io', jogos: '/games' },
+  Rugby: { casa: 'https://v1.rugby.api-sports.io', jogos: '/games' },
+  MMA: { casa: 'https://v1.mma.api-sports.io', jogos: '/fights' },
+  AFL: { casa: 'https://v1.afl.api-sports.io', jogos: '/games' }
 };
+
+/* A Formula 1 fica de fora de proposito: ali nao ha casa e visitante, ha uma
+   corrida com vinte pilotos, e o mercado dela e de vencedor da prova. Nao
+   encaixa no 1X2 e meter-la a martelo dava uma aposta que nao se sabe fechar.
+   O tenis tambem nao esta: a API-Sports nao tem tenis, o que se soube a
+   perguntar-lhe (respondeu 530, que e o servidor nao existir), e por isso ele
+   continua a vir da fonte antiga. */
 
 /** Quanto se espera entre pedidos, por causa do travão dos dez por minuto. */
 export const ESPERA_ENTRE_PEDIDOS = 12000;
@@ -81,7 +93,12 @@ const PREFERIDAS = {
     'France|Ligue 1',
     'Portugal|'
   ],
-  Basquetebol: ['Europe|Euroleague', 'USA|NBA', 'Portugal|'],
+  Basquetebol: ['Europe|Euroleague', 'Portugal|', 'Spain|', 'Italy|'],
+  NBA: ['|'],
+  Andebol: ['Portugal|', 'Europe|', 'Germany|'],
+  Voleibol: ['Portugal|', 'Italy|', 'Europe|'],
+  Rugby: ['Europe|', 'England|', 'France|'],
+  AFL: ['|'],
   'Futebol americano': ['USA|NFL'],
   'Hóquei no gelo': ['USA|NHL'],
   Basebol: ['USA|MLB'],
@@ -268,8 +285,9 @@ function pesoDa(jogo, desporto) {
  * o minuto de quem já está a jogar.
  */
 export async function jogosDaFeedNova(env, desporto, dias = SO_ATE_DIAS) {
-  const casa = CASAS[desporto];
-  if (!casa) return { erro: `não sei onde pedir ${desporto}` };
+  const onde = CASAS[desporto];
+  if (!onde) return { erro: `não sei onde pedir ${desporto}` };
+  const { casa, jogos: caminhoDosJogos } = onde;
 
   const todos = [];
   let pedidos = 0;
@@ -277,7 +295,7 @@ export async function jogosDaFeedNova(env, desporto, dias = SO_ATE_DIAS) {
 
   for (let d = 0; d < dias; d += 1) {
     if (d > 0) await esperar(ESPERA_ENTRE_PEDIDOS);
-    const r = await pedir(env, casa, '/fixtures', { date: diaDe(d) });
+    const r = await pedir(env, casa, caminhoDosJogos, { date: diaDe(d) });
     pedidos += 1;
     if (r.erro) {
       /* Um dia que falhe nao deita fora os dias que ja vieram, mas o que ja
@@ -317,8 +335,9 @@ export async function jogosDaFeedNova(env, desporto, dias = SO_ATE_DIAS) {
  * pedidos e gastar um por cada jogo que alguém abrisse.
  */
 export async function cotacoesDoDia(env, desporto, quantasPaginas = 3) {
-  const casa = CASAS[desporto];
-  if (!casa) return { erro: `não sei onde pedir ${desporto}` };
+  const onde = CASAS[desporto];
+  if (!onde) return { erro: `não sei onde pedir ${desporto}` };
+  const { casa } = onde;
 
   const porJogo = new Map();
   let pedidos = 0;
@@ -347,8 +366,9 @@ export async function cotacoesDoDia(env, desporto, quantasPaginas = 3) {
  * aposta.
  */
 export async function resultadosPorNumero(env, desporto, numeros) {
-  const casa = CASAS[desporto];
-  if (!casa || numeros.length === 0) return { jogos: [], pedidos: 0 };
+  const onde = CASAS[desporto];
+  if (!onde || numeros.length === 0) return { jogos: [], pedidos: 0 };
+  const { casa, jogos: caminhoDosJogos } = onde;
 
   const jogos = [];
   const lotes = [];
@@ -357,7 +377,7 @@ export async function resultadosPorNumero(env, desporto, numeros) {
   let pedidos = 0;
   for (let i = 0; i < lotes.length; i += 1) {
     if (i > 0) await esperar(ESPERA_ENTRE_PEDIDOS);
-    const r = await pedir(env, casa, '/fixtures', { ids: lotes[i].join('-') });
+    const r = await pedir(env, casa, caminhoDosJogos, { ids: lotes[i].join('-') });
     pedidos += 1;
     if (r.erro) return { erro: r.erro, jogos, pedidos };
     r.lista.forEach((cru) => {

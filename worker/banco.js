@@ -128,6 +128,12 @@ function comPernas(a) {
   };
 }
 
+/** A marca de que as apostas penduradas na troca de fonte ja foram devolvidas.
+ *  Vive no armazenamento deste objecto e nao no KV: aqui uma escrita ve-se de
+ *  imediato, e uma coisa que so pode acontecer uma vez nao pode depender de
+ *  uma bandeira que talvez ainda nao tenha chegado. */
+const JA_DEVOLVIDO = 'devolvidas-na-troca-de-fonte';
+
 /** Quantas apostas ja fechadas se guardam ao todo. Servem para cada um ver o
  *  que lhe aconteceu, e por isso guardam-se; mas nao para sempre, que isto
  *  vive todo em memoria e nao pode crescer sem fim. */
@@ -155,6 +161,51 @@ export class Banco extends DurableObject {
          convertida ja gravada, para nao se andar a converter em cada arranque. */
       if (guardadas.some((a) => !Array.isArray(a.pernas)))
         await ctx.storage.put('apostas', this.apostas);
+
+      /* ---- devolver as apostas que ficaram penduradas na troca de fonte ----
+
+         A troca de fonte deixou treze apostas abertas cujos jogos vinham da
+         feed antiga. Fechavam-se ao fim de uma semana, anuladas, mas ninguem
+         tem de esperar uma semana por torroes que sao seus: devolvem-se agora.
+
+         Corre uma vez so. A marca fica no armazenamento deste objecto, que e
+         consistente de imediato, ao contrario do KV: uma bandeira no KV podia
+         nao ser vista a tempo e isto corria duas vezes. */
+      if (!(await ctx.storage.get(JA_DEVOLVIDO))) {
+        let devolvidas = 0;
+        let torroes = 0;
+        for (const aposta of this.apostas) {
+          if (aposta.estado !== 'aberta') continue;
+          aposta.estado = 'anulada';
+          aposta.volta = aposta.quanto;
+          aposta.lucro = 0;
+          aposta.fechada = new Date().toISOString();
+          aposta.pernas = aposta.pernas.map((p) =>
+            p.estado === 'aberta' ? { ...p, estado: 'anulada' } : p
+          );
+
+          const linha = this.nomes[aposta.nome];
+          if (linha) {
+            const cheia = completa(linha, aposta.nome);
+            cheia.torroes += aposta.quanto;
+            cheia.atualizado = new Date().toISOString();
+            if (cheia.torroes > (cheia.pico || 0)) cheia.pico = cheia.torroes;
+            this.nomes[aposta.nome] = cheia;
+            torroes += aposta.quanto;
+          }
+          devolvidas += 1;
+        }
+        if (devolvidas > 0) {
+          await ctx.storage.put('nomes', this.nomes);
+          await ctx.storage.put('apostas', this.apostas);
+        }
+        await ctx.storage.put(JA_DEVOLVIDO, {
+          quando: new Date().toISOString(),
+          devolvidas,
+          torroes
+        });
+        console.log(`DEVOLVIDAS ${devolvidas} apostas, ${torroes} torroes`);
+      }
     });
   }
 
@@ -252,6 +303,31 @@ export class Banco extends DurableObject {
           : ordem[a.estado] - ordem[b.estado]
       );
     return { apostas: minhas, linha: semSegredos(achado.linha) };
+  }
+
+  /**
+   * O trinco da volta das apostas.
+   *
+   * Isto vive aqui e nao no KV por uma razao de fundo: este objecto atende um
+   * pedido de cada vez, e por isso duas voltas que tentem pegar o trinco ao
+   * mesmo tempo sao atendidas uma depois da outra e so uma o leva. Uma bandeira
+   * no KV nao dava essa garantia: ali uma escrita pode levar um minuto a ser
+   * vista, e duas voltas liam "esta livre" as duas. Foi isso que encheu o
+   * travao de pedidos por minuto da feed nova, e nao a quota do dia, que estava
+   * quase intacta.
+   */
+  async pegarTrinco(veio) {
+    const agora = Date.now();
+    const ate = (await this.ctx.storage.get('trinco-da-volta')) || 0;
+    if (ate > agora) return { pegou: false, faltam: Math.round((ate - agora) / 1000) };
+    const quanto = Math.min(600, Math.max(30, inteiro(veio.segundos) || 180));
+    await this.ctx.storage.put('trinco-da-volta', agora + quanto * 1000);
+    return { pegou: true };
+  }
+
+  async largarTrinco() {
+    await this.ctx.storage.delete('trinco-da-volta');
+    return { ok: true };
   }
 
   /** As contas das apostas guardadas, sem nomes nem nada de ninguem: quantas
@@ -617,7 +693,11 @@ export class Banco extends DurableObject {
                               ? await this.minhasApostas(veio)
                               : caminho === '/apostas/por-fechar'
                                 ? this.ligasPorFechar()
-                                : caminho === '/apostas/contas'
+                                : caminho === '/trinco/pegar'
+                                  ? await this.pegarTrinco(veio)
+                                  : caminho === '/trinco/largar'
+                                    ? await this.largarTrinco()
+                                    : caminho === '/apostas/contas'
                                   ? this.contasDasApostas()
                                   : caminho === '/apostas/fechar'
                                   ? await this.fechar(veio)

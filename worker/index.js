@@ -432,13 +432,46 @@ export { Banco, MesaDePoker };
  * espera dentro de uma volta so. A rodar, cada volta custa meia duzia de
  * chamadas e cada desporto e refrescado a cada poucas horas.
  */
-async function aVez(env) {
+async function aVez(env, quantos = 3) {
   const nomes = Object.keys(DESPORTOS_NOVOS);
   const ultimo = (await ler(env, 'desporto:vez', null)) || '';
   const i = nomes.indexOf(ultimo);
-  const seguinte = nomes[(i + 1) % nomes.length];
-  await env.QUADRO.put('desporto:vez', JSON.stringify(seguinte));
-  return seguinte;
+  /* Tres por volta e nao um: com doze desportos, um por volta levava meio dia a
+     dar a volta toda, e um desporto refrescado uma vez por dia e um desporto
+     que quase nunca tem jogos a vista. Cada um tem a sua conta de cem pedidos,
+     por isso tres nao se estorvam; quem tem de ser respeitado e o travao de
+     pedidos por minuto, e desse trata a espera entre pedidos. */
+  const vez = [];
+  for (let k = 1; k <= quantos; k += 1) vez.push(nomes[(i + k) % nomes.length]);
+  await env.QUADRO.put('desporto:vez', JSON.stringify(vez[vez.length - 1]));
+  return vez;
+}
+
+/** Traz os jogos e as cotacoes de um desporto para a gaveta dele. */
+async function trazerUmDesporto(env, desporto, feito) {
+  const novos = await jogosDaFeedNova(env, desporto);
+  feito.pedidos += novos.pedidos || 0;
+  if (novos.erro) feito.erros.push(`${desporto}: ${novos.erro}`);
+
+  const jogos = novos.jogos || [];
+  if (jogos.length === 0) return;
+
+  const com = await cotacoesDoDia(env, desporto);
+  feito.pedidos += com.pedidos || 0;
+  if (com.erro) feito.erros.push(`${desporto} cotacoes: ${com.erro}`);
+
+  const cotacoes = com.cotacoes || new Map();
+  /* As cotacoes que ja se sabiam ficam: este pedido so traz as de hoje, e um
+     jogo de amanha nao pode perder o preco por isso. */
+  const antesDisto = await ler(env, ONDE_OS_NOVOS(desporto), null);
+  const jaSabidas = new Map(((antesDisto && antesDisto.jogos) || []).map((j) => [j.id, j.cotacoes]));
+
+  const comPreco = jogos
+    .map((j) => ({ ...j, cotacoes: cotacoes.get(j.id) || jaSabidas.get(j.id) || null }))
+    .filter((j) => j.cotacoes || (!j.porComecar && !j.acabou));
+
+  await guardarJogosNovos(env, desporto, comPreco);
+  feito.jogos = (feito.jogos || 0) + comPreco.length;
 }
 
 /**
@@ -511,14 +544,15 @@ async function aVoltaDoDia(env) {
      travao e as duas saem de maos vazias. Isto aconteceu ao pe da letra ao
      experimentar, com o relogio a disparar uma volta enquanto eu forcava
      outra. O trinco dura dois minutos, que e mais do que uma volta leva. */
-  if (await env.QUADRO.get('desporto:a-andar'))
-    return { erros: ['ja ha uma volta a andar'], fechadas: 0, jogos: 0 };
-  await env.QUADRO.put('desporto:a-andar', '1', { expirationTtl: 120 });
+  const trinco = await aoBanco(env, '/trinco/pegar', { segundos: 300 });
+  if (!trinco.pegou)
+    return { erros: [`ja ha uma volta a andar, faltam ${trinco.faltam}s`], fechadas: 0, jogos: 0 };
 
-  /* Se a fonte nova recusou na volta passada, nao se lhe pede nada por uma
-     hora. Insistir contra uma conta esgotada nao traz jogos e gasta a conta do
-     dia seguinte quando ela virar: o que ela responde e sempre "too many
-     requests per minute", mesmo quando o que esta esgotado e o dia. */
+  /* Se a fonte nova recusou na volta passada, espera-se um quarto de hora.
+     O travao dela e por minuto, nao por dia: o painel da conta mostrou o
+     futebol a onze por cento e tudo o resto a zero enquanto ela me recusava
+     pedidos, o que diz que nunca foi a quota do dia. Era eu a fazer bursts com
+     voltas sobrepostas, que o trinco de cima agora impede. */
   const novaDeCastigo = !!(await env.QUADRO.get('desporto:nova-de-castigo'));
 
   const feito = { fechadas: 0, ligas: [], jogos: 0, erros: [], pedidos: 0 };
@@ -583,39 +617,10 @@ async function aVoltaDoDia(env) {
   const fim = await aoBanco(env, '/apostas/fechar', { resultados });
   feito.fechadas = fim?.fechadas || 0;
 
-  /* ---- e so depois ir buscar jogos novos, do desporto desta vez ---- */
+  /* ---- e so depois ir buscar jogos novos, dos desportos desta vez ---- */
   if (temChaveNova(env) && !novaDeCastigo) {
-    const desporto = await aVez(env);
-    feito.desporto = desporto;
-
-    const novos = await jogosDaFeedNova(env, desporto);
-    feito.pedidos += novos.pedidos || 0;
-    if (novos.erro) feito.erros.push(`${desporto}: ${novos.erro}`);
-
-    const jogos = novos.jogos || [];
-    if (jogos.length > 0) {
-      const com = await cotacoesDoDia(env, desporto);
-      feito.pedidos += com.pedidos || 0;
-      if (com.erro) feito.erros.push(`${desporto} cotacoes: ${com.erro}`);
-
-      const cotacoes = com.cotacoes || new Map();
-      /* Um jogo sem cotacao nao se mostra: nao ha nada para apostar nele. Só
-         fica sem ela o que esta a decorrer, que esse mostra-se pelo resultado.
-         A condicao de antes deixava passar tambem os ja acabados, e numa volta
-         em que as cotacoes levassem travao a pagina enchia-se de jogos sem
-         nada para apostar. */
-      const antesDisto = await ler(env, ONDE_OS_NOVOS(desporto), null);
-      const jaSabidas = new Map(
-        ((antesDisto && antesDisto.jogos) || []).map((j) => [j.id, j.cotacoes])
-      );
-
-      const comPreco = jogos
-        .map((j) => ({ ...j, cotacoes: cotacoes.get(j.id) || jaSabidas.get(j.id) || null }))
-        .filter((j) => j.cotacoes || (!j.porComecar && !j.acabou));
-
-      await guardarJogosNovos(env, desporto, comPreco);
-      feito.jogos = comPreco.length;
-    }
+    feito.desporto = await aVez(env);
+    for (const desporto of feito.desporto) await trazerUmDesporto(env, desporto, feito);
   }
 
   /* ---- e quem esta a jogar agora, que e um pedido e traz o resultado ----
@@ -658,7 +663,7 @@ async function aVoltaDoDia(env) {
 
   /* Se a fonte nova recusou alguma coisa nesta volta, poe-se de castigo. */
   if (feito.erros.some((e) => /too many requests|recusou/i.test(e)))
-    await env.QUADRO.put('desporto:nova-de-castigo', '1', { expirationTtl: 3600 });
+    await env.QUADRO.put('desporto:nova-de-castigo', '1', { expirationTtl: 900 });
 
   /* E a fonte antiga continua a encher a prateleira. Enquanto a nova nao
      estiver provada por um dia inteiro, e ela que garante que ha jogos na
@@ -672,7 +677,7 @@ async function aVoltaDoDia(env) {
 
   feito.contas = await contasDaFeed(env);
   await guardarRelatorio(env, feito);
-  await env.QUADRO.delete('desporto:a-andar');
+  await aoBanco(env, '/trinco/largar', {});
   console.log('VOLTA ' + JSON.stringify(feito).slice(0, 1500));
   return feito;
 }
@@ -1019,7 +1024,9 @@ export default {
       return responder(
         {
           ...guardado,
-          desportos: DESPORTOS,
+          /* Os desportos das duas fontes juntas. O tenis so existe na antiga
+             porque a nova nao o tem; os outros todos vem da nova. */
+          desportos: [...new Set([...Object.keys(DESPORTOS_NOVOS), ...DESPORTOS])],
           temFeed: temChaveDaFeed(env),
           contas: await contasDaFeed(env),
           /* O que a ultima volta fez. E so para se poder ver de fora porque e
