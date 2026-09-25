@@ -4284,12 +4284,19 @@ footer {
   pointer-events: none;
 }
 
-/* o que está em cima do pano, virado para quem vê */
+/* o que está em cima do pano, virado para quem vê.
+
+   Fica de pé a partir da aresta de baixo, pousado no pano, e não a rodar pelo
+   meio. A rodar pelo meio, a metade de baixo ficava enterrada no tampo: o
+   Chrome no computador corta mesmo os planos que se atravessam, e lá se ia o
+   naipe das cartas, que está no canto de baixo. O Safari do telemóvel não
+   corta, e por isso lá via-se tudo. */
 .pk-meio {
   position: absolute;
   left: 50%;
-  top: 52%;
-  transform: translate(-50%, -50%) rotateX(-46deg) translateY(-1.1em);
+  top: 60%;
+  transform-origin: 50% 100%;
+  transform: translate(-50%, -100%) rotateX(-46deg) translateZ(1px);
   transform-style: preserve-3d;
   display: grid;
   gap: 0.55em;
@@ -4308,7 +4315,9 @@ footer {
   position: absolute;
   left: var(--px);
   top: var(--py);
-  transform: translate(-50%, -50%) rotateX(-46deg) translateY(-0.5em);
+  /* pousadas pela aresta de baixo, pela mesma razao das cartas */
+  transform-origin: 50% 100%;
+  transform: translate(-50%, -100%) rotateX(-46deg) translateZ(1px);
 }
 
 /* as cartas */
@@ -5598,5 +5607,93 @@ footer {
   }
   .hamburguer {
     order: 3;
+  }
+}
+
+/* As fichas a cavalo e em quadra. Cada sitio e um alvo pequeno pousado em
+   cima da linha entre casas: fica na mesma celula da grelha que o mais
+   pequeno dos seus numeros e empurra-se para a beira certa dela. Deitada, a
+   fila seguinte fica por cima e a outra fila a direita; ao alto, a fila
+   seguinte fica a direita e a outra fila por baixo. */
+.rol-entre {
+  --alvo: 18px;
+  --meio: calc(50% + 2px);
+  position: relative;
+  z-index: 2;
+  grid-row: var(--l) / span 1;
+  grid-column: var(--c) / span 1;
+  width: var(--alvo);
+  height: var(--alvo);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.rol-entre::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: rgba(240, 220, 192, 0.14);
+  transition: background 0.12s, inset 0.12s;
+}
+.rol-entre:hover:not(:disabled)::before {
+  inset: 2px;
+  background: var(--crema);
+}
+.rol-entre:disabled {
+  cursor: default;
+}
+.rol-entre.com-fichas::before {
+  display: none;
+}
+.rol-entre .rol-pilha {
+  left: 50%;
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  transform: translate(-50%, -50%);
+}
+
+/* deitada: o seguinte da fila fica por cima, a outra fila a direita */
+.rol-entre.fila {
+  justify-self: center;
+  align-self: start;
+  transform: translateY(calc(var(--meio) * -1));
+}
+.rol-entre.lado {
+  justify-self: end;
+  align-self: center;
+  transform: translateX(var(--meio));
+}
+.rol-entre.canto {
+  justify-self: end;
+  align-self: start;
+  transform: translate(var(--meio), calc(var(--meio) * -1));
+}
+
+@media (max-width: 720px) {
+  .rol-entre {
+    grid-row: var(--lv) / span 1;
+    grid-column: var(--cv) / span 1;
+  }
+  /* ao alto: o seguinte da fila fica a direita, a outra fila por baixo */
+  .rol-entre.fila {
+    justify-self: end;
+    align-self: center;
+    transform: translateX(var(--meio));
+  }
+  .rol-entre.lado {
+    justify-self: center;
+    align-self: end;
+    transform: translateY(var(--meio));
+  }
+  .rol-entre.canto {
+    justify-self: end;
+    align-self: end;
+    transform: translate(var(--meio), var(--meio));
   }
 }

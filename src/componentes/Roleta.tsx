@@ -88,16 +88,48 @@ const DUZIAS: { tipo: TipoDeAposta; nome: string }[] = [
  *  que é o que deixa desfazer a última sem mexer nas outras. */
 type Posta = { chave: string; ficha: number };
 
-/** A chave com que cada aposta fica guardada enquanto está na mesa. */
+/** A chave com que cada aposta fica guardada enquanto está na mesa. Os
+ *  cavalos e as quadras levam os números lá dentro: `cavalo:17-20`. */
 const chaveDa = (tipo: TipoDeAposta, valor?: number) =>
   tipo === 'numero' ? `numero:${valor}` : tipo;
+const chaveEntre = (numeros: number[]) =>
+  `${numeros.length === 2 ? 'cavalo' : 'quadra'}:${numeros.join('-')}`;
 
 const apostaDa = (chave: string, fichas: number[]): Aposta => {
   const quanto = fichas.reduce((s, f) => s + f, 0);
-  return chave.startsWith('numero:')
-    ? { tipo: 'numero', valor: Number(chave.slice(7)), quanto }
-    : { tipo: chave as TipoDeAposta, quanto };
+  if (chave.startsWith('numero:')) return { tipo: 'numero', valor: Number(chave.slice(7)), quanto };
+  if (chave.startsWith('cavalo:') || chave.startsWith('quadra:')) {
+    const [tipo, lista] = chave.split(':');
+    return { tipo: tipo as TipoDeAposta, numeros: lista.split('-').map(Number), quanto };
+  }
+  return { tipo: chave as TipoDeAposta, quanto };
 };
+
+/**
+ * Onde se pode pousar uma ficha entre números.
+ *
+ * No pano os números estão em filas de três (1 2 3, 4 5 6, ...). Há cavalo
+ * entre dois que estejam lado a lado na mesma fila e entre os que estão no
+ * mesmo sítio de duas filas seguidas; há quadra onde quatro fecham um
+ * quadrado. Nunca com o zero: entre o zero e outro número não se põe ficha.
+ *
+ * Cada sítio fica preso ao mais pequeno dos seus números e sabe para que lado
+ * dele fica a linha: `fila` é a linha para o número seguinte da mesma fila,
+ * `lado` a linha para a fila seguinte, e `canto` o cruzamento das duas.
+ */
+type Entre = { chave: string; numeros: number[]; de: number; onde: 'fila' | 'lado' | 'canto' };
+
+const ENTRE: Entre[] = (() => {
+  const lista: Entre[] = [];
+  for (let a = 1; a <= 36; a++) {
+    const temDireita = a % 3 !== 0;
+    if (temDireita) lista.push({ chave: '', numeros: [a, a + 1], de: a, onde: 'fila' });
+    if (a + 3 <= 36) lista.push({ chave: '', numeros: [a, a + 3], de: a, onde: 'lado' });
+    if (temDireita && a + 4 <= 36)
+      lista.push({ chave: '', numeros: [a, a + 1, a + 3, a + 4], de: a, onde: 'canto' });
+  }
+  return lista.map((e) => ({ ...e, chave: chaveEntre(e.numeros) }));
+})();
 
 export function Roleta({
   nome,
@@ -164,8 +196,11 @@ export function Roleta({
   }, [buscarSaldo]);
 
   function por(tipo: TipoDeAposta, valor?: number) {
+    porNa(chaveDa(tipo, valor));
+  }
+
+  function porNa(chave: string) {
     if (aRodar) return;
-    const chave = chaveDa(tipo, valor);
     if (naMesa + ficha > saldo) return setRecado('Não tens torrões que cheguem para mais fichas.');
     setRecado('');
     setSaiu(null);
@@ -361,7 +396,14 @@ export function Roleta({
         ))}
       </div>
 
-      <Tabuleiro mesa={mesa} por={por} tirar={tirar} aRodar={aRodar} saiu={saiu} />
+      <Tabuleiro
+        mesa={mesa}
+        por={por}
+        porNa={porNa}
+        tirar={tirar}
+        aRodar={aRodar}
+        saiu={saiu}
+      />
 
       {saldo < 5 && (
         <p className="rol-sem-nada">
@@ -407,8 +449,10 @@ export function Roleta({
       </div>
 
       <p className="notas rol-regras">
-        Um número em cheio paga trinta e cinco para um, as dúzias e as colunas pagam dois para um, e
-        o resto paga a dobrar. No zero perde-se tudo o que está de fora, como em qualquer roleta
+        Um número em cheio devolve 36 vezes o que apostaste. Uma ficha na linha entre dois números
+        (a cavalo) devolve 18 vezes, e no cruzamento de quatro (em quadra) devolve 8, se sair
+        qualquer um deles. Com o zero não há cavalo nem quadra. As dúzias e as colunas pagam dois
+        para um, e o resto paga a dobrar. No zero perde-se tudo o que está de fora, como em qualquer roleta
         europeia. A casa fica com 2,7 por cento a longo prazo, e isso não se muda: é a roleta.
       </p>
     </section>
@@ -670,12 +714,14 @@ const ACERTA: Record<string, (n: number) => boolean> = {
 function Tabuleiro({
   mesa,
   por,
+  porNa,
   tirar,
   aRodar,
   saiu
 }: {
   mesa: Record<string, number[]>;
   por: (tipo: TipoDeAposta, valor?: number) => void;
+  porNa: (chave: string) => void;
   tirar: (chave: string) => void;
   aRodar: boolean;
   saiu: Rodada | null;
@@ -771,6 +817,27 @@ function Tabuleiro({
           ACERTA[o.tipo]
         )
       )}
+
+      {/* as linhas e os cruzamentos entre números, por cima das casas: é aqui
+          que se põem as fichas a cavalo e em quadra */}
+      {ENTRE.map((e) => (
+        <button
+          key={e.chave}
+          type="button"
+          className={`rol-entre ${e.onde}${mesa[e.chave] ? ' com-fichas' : ''}`}
+          style={ondeFica(sitioDoNumero(e.de))}
+          onClick={() => porNa(e.chave)}
+          disabled={aRodar}
+          aria-label={
+            e.numeros.length === 2
+              ? `A cavalo entre o ${e.numeros[0]} e o ${e.numeros[1]}`
+              : `Em quadra: ${e.numeros.join(', ')}`
+          }
+          title={e.numeros.join(' · ')}
+        >
+          {emCima(e.chave)}
+        </button>
+      ))}
     </div>
   );
 }

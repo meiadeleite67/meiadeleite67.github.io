@@ -9,7 +9,7 @@
  *
  *   node scripts/testes-roleta.mjs
  */
-import { APOSTAS, RODA, contar, cor, limparApostas, rodada } from '../worker/roleta.js';
+import { APOSTAS, RODA, contar, cor, limparApostas, rodada, vizinhos } from '../worker/roleta.js';
 
 let feitos = 0;
 let falhas = 0;
@@ -45,6 +45,47 @@ for (let i = 0; i < RODA.length; i++) {
 prova('as cores alternam à volta da roda', seguidasIguais === 0, `${seguidasIguais} vizinhas iguais`);
 
 /* ---------------- o que cada aposta paga ---------------- */
+
+/* ---------------- a cavalo e em quadra ---------------- */
+
+prova('um cavalo lado a lado na fila', vizinhos([1, 2], 2) !== null);
+prova('um cavalo de uma fila para a outra', vizinhos([17, 20], 2) !== null);
+prova('a ordem em que chegam não importa', String(vizinhos([20, 17], 2)) === '17,20');
+prova('o 3 e o 4 não são vizinhos', vizinhos([3, 4], 2) === null);
+prova('nem o 1 e o 3', vizinhos([1, 3], 2) === null);
+prova('nem o 1 e o 5', vizinhos([1, 5], 2) === null);
+prova('não há cavalo com o zero', vizinhos([0, 1], 2) === null && vizinhos([0, 2], 2) === null);
+prova('nem com números de fora da roleta', vizinhos([36, 39], 2) === null);
+prova('nem com o mesmo número duas vezes', vizinhos([5, 5], 2) === null);
+
+prova('uma quadra fecha um quadrado', vizinhos([1, 2, 4, 5], 4) !== null);
+prova('a última quadra é a do 32', vizinhos([32, 33, 35, 36], 4) !== null);
+prova('o 3 não abre quadra, que não tem nada à direita', vizinhos([3, 4, 6, 7], 4) === null);
+prova('nem uma quadra torta', vizinhos([1, 2, 3, 4], 4) === null);
+prova('nem uma quadra com o zero', vizinhos([0, 1, 2, 3], 4) === null);
+
+let cavalos = 0;
+let quadras = 0;
+for (let a = 1; a <= 36; a++)
+  for (let b = a + 1; b <= 36; b++) if (vizinhos([a, b], 2)) cavalos++;
+for (let a = 1; a <= 36; a++) if (vizinhos([a, a + 1, a + 3, a + 4], 4)) quadras++;
+prova('há 57 cavalos no pano', cavalos === 57, `contaram-se ${cavalos}`);
+prova('e 22 quadras', quadras === 22, `contaram-se ${quadras}`);
+
+const cavalo = [{ tipo: 'cavalo', numeros: [17, 20], quanto: 10 }];
+prova('um cavalo paga 18 vezes pelo primeiro', contar(cavalo, 17).volta === 180);
+prova('e pelo segundo', contar(cavalo, 20).volta === 180);
+prova('e nada pelos outros', contar(cavalo, 18).volta === 0 && contar(cavalo, 0).volta === 0);
+
+const quadra = [{ tipo: 'quadra', numeros: [1, 2, 4, 5], quanto: 10 }];
+prova('uma quadra paga 8 vezes por qualquer dos quatro', [1, 2, 4, 5].every((n) => contar(quadra, n).volta === 80));
+prova('e nada pelos outros', contar(quadra, 3).volta === 0 && contar(quadra, 0).volta === 0);
+
+const lido = limparApostas([{ tipo: 'cavalo', numeros: [20, 17], quanto: 5 }], 100);
+prova('a mesa aceita um cavalo e arruma-lhe os números', !lido.erro && String(lido.apostas[0].numeros) === '17,20');
+prova('e recusa um cavalo com o zero', !!limparApostas([{ tipo: 'cavalo', numeros: [0, 1], quanto: 5 }], 100).erro);
+prova('e uma quadra torta', !!limparApostas([{ tipo: 'quadra', numeros: [1, 2, 3, 4], quanto: 5 }], 100).erro);
+prova('e um cavalo sem números', !!limparApostas([{ tipo: 'cavalo', quanto: 5 }], 100).erro);
 
 const so = (tipo, quanto, valor) => (valor === undefined ? [{ tipo, quanto }] : [{ tipo, valor, quanto }]);
 

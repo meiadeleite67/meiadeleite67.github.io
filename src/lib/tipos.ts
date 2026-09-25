@@ -57,6 +57,8 @@ export type Pontuacao = {
 
 export type TipoDeAposta =
   | 'numero'
+  | 'cavalo'
+  | 'quadra'
   | 'vermelho'
   | 'preto'
   | 'par'
@@ -70,7 +72,9 @@ export type TipoDeAposta =
   | 'coluna2'
   | 'coluna3';
 
-export type Aposta = { tipo: TipoDeAposta; valor?: number; quanto: number };
+/** O `numeros` é só dos cavalos e das quadras: os dois ou quatro vizinhos
+ *  entre os quais a ficha está pousada. */
+export type Aposta = { tipo: TipoDeAposta; valor?: number; numeros?: number[]; quanto: number };
 
 export type FichaContada = Aposta & { acertou: boolean; volta: number };
 

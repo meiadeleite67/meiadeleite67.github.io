@@ -26,8 +26,9 @@ export const cor = (n) => (n === 0 ? 'verde' : VERMELHOS.has(n) ? 'vermelho' : '
 
 export const APOSTA_MINIMA = 1;
 export const APOSTA_MAXIMA = 5000;
-/** Quantas fichas diferentes se podem pôr na mesa de uma vez. */
-export const MAX_APOSTAS = 24;
+/** Quantas fichas diferentes se podem pôr na mesa de uma vez. Com os cavalos e
+ *  as quadras há muito mais sítios onde pousar, por isso a conta é larga. */
+export const MAX_APOSTAS = 60;
 
 /**
  * As apostas que a mesa aceita, e o que cada uma paga.
@@ -38,6 +39,11 @@ export const MAX_APOSTAS = 24;
  */
 export const APOSTAS = {
   numero: { paga: 36, acerta: (n, valor) => n === valor, precisaValor: true },
+  /* A cavalo: a ficha na linha entre dois números vizinhos no pano. Em
+     quadra: no cruzamento de quatro. O que pagam foi decidido pelo grupo, 18 e
+     8 vezes o que se apostou, com a ficha lá dentro. */
+  cavalo: { paga: 18, acerta: (n, _, numeros) => numeros.includes(n), precisaNumeros: 2 },
+  quadra: { paga: 8, acerta: (n, _, numeros) => numeros.includes(n), precisaNumeros: 4 },
   vermelho: { paga: 2, acerta: (n) => cor(n) === 'vermelho' },
   preto: { paga: 2, acerta: (n) => cor(n) === 'preto' },
   par: { paga: 2, acerta: (n) => n !== 0 && n % 2 === 0 },
@@ -51,6 +57,38 @@ export const APOSTAS = {
   coluna2: { paga: 3, acerta: (n) => n !== 0 && n % 3 === 2 },
   coluna3: { paga: 3, acerta: (n) => n !== 0 && n % 3 === 0 }
 };
+
+/**
+ * Os números de um cavalo ou de uma quadra, se forem mesmo vizinhos no pano.
+ *
+ * No pano os números estão em filas de três (1 2 3, 4 5 6, ...): são vizinhos
+ * os da mesma fila que estão lado a lado, e os que estão na mesma posição de
+ * duas filas seguidas. Uma quadra são quatro que fecham um quadrado.
+ *
+ * O zero fica de fora de propósito: não se pode pôr uma ficha entre o zero e
+ * outro número. Devolve os números por ordem, ou null se não prestarem.
+ */
+export function vizinhos(veio, quantos) {
+  if (!Array.isArray(veio) || veio.length !== quantos) return null;
+  const n = veio.map((x) => Math.round(Number(x))).sort((a, b) => a - b);
+  if (n.some((x) => !Number.isInteger(x) || x < 1 || x > 36)) return null;
+  if (new Set(n).size !== quantos) return null;
+  const [a] = n;
+  // o ultimo da fila (3, 6, 9...) nao tem vizinho a direita
+  const temDireita = a % 3 !== 0;
+
+  if (quantos === 2) {
+    const [, b] = n;
+    if (b - a === 3) return n;
+    if (b - a === 1 && temDireita) return n;
+    return null;
+  }
+  if (quantos === 4) {
+    const certa = [a, a + 1, a + 3, a + 4];
+    return temDireita && a + 4 <= 36 && certa.every((x, i) => x === n[i]) ? n : null;
+  }
+  return null;
+}
 
 /* Um número ao calhas do gerador criptográfico, sem o desvio do resto: com o
    resto puro as primeiras casas saíam um bocadinho mais vezes, e numa roleta
@@ -96,8 +134,21 @@ export function limparApostas(veio, saldo) {
         return { erro: 'Esse número não está na roleta.' };
     }
 
+    let numeros = null;
+    if (regra.precisaNumeros) {
+      numeros = vizinhos(a?.numeros, regra.precisaNumeros);
+      if (!numeros)
+        return {
+          erro:
+            regra.precisaNumeros === 2
+              ? 'Essa ficha não está entre dois números vizinhos.'
+              : 'Essa ficha não está entre quatro números vizinhos.'
+        };
+    }
+
     total += quanto;
-    limpas.push(valor === null ? { tipo, quanto } : { tipo, valor, quanto });
+    if (numeros) limpas.push({ tipo, numeros, quanto });
+    else limpas.push(valor === null ? { tipo, quanto } : { tipo, valor, quanto });
   }
 
   if (total > saldo) return { erro: 'Não tens torrões que cheguem para tudo isso.' };
@@ -113,7 +164,7 @@ export function limparApostas(veio, saldo) {
 export function contar(apostas, saiu) {
   const detalhe = apostas.map((a) => {
     const regra = APOSTAS[a.tipo];
-    const acertou = regra.acerta(saiu, a.valor);
+    const acertou = regra.acerta(saiu, a.valor, a.numeros || []);
     return { ...a, acertou, volta: acertou ? a.quanto * regra.paga : 0 };
   });
   return {
