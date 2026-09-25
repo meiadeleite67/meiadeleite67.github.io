@@ -382,6 +382,7 @@ function limparEvento(veio, antes) {
    conhecer e o ficheiro de entrada do Worker. */
 import {
   FECHOS_POR_VOLTA,
+  PRATELEIRA_VAZIA,
   contasDaFeed,
   jaAcabaram,
   jogoGuardado,
@@ -777,17 +778,21 @@ export default {
     if (caminho === '/desporto' && metodo === 'GET') {
       const guardado = await jogosGuardados(env);
 
-      /* Se nunca correu volta nenhuma e ja ha chave, da-se uma agora, por tras
-         desta resposta. Serve para o dia em que a chave e posta e ninguem
-         quer esperar pela madrugada, e serve outra vez se o KV for limpo.
+      /* Com a prateleira quase vazia, da-se uma volta agora, por tras desta
+         resposta, em vez de deixar a pagina sem nada ate a proxima. Serve para
+         o dia em que a chave e posta e ninguem quer esperar pela madrugada,
+         serve se o KV for limpo, e serve num domingo a noite em que a jornada
+         ja acabou toda.
+
          Nao e uma porta para gastar creditos a pedido: so acontece com a
-         gaveta vazia, e o trinco de uma hora garante que refrescar a pagina
-         nao faz a mesma volta vinte vezes. */
-      if (!guardado.quando && temChaveDaFeed(env)) {
+         prateleira vazia, o trinco de seis horas e o mesmo intervalo do
+         relogio, e o tecto do dia esta por cima de tudo. Refrescar a pagina
+         vinte vezes nao manda dar vinte voltas. */
+      if (guardado.jogos.length < PRATELEIRA_VAZIA && temChaveDaFeed(env)) {
         const trinco = await env.QUADRO.get('desporto:arranque');
         if (!trinco) {
           await env.QUADRO.put('desporto:arranque', new Date().toISOString(), {
-            expirationTtl: 3600
+            expirationTtl: 6 * 3600
           });
           ctx.waitUntil(aVoltaDoDia(env));
         }

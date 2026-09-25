@@ -64,12 +64,23 @@ const PRIMEIRO = [
   'basketball_euroleague'
 ];
 
-/** Quantas cotações se compram numa volta, no máximo. Sem isto, uma semana em
- *  que todas as ligas estreiam jornada ao mesmo tempo levava sete créditos de
- *  uma vez. Assim compra-se à mais urgente e as outras esperam pela volta
- *  seguinte, que é daqui a seis horas. Com quatro voltas por dia, isto é o que
- *  põe um tecto de quatro créditos por dia em cotações. */
+/**
+ * Quantas cotações se compram numa volta.
+ *
+ * Com a prateleira cheia compra-se a uma liga só: as outras esperam seis horas
+ * e ninguém dá por isso. Com a prateleira vazia compram-se três, senão um site
+ * que acabasse de ser ligado, ou que tivesse perdido o que tinha, levava dois
+ * dias a encher a uma liga de cada vez.
+ *
+ * Quatro voltas por dia a uma compra são quatro créditos; mesmo no pior dia,
+ * em que todas as voltas apanhassem a prateleira vazia, o tecto do dia trava
+ * antes de isto fazer mossa.
+ */
 const COMPRAS_POR_VOLTA = 1;
+const COMPRAS_COM_A_PRATELEIRA_VAZIA = 3;
+
+/** Abaixo de quantos jogos a prateleira se considera vazia. */
+export const PRATELEIRA_VAZIA = 5;
 
 /**
  * Quanto tempo uma liga descansa depois de se lhe comprarem as cotações.
@@ -289,7 +300,11 @@ export async function refrescarJogos(env) {
   /* ---- e só agora se gasta ---- */
   const comprados = [];
   const novos = [];
-  for (const liga of aPrecisar.slice(0, COMPRAS_POR_VOLTA)) {
+  const aindaPorComecar = guardado.jogos.filter((j) => Date.parse(j.comeca) > agora).length;
+  const quantasComprar =
+    aindaPorComecar < PRATELEIRA_VAZIA ? COMPRAS_COM_A_PRATELEIRA_VAZIA : COMPRAS_POR_VOLTA;
+
+  for (const liga of aPrecisar.slice(0, quantasComprar)) {
     const contas = await contasDaFeed(env);
     if (Number.isFinite(contas.restam) && contas.restam <= GUARDADOS_PARA_FECHAR) break;
     if (!(await daParaGastar(env, 1))) break;
