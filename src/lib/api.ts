@@ -302,7 +302,11 @@ export const api = {
     }),
 
   /** Deita o quadro de honra abaixo. Precisa da chave de admin. */
-  limparQuadro: () => pedir<{ ok: boolean; quantos: number }>('/quadro/limpar', { method: 'POST' }),
+  /* Havia aqui um limparQuadro, que apagava os nomes e os torroes de toda a
+     gente. Saiu do site: enquanto existisse aqui, bastava alguem voltar a
+     liga-lo a um botao sem pensar duas vezes. O servidor ainda sabe fazer
+     isso, e quem precisar mesmo de reiniciar o quadro tem de o pedir a mao,
+     com a chave da cozinha, que e a friccao que uma coisa sem volta merece. */
 
   /* ---- página de admin ---- */
 

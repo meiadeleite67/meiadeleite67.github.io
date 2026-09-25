@@ -92,7 +92,7 @@ export function Rodape({
                 quer falar com quem faz o site. */}
             <li>
               <button type="button" onClick={avisar}>
-                Avisar de um erro
+                Abrir ticket
               </button>
             </li>
           </ul>

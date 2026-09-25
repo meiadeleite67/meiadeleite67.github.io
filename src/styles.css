@@ -1781,6 +1781,41 @@ footer {
   margin-top: 10px;
 }
 
+/* A bola do canto de baixo, a esquerda. A direita e do boletim das apostas, e
+   duas bolas no mesmo canto tapavam-se uma a outra. Fica por baixo do boletim
+   no empilhamento: quem esta a montar uma aposta nao precisa deste botao, e o
+   boletim no telemovel ocupa a largura toda. */
+.bola-ticket {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid var(--linha);
+  background: var(--papel);
+  color: var(--tinta-3);
+  cursor: pointer;
+  box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.9);
+  transition: color 0.15s, border-color 0.15s, transform 0.15s;
+}
+.bola-ticket:hover {
+  color: var(--crema);
+  border-color: var(--crema-2);
+  transform: translateY(-2px);
+}
+@media (max-width: 620px) {
+  .bola-ticket {
+    left: 10px;
+    bottom: 10px;
+    width: 42px;
+    height: 42px;
+  }
+}
+
 /* a caixa de avisar, do lado de quem escreve */
 .modal.avisar {
   max-width: 480px;
