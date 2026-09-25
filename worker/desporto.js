@@ -41,6 +41,10 @@ const CASA = 'https://api.the-odds-api.com/v4';
 /** Onde ficam guardadas as coisas entre voltas. */
 const ONDE_OS_JOGOS = 'desporto:jogos';
 const ONDE_AS_CONTAS = 'desporto:creditos';
+/** O que a ultima volta fez. Nao serve para o jogo: serve para se poder ver de
+ *  fora porque e que uma volta nao trouxe o que se esperava, sem ter de andar
+ *  a adivinhar nem a gastar creditos a experimentar. */
+const ONDE_O_RELATORIO = 'desporto:ultima-volta';
 
 /** Os desportos que se seguem, e quantas ligas de cada.
  *
@@ -175,6 +179,17 @@ async function pedir(env, caminho, procura = {}) {
 
 /* ======================== as contas dos créditos ======================== */
 
+export async function relatorioDaVolta(env) {
+  return (await env.QUADRO.get(ONDE_O_RELATORIO, 'json')) || null;
+}
+
+export async function guardarRelatorio(env, relatorio) {
+  await env.QUADRO.put(
+    ONDE_O_RELATORIO,
+    JSON.stringify({ ...relatorio, quando: new Date().toISOString() })
+  );
+}
+
 export async function contasDaFeed(env) {
   const guardado = await env.QUADRO.get(ONDE_AS_CONTAS, 'json');
   return guardado || { restam: null, gastos: null, quando: null, hoje: 0, dia: '' };
@@ -307,6 +322,8 @@ export async function refrescarJogos(env) {
   /* ---- de graca: quais das candidatas tem jogos, e o que falta cobrir ---- */
   const aPrecisar = [];
   const seguidas = [];
+  /** O que cada candidata disse, para se poder ver de fora o que se passou. */
+  const perguntadas = [];
 
   for (const grupo of quais.grupos) {
     let lugares = grupo.quantas;
@@ -317,7 +334,11 @@ export async function refrescarJogos(env) {
         commenceTimeFrom: daqui,
         commenceTimeTo: ate
       });
-      if (r.erro) continue;
+      if (r.erro) {
+        perguntadas.push(`${liga.chave}: ${r.erro}`);
+        continue;
+      }
+      perguntadas.push(`${liga.chave}: ${r.eventos.length} jogos`);
 
       /* Uma liga sem jogos marcados nao ocupa lugar: passa-se a seguinte. E
          assim que numa pausa de selecoes se cai da Primeira Liga para a Liga
@@ -394,7 +415,7 @@ export async function refrescarJogos(env) {
     quando: new Date().toISOString()
   };
   await env.QUADRO.put(ONDE_OS_JOGOS, JSON.stringify(guardar));
-  return { ...guardar, comprados, ligas: seguidas };
+  return { ...guardar, comprados, ligas: seguidas, perguntadas, quantasComprar };
 }
 
 /** Os jogos que estão guardados, sem gastar crédito nenhum. */

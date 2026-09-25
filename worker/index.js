@@ -384,6 +384,8 @@ import {
   FECHOS_POR_VOLTA,
   PRATELEIRA_VAZIA,
   contasDaFeed,
+  guardarRelatorio,
+  relatorioDaVolta,
   jaAcabaram,
   jogoGuardado,
   jogosGuardados,
@@ -457,10 +459,13 @@ async function aVoltaDoDia(env) {
     else {
       feito.jogos = novos.jogos.length;
       feito.comprados = novos.comprados;
+      feito.perguntadas = novos.perguntadas;
+      feito.quantasComprar = novos.quantasComprar;
     }
   }
 
   feito.contas = await contasDaFeed(env);
+  await guardarRelatorio(env, feito);
   return feito;
 }
 
@@ -799,7 +804,14 @@ export default {
       }
 
       return responder(
-        { ...guardado, temFeed: temChaveDaFeed(env), contas: await contasDaFeed(env) },
+        {
+          ...guardado,
+          temFeed: temChaveDaFeed(env),
+          contas: await contasDaFeed(env),
+          /* O que a ultima volta fez. E so para se poder ver de fora porque e
+             que ela nao trouxe o que se esperava; o site nao o mostra. */
+          volta: await relatorioDaVolta(env)
+        },
         request
       );
     }
