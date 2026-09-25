@@ -1601,6 +1601,10 @@ footer {
 .apo-saldo small {
   color: var(--tinta-3);
 }
+.apo-convite {
+  margin-top: 8px;
+  max-width: 62ch;
+}
 
 .apo-corpo {
   display: grid;

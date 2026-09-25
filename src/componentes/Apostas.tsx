@@ -210,6 +210,10 @@ export function Apostas({
 
   async function apostar() {
     if (boletim.length === 0 || aPor) return;
+    /* Sem nome nao ha carteira de onde tirar, e por isso pede-se agora em vez
+       de se ter pedido a entrada. O boletim fica como esta, para nao se perder
+       o que ja se escolheu. */
+    if (!nome || !passe) return pedirNome();
     setAPor(true);
     setRecado('');
     try {
@@ -242,34 +246,31 @@ export function Apostas({
       </section>
     );
 
-  if (!nome)
-    return (
-      <section className="apo">
-        <p className="eyebrow">Jogos a sério, torrões a fingir</p>
-        <h1>Apostas desportivas</h1>
-        <p className="lead">
-          Futebol, basquetebol e ténis, com as cotações que as casas de apostas estão mesmo a dar.
-          Joga-se com os mesmos torrões do blackjack, do poker e da roleta, e eles continuam a não
-          valer nada em lado nenhum.
-        </p>
-        <button className="btn azul" type="button" onClick={pedirNome}>
-          Entrar com o meu nome
-        </button>
-      </section>
-    );
-
   return (
     <section className="apo">
       <header className="apo-cima">
         <p className="eyebrow">Jogos a sério, torrões a fingir</p>
         <h1>Apostas desportivas</h1>
-        <p className="apo-saldo">
-          <b>{saldo}</b>
-          <small>
-            torrões de {nome}
-            {presos > 0 ? `, e ${presos} presos em apostas` : ''}
-          </small>
-        </p>
+        {/* Os jogos veem-se sem se entrar, como numa casa de apostas: o nome
+            so faz falta na hora de apostar, e e ai que ele se pede. */}
+        {nome ? (
+          <p className="apo-saldo">
+            <b>{saldo}</b>
+            <small>
+              torrões de {nome}
+              {presos > 0 ? `, e ${presos} presos em apostas` : ''}
+            </small>
+          </p>
+        ) : (
+          <p className="lead apo-convite">
+            Futebol, basquetebol e ténis, com as cotações que as casas de apostas estão mesmo a
+            dar. Vê o que há à vontade; o nome só faz falta na hora de apostar.{' '}
+            <button type="button" className="como-link" onClick={pedirNome}>
+              Entrar com o meu nome
+            </button>
+            .
+          </p>
+        )}
       </header>
 
       {aCarregar && <p className="notas">A ver o que há hoje...</p>}
@@ -416,6 +417,7 @@ export function Apostas({
           quanto={quanto}
           setQuanto={setQuanto}
           saldo={saldo}
+          temNome={!!nome && !!passe}
           aPor={aPor}
           apostar={apostar}
           tirar={(e) => setBoletim((antes) => antes.filter((x) => x !== e))}
@@ -641,6 +643,7 @@ function Boletim({
   quanto,
   setQuanto,
   saldo,
+  temNome,
   aPor,
   apostar,
   tirar,
@@ -653,6 +656,7 @@ function Boletim({
   quanto: number;
   setQuanto: (n: number) => void;
   saldo: number;
+  temNome: boolean;
   aPor: boolean;
   apostar: () => void;
   tirar: (e: Escolhida) => void;
@@ -721,7 +725,7 @@ function Boletim({
                 type="button"
                 className={quanto === f ? 'escolhido' : ''}
                 onClick={() => setQuanto(f)}
-                disabled={f > saldo}
+                disabled={temNome && f > saldo}
               >
                 {f}
               </button>
@@ -729,7 +733,7 @@ function Boletim({
             <input
               type="number"
               min={APOSTA_MINIMA}
-              max={Math.min(APOSTA_MAXIMA, saldo)}
+              max={temNome ? Math.min(APOSTA_MAXIMA, saldo) : APOSTA_MAXIMA}
               value={quanto}
               onChange={(e) => setQuanto(Math.trunc(Number(e.target.value) || 0))}
               aria-label="Quanto pôr"
@@ -745,9 +749,9 @@ function Boletim({
             className="btn azul apo-apostar"
             type="button"
             onClick={apostar}
-            disabled={aPor || quanto < APOSTA_MINIMA || quanto > saldo}
+            disabled={aPor || quanto < APOSTA_MINIMA || (temNome && quanto > saldo)}
           >
-            {aPor ? 'A pôr...' : `Apostar ${quanto}`}
+            {aPor ? 'A pôr...' : temNome ? `Apostar ${quanto}` : 'Entrar para apostar'}
           </button>
         </div>
       )}
