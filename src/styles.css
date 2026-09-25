@@ -726,6 +726,41 @@ label .rotulo {
   width: 100%;
 }
 
+/* ============================== o porteiro ==============================
+
+   A pergunta da idade a entrada. Fica por cima de todas as outras janelas,
+   que e uma porta: nao se empurra, nao se fecha com Escape nem com um clique
+   ao lado, e as unicas saidas sao as duas respostas. */
+
+.porteiro {
+  z-index: 60;
+}
+.porteiro-miudinho {
+  margin-top: 16px;
+  font-size: 12.5px;
+  color: var(--tinta-3);
+}
+
+/* e o que fica no lugar de uma mesa fechada */
+.fechada {
+  max-width: 540px;
+  margin: 0 auto;
+  text-align: center;
+}
+.fechada .eyebrow {
+  margin-top: 14px;
+}
+.fechada h1 {
+  margin-top: 6px;
+}
+.fechada .lead {
+  margin-left: auto;
+  margin-right: auto;
+}
+.fechada .btn {
+  margin-top: 18px;
+}
+
 table.rank {
   width: 100%;
   border-collapse: collapse;

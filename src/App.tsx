@@ -14,8 +14,10 @@ import { JogoDoCusco } from './componentes/JogoDoCusco';
 import { Colherada } from './componentes/Colherada';
 import { Rodape } from './componentes/Rodape';
 import { Entrada } from './componentes/Entrada';
+import { MesaFechada, Porteiro } from './componentes/Porteiro';
 import { api } from './lib/api';
 import { nomeGuardado } from './lib/nick';
+import { guardarIdade, idadeSabida, SO_PARA_MAIORES, type Resposta } from './lib/idade';
 import { JOGOS, MENU, TODAS_AS_PAGINAS, eJogo } from './lib/dados';
 import type { Estado, Pagina } from './lib/tipos';
 
@@ -44,6 +46,10 @@ export default function App() {
      jogos so mostram com que nome se esta a jogar. */
   const [nome, setNome] = useState(nomeGuardado);
   const [aPedirNome, setAPedirNome] = useState(false);
+  /* Quem chega pela primeira vez leva com a pergunta da idade antes de mais
+     nada. Quem já respondeu não volta a ser chateado, a não ser que peça. */
+  const [idade, setIdade] = useState<Resposta | null>(idadeSabida);
+  const [aPerguntarIdade, setAPerguntarIdade] = useState(false);
   const { fase, entornar } = useEntornar();
 
   const recarregar = useCallback(async () => {
@@ -168,6 +174,10 @@ export default function App() {
     window.addEventListener('popstate', aoMudar);
     return () => window.removeEventListener('popstate', aoMudar);
   }, [pagina, entornar]);
+
+  /* Esta mesa está fechada a quem cá está. Fecha-se a página e não os botões:
+     de outra forma bastava escrever o endereço à mão para entrar na mesma. */
+  const mesaFechada = idade === 'nao' && SO_PARA_MAIORES.includes(pagina);
 
   return (
     <>
@@ -296,9 +306,12 @@ export default function App() {
       </header>
 
       <main className="troca" key={pagina}>
+        {/* Quem disse que ainda não tem 18 encontra as mesas de apostas
+            fechadas. O resto da casa fica como estava. */}
         {pagina === 'inicio' && <Inicio estado={estado} irPara={irPara} />}
         {pagina === 'membros' && <Membros estado={estado} irPara={irPara} />}
-        {pagina === 'blackjack' && (
+        {mesaFechada && <MesaFechada aoCorrigir={() => setAPerguntarIdade(true)} />}
+        {!mesaFechada && pagina === 'blackjack' && (
           <Blackjack
             nome={nome}
             pedirNome={() => setAPedirNome(true)}
@@ -306,7 +319,7 @@ export default function App() {
             irPara={irPara}
           />
         )}
-        {pagina === 'poker' && (
+        {!mesaFechada && pagina === 'poker' && (
           <JogoDoPoker
             estado={estado}
             nome={nome}
@@ -314,7 +327,7 @@ export default function App() {
             recarregar={recarregar}
           />
         )}
-        {pagina === 'roleta' && (
+        {!mesaFechada && pagina === 'roleta' && (
           <Roleta nome={nome} pedirNome={() => setAPedirNome(true)} recarregar={recarregar} />
         )}
         {pagina === 'quadro' && <Quadro estado={estado} />}
@@ -361,6 +374,17 @@ export default function App() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Por último de todos, que é uma porta: fica por cima de tudo o resto. */}
+      {(idade === null || aPerguntarIdade) && (
+        <Porteiro
+          aoResponder={(r) => {
+            guardarIdade(r);
+            setIdade(r);
+            setAPerguntarIdade(false);
+          }}
+        />
       )}
 
       <Entornar fase={fase} />
