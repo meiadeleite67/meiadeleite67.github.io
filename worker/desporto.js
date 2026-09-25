@@ -61,7 +61,7 @@ export const A_SEGUIR = [
      estao a meio da epoca. Como um desporto sem jogos nao gasta nada, segui-los
      nao e uma despesa, e so uma rede. */
   { grupo: 'American Football', quantas: 1, nome: 'Futebol americano' },
-  { grupo: 'Ice Hockey', quantas: 1, nome: 'Hoquei no gelo' },
+  { grupo: 'Ice Hockey', quantas: 1, nome: 'Hóquei no gelo' },
   { grupo: 'Baseball', quantas: 1, nome: 'Basebol' },
   { grupo: 'Mixed Martial Arts', quantas: 1, nome: 'MMA' }
 ];
