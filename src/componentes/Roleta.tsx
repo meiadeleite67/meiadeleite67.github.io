@@ -42,9 +42,18 @@ const RODA = [
 const VERMELHOS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
 const cor = (n: number) => (n === 0 ? 'verde' : VERMELHOS.has(n) ? 'vermelho' : 'preto');
 
-/** Quanto vale cada ficha que se pode pegar da bancada. O servidor aceita
- *  fichas até cinco mil, por isso a de mil cabe com folga. */
-const FICHAS = [1, 5, 10, 25, 100, 500, 1000];
+/**
+ * Quanto vale cada ficha que se pode pegar da bancada, por filas.
+ *
+ * As pequenas em cima e as grandes em baixo: numa fila só, as sete ficavam
+ * numa régua e a de cinco, que é a que mais se usa, ia dar de vizinha à de
+ * mil. O servidor aceita fichas até cinco mil, por isso a de mil cabe com
+ * folga.
+ */
+const FICHAS = [
+  [1, 5, 10, 25, 100],
+  [500, 1000]
+];
 
 /** A cor de cada ficha, a mesma na bancada e em cima do pano. As duas novas
  *  não repetem nenhuma das que já lá estavam: numa pilha de seis discos, duas
@@ -147,7 +156,7 @@ export function Roleta({
 }) {
   const [linha, setLinha] = useState<Pontuacao | null>(null);
   const [recado, setRecado] = useState('');
-  const [ficha, setFicha] = useState(FICHAS[1]);
+  const [ficha, setFicha] = useState(FICHAS[0][1]);
   /* O que está na mesa, ficha a ficha e pela ordem em que se pousaram. Guardar
      a ordem e não só as somas é o que deixa haver um desfazer: tira-se a
      última que se pôs, seja em que casa for. */
@@ -387,21 +396,28 @@ export function Roleta({
 
       <div className="rol-bancada">
         <span className="notas">Ficha:</span>
-        {FICHAS.map((f) => (
-          <button
-            key={f}
-            type="button"
-            className={`rol-ficha${ficha === f ? ' pegada' : ''}`}
-            data-valor={f}
-            onClick={() => setFicha(f)}
-            /* Uma ficha que nao da para pagar apaga-se em vez de dar recado
-               depois de se carregar nela. Com fichas de quinhentos e de mil,
-               isso passou a acontecer a muita gente. */
-            disabled={aRodar || naMesa + f > saldo}
-          >
-            {f}
-          </button>
-        ))}
+        <div className="rol-fichas">
+          {FICHAS.map((fila, i) => (
+            <div className="rol-fichas-fila" key={i}>
+              {fila.map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  className={`rol-ficha${ficha === f ? ' pegada' : ''}`}
+                  data-valor={f}
+                  onClick={() => setFicha(f)}
+                  /* Uma ficha que nao da para pagar apaga-se em vez de dar
+                     recado depois de se carregar nela. Com fichas de
+                     quinhentos e de mil, isso passou a acontecer a muita
+                     gente. */
+                  disabled={aRodar || naMesa + f > saldo}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
 
       <Tabuleiro

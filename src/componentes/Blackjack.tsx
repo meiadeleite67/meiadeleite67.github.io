@@ -227,17 +227,21 @@ export function Blackjack({
                   Pôr fichas
                 </span>
                 <div className="fichas">
-                  {APOSTAS.map((v) => (
-                    <button
-                      key={v}
-                      className={`ficha v${v}`}
-                      type="button"
-                      disabled={naMesa + v > b.saldo}
-                      onClick={() => setMesa(porFicha(b, v))}
-                      aria-label={`Pôr ficha de ${v}`}
-                    >
-                      <span>{v}</span>
-                    </button>
+                  {APOSTAS.map((fila, i) => (
+                    <div className="fichas-fila" key={i}>
+                      {fila.map((v) => (
+                        <button
+                          key={v}
+                          className={`ficha v${v}`}
+                          type="button"
+                          disabled={naMesa + v > b.saldo}
+                          onClick={() => setMesa(porFicha(b, v))}
+                          aria-label={`Pôr ficha de ${v}`}
+                        >
+                          <span>{v}</span>
+                        </button>
+                      ))}
+                    </div>
                   ))}
                 </div>
               </div>

@@ -525,6 +525,10 @@ label .rotulo {
   margin-top: 10px;
 }
 .fichas {
+  display: grid;
+  gap: 10px;
+}
+.fichas-fila {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
@@ -587,10 +591,19 @@ label .rotulo {
 .ficha.v500 {
   --ficha: linear-gradient(160deg, #d0801f, #7a430c);
 }
-/* Tres algarismos ja apertam contra o anel de dentro da ficha. */
+.ficha.v1000 {
+  --ficha: linear-gradient(160deg, #7b8190, #262a33);
+}
+/* O anel decorativo de dentro da ficha comeca a doze pixeis da borda, o que
+   deixa trinta para o numero. Tres algarismos ja apertam contra ele e quatro
+   passavam-lhe por cima. */
 .ficha.v250 span,
 .ficha.v500 span {
   font-size: 13px;
+}
+.ficha.v1000 span {
+  font-size: 11px;
+  letter-spacing: -0.02em;
 }
 .ficha:hover:not(:disabled) {
   transform: translateY(-5px);
@@ -6055,13 +6068,18 @@ footer {
   perspective-origin: 50% 40%;
 }
 .rol-mundo {
+  /* O mundo e um quadrado, e a cena e mais baixa do que larga: se ele tomar a
+     largura toda fica mais alto do que ela e transborda dezanove pixeis por
+     baixo, que era o que ia dar em cima da bancada das fichas. A medida dele
+     passa a ser a altura da cena, e assim cabe sempre dentro, seja qual for a
+     largura do ecra. */
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
+  top: 0;
+  left: 50%;
+  height: 100%;
   aspect-ratio: 1 / 1;
   transform-style: preserve-3d;
-  transform: translateY(-50%) rotateX(var(--inclina));
+  transform: translateX(-50%) rotateX(var(--inclina));
 }
 
 /* o aro de madeira, em cima de tudo */
@@ -6257,12 +6275,28 @@ footer {
 
 /* a bancada das fichas */
 .rol-bancada {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 8px;
   justify-content: center;
   flex-wrap: wrap;
   margin: 14px 0 10px;
+}
+/* As fichas em duas filas, as pequenas em cima e as grandes em baixo. Numa
+   fila so, as sete faziam uma regua e a de cinco, que e a que mais se usa,
+   ficava de vizinha a de mil. */
+.rol-fichas {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+.rol-fichas-fila {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 .rol-bancada .notas {
   margin: 0;
