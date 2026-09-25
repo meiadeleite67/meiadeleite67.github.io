@@ -137,10 +137,6 @@ export function Privacidade({
         conseguimos saber que o nome é teu, podemos pedir-te que o proves com o PIN, que é a única
         prova que existe aqui.
       </p>
-      <p>
-        Se entenderes que estamos a tratar mal os teus dados, podes queixar-te à Comissão Nacional
-        de Proteção de Dados.
-      </p>
 
       <h2>Menores</h2>
       <p>
