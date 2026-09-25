@@ -18,7 +18,6 @@
  *   GET    /poker            quantas pessoas estao em cada mesa
  *   GET    /poker/<mesa>     a ligacao viva a uma mesa de poker (WebSocket)
  *   POST   /quadro/apagar     tira um nome do quadro (precisa da chave)
- *   POST   /quadro/limpar     deita o quadro abaixo (precisa da chave)
  *   POST   /quadro/pin/apagar  tira o PIN de um nome (precisa da chave)
  *   GET    /agenda          a agenda
  *   GET    /membros         os membros do grupo
@@ -646,12 +645,12 @@ export default {
       return responder(feito, request);
     }
 
-    /* Deitar o quadro abaixo. So o admin, e nao ha volta a dar. */
-    if (caminho === '/quadro/limpar' && metodo === 'POST') {
-      if (!(await temChave(request, env)))
-        return responder({ erro: 'Precisas de entrar outra vez.' }, request, 401);
-      return responder(await aoBanco(env, '/limpar', {}), request);
-    }
+    /* Aqui havia um /quadro/limpar, que apagava os nomes e os torroes de toda
+       a gente. Saiu. Nao ha caso nenhum em que valha a pena poder fazer isso
+       com um pedido: no dia em que fizer falta reiniciar o quadro, faz-se com
+       o cuidado de quem escreve o codigo para o fazer, e nao com uma rota que
+       esta ali a espera de ser chamada por engano. O banco ainda sabe limpar-
+       se, e e so de la que se pode pedir. */
 
     /* ---- as mesas de poker ----
 

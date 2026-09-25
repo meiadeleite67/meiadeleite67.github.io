@@ -716,7 +716,11 @@ label .rotulo {
 .modal-fundo {
   position: fixed;
   inset: 0;
-  z-index: 39;
+  /* Acima do cabecalho, que esta em 40. Estava em 39 e por isso o cabecalho
+     pintava-se por cima do alto da janela: no telemovel isso tapava o x de
+     fechar e a janela ficava sem saida a vista. Uma janela que se abre por
+     cima de tudo tem de estar por cima de tudo. */
+  z-index: 50;
   display: grid;
   place-items: center;
   padding: 16px;
@@ -1590,9 +1594,12 @@ footer {
 }
 /* entre os dois tamanhos as quatro colunas ficavam estreitas de mais: passam
    a duas, com a apresentacao do grupo a ocupar a linha de cima inteira */
-@media (min-width: 560px) and (max-width: 1000px) {
+/* Duas colunas em tudo o que nao seja ecra grande. Numa coluna so, as cinco
+   listas faziam uma torre de trinta linhas que ninguem le ate ao fim. */
+@media (max-width: 1000px) {
   .rodape {
     grid-template-columns: 1fr 1fr;
+    gap: 22px 18px;
   }
   .rodape-sobre {
     grid-column: 1 / -1;
