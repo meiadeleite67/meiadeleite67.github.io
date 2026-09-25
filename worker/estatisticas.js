@@ -18,20 +18,42 @@
  * recolhido no estádio por quem tem câmaras lá montadas.
  */
 
-/** Onde cada desporto guarda as estatísticas de um jogo. Quem não estiver aqui
- *  simplesmente não as tem, e a página do jogo mostra o resto sem elas. */
+/** Onde cada desporto guarda as estatísticas de um jogo.
+ *
+ *  Vai uma lista de caminhos por desporto e não um caminho só, porque a
+ *  API-Sports não os tem todos iguais e a documentação de cada desporto é uma
+ *  página diferente. Provei-os ao vivo: o futebol responde a
+ *  "/fixtures/statistics", e nos outros o que existe é "/games/statistics" ou
+ *  "/games/statistics/teams" conforme o desporto. Em vez de adivinhar, tenta-se
+ *  o mais provável e, se a feed disser que aquele caminho não existe, esse fica
+ *  apontado como morto e passa-se ao seguinte. Uma vez por desporto, e não uma
+ *  vez por jogo.
+ *
+ *  Quem não estiver aqui simplesmente não tem estatísticas, e a página do jogo
+ *  mostra o resto sem elas. */
 export const CAMINHOS = {
-  Futebol: { caminho: '/fixtures/statistics', chave: 'fixture', eventos: '/fixtures/events' },
-  Basquetebol: { caminho: '/games/statistics/teams', chave: 'id' },
-  NBA: { caminho: '/games/statistics', chave: 'id' },
-  'Futebol americano': { caminho: '/games/statistics/teams', chave: 'id' },
-  Basebol: { caminho: '/games/statistics/teams', chave: 'id' },
-  'Hóquei no gelo': { caminho: '/games/statistics', chave: 'id' },
-  Andebol: { caminho: '/games/statistics', chave: 'id' },
-  Voleibol: { caminho: '/games/statistics', chave: 'id' },
-  Rugby: { caminho: '/games/statistics', chave: 'id' },
-  AFL: { caminho: '/games/statistics', chave: 'id' }
+  Futebol: {
+    caminhos: ['/fixtures/statistics'],
+    chave: 'fixture',
+    eventos: '/fixtures/events'
+  },
+  Basquetebol: { caminhos: ['/games/statistics/teams', '/games/statistics'], chave: 'id' },
+  NBA: { caminhos: ['/games/statistics', '/games/statistics/teams'], chave: 'id' },
+  'Futebol americano': { caminhos: ['/games/statistics/teams', '/games/statistics'], chave: 'id' },
+  Basebol: { caminhos: ['/games/statistics/teams', '/games/statistics'], chave: 'id' },
+  'Hóquei no gelo': {
+    caminhos: ['/games/statistics/teams', '/games/statistics'],
+    chave: 'id',
+    eventos: '/games/events'
+  },
+  Andebol: { caminhos: ['/games/statistics/teams', '/games/statistics'], chave: 'id' },
+  Voleibol: { caminhos: ['/games/statistics/teams', '/games/statistics'], chave: 'id' },
+  Rugby: { caminhos: ['/games/statistics/teams', '/games/statistics'], chave: 'id' },
+  AFL: { caminhos: ['/games/statistics/teams', '/games/statistics'], chave: 'id' }
 };
+
+/** A feed diz isto quando o caminho não existe naquele desporto. */
+export const NAO_EXISTE = 'do not exist';
 
 /** Os nomes em português das estatísticas que aparecem mais. O que não estiver
  *  aqui mostra-se como veio: mais vale um nome em inglês do que nada. */

@@ -394,7 +394,7 @@ import {
   temChaveDaFeed
 } from './desporto.js';
 import { quemGanhou } from './apostas.js';
-import { CAMINHOS, lerEstatisticas, lerEventos } from './estatisticas.js';
+import { CAMINHOS, NAO_EXISTE, lerEstatisticas, lerEventos } from './estatisticas.js';
 import {
   CASAS as DESPORTOS_NOVOS,
   pedir as pedirANova,
@@ -565,6 +565,37 @@ async function apontarGasto(env, quantos) {
  * Devolve sempre alguma coisa: se nao houver copia nem orcamento, devolve o
  * que tem com uma nota a dizer porque nao foi buscar mais.
  */
+/**
+ * Pede as estatísticas de um jogo, tentando os caminhos daquele desporto.
+ *
+ * O caminho que a feed disser que não existe fica apontado por um mês, para
+ * não se gastar um pedido por jogo a descobrir a mesma coisa. Sai o que veio e
+ * quantos pedidos custou, que quem chama tem de os apontar na conta do dia.
+ */
+async function pedirEstatisticas(env, jogo, onde, casa) {
+  let pedidos = 0;
+  let ultimoErro = '';
+
+  for (const caminho of onde.caminhos) {
+    const morto = `desporto:caminho-morto:${jogo.desporto}:${caminho}`;
+    if (await env.QUADRO.get(morto)) continue;
+
+    const r = await pedirANova(env, casa.casa, caminho, { [onde.chave]: jogo.id });
+    pedidos += 1;
+    if (!r.erro) return { lista: r.lista, pedidos };
+
+    ultimoErro = r.erro;
+    /* "This endpoint do not exist" e a maneira dela dizer que aquele desporto
+       nao tem este caminho. Qualquer outro erro e do momento, e o caminho pode
+       estar bom: nao se aponta como morto por uma recusa passageira. */
+    if (String(r.erro).includes(NAO_EXISTE))
+      await env.QUADRO.put(morto, '1', { expirationTtl: 60 * 60 * 24 * 30 });
+    else break;
+  }
+
+  return { lista: null, pedidos, erro: ultimoErro || 'este desporto não dá estatísticas' };
+}
+
 async function comoVaiOJogo(env, jogo) {
   const onde = CAMINHOS[jogo.desporto];
   const casa = DESPORTOS_NOVOS[jogo.desporto];
@@ -576,18 +607,24 @@ async function comoVaiOJogo(env, jogo) {
   const serve = guardado && (acabou || idade < 3 * 60 * 1000);
   if (serve) return { ...guardado, daCopia: true };
 
-  if (!onde || !casa || !temChaveNova(env))
+  /* Um jogo da fonte antiga nao tem numero que a fonte nova conheca, por isso
+     pedir-lhe estatisticas seria gastar um pedido para ouvir um nao. */
+  if (!onde || !casa || jogo.fonte !== 'api-sports' || !temChaveNova(env))
     return guardado || { estatisticas: [], eventos: [], quando: null, semFonte: true };
 
-  const quantosPedidos = onde.eventos ? 2 : 1;
+  /* O pior caso sao todos os caminhos do desporto mais os eventos. */
+  const quantosPedidos = onde.caminhos.length + (onde.eventos ? 1 : 0);
   if ((await jaSeGastou(env)) + quantosPedidos > PEDIDOS_DE_FORA_POR_DIA)
     return guardado
       ? { ...guardado, daCopia: true, semOrcamento: true }
       : { estatisticas: [], eventos: [], quando: null, semOrcamento: true };
 
-  const st = await pedirANova(env, casa.casa, onde.caminho, { [onde.chave]: jogo.id });
-  await apontarGasto(env, 1);
-  if (st.erro) return guardado ? { ...guardado, daCopia: true } : { estatisticas: [], eventos: [], erro: st.erro };
+  const st = await pedirEstatisticas(env, jogo, onde, casa);
+  await apontarGasto(env, st.pedidos);
+  if (st.erro)
+    return guardado
+      ? { ...guardado, daCopia: true }
+      : { estatisticas: [], eventos: [], erro: st.erro };
 
   let eventos = [];
   if (onde.eventos) {
