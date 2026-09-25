@@ -747,8 +747,18 @@ label .rotulo {
 }
 
 /* ---- a coluna, a parte de cima: as apostas em curso ---- */
-.apo-lado-minhas {
-  margin-bottom: 16px;
+/* O bloco do boletim e o dos desportos sao duas coisas, e por isso levam uma
+   linha a separa-los: sem ela o titulo "Desportos" ficava encostado ao botao
+   de cima e os dois pareciam a mesma lista.
+
+   O seletor leva o .apo-lado a frente por uma razao: a regra que poe as
+   margens das listas desta coluna a zero e ".apo-lado ul", que tem mais
+   especificidade do que uma classe sozinha e ganhava a esta. O espaco ficava a
+   zero e nao se via porque. */
+.apo-lado ul.apo-lado-minhas {
+  margin: 0 0 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--linha);
 }
 .apo-lado-minhas button {
   display: flex;
@@ -1698,6 +1708,9 @@ footer {
   padding: 12px;
   background: var(--papel);
 }
+.apo-lado h2 + ul {
+  margin-top: 0;
+}
 .apo-lado h2 {
   font-family: var(--mono);
   font-size: 10.5px;
@@ -1801,6 +1814,32 @@ footer {
 .apo-jogos {
   display: grid;
   gap: 8px;
+}
+
+/* O recado de quando nao ha jogos. Ficava uma linha solta encostada ao canto
+   de cima de um ecra vazio, que e o pior sitio para se por um recado: ao lado
+   dele nao ha nada, e por isso ele nao parece o assunto da pagina, parece um
+   resto. Ao centro e o assunto. */
+.apo-vazio {
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  min-height: 220px;
+  padding: 24px 16px;
+  border: 1px dashed var(--linha);
+  border-radius: 12px;
+  text-align: center;
+}
+.apo-vazio b {
+  font-family: var(--fraunces, inherit);
+  font-size: 19px;
+  color: var(--tinta);
+  font-weight: 600;
+}
+.apo-vazio span {
+  font-size: 13.5px;
+  color: var(--tinta-3);
+  max-width: 34ch;
 }
 .apo-jogo {
   display: grid;
@@ -2219,73 +2258,183 @@ footer {
   margin-top: 10px;
 }
 
-/* ---- as minhas apostas ---- */
+/* ---- as minhas apostas ----
 
-.apo-minhas {
-  margin-top: 30px;
+   Um bilhete e uma coisa que se le de relance: o que e (simples ou multipla),
+   em que estado esta, que jogos leva dentro, e quanto vale. E por essa ordem,
+   de cima para baixo, com as pernas a dar para carregar: numa multipla de
+   quatro, e a unica maneira de se ir ver um dos jogos sem o procurar na lista
+   toda. */
+
+.apo-minhas-cima {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 .apo-minhas h2 {
-  font-size: 21px;
-  margin: 0 0 10px;
+  font-size: 25px;
+  margin: 0;
 }
-.apo-minhas > ul {
+.apo-minhas h3 {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--tinta-3);
+  font-weight: 600;
+  margin: 22px 0 8px;
+}
+.apo-minhas ul {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
   gap: 8px;
 }
+
+/* os tres numeros do topo */
+.apo-resumo {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+}
+.apo-resumo > div {
+  border: 1px solid var(--linha);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(240, 220, 192, 0.03);
+}
+.apo-resumo b {
+  display: block;
+  font-family: var(--mono);
+  font-size: 22px;
+  color: var(--crema);
+  line-height: 1.1;
+}
+.apo-resumo span {
+  font-size: 12px;
+  color: var(--tinta-3);
+}
+.apo-resumo .bem b {
+  color: var(--verde);
+}
+.apo-resumo .mal b {
+  color: var(--tinta-3);
+}
+
+.apo-minhas-vazio {
+  border: 1px dashed var(--linha);
+  border-radius: 12px;
+  padding: 22px;
+  text-align: center;
+  margin-top: 14px;
+}
+.apo-minhas-vazio p {
+  margin: 0 0 6px;
+  color: var(--tinta-2);
+}
+.apo-minhas-vazio .notas {
+  max-width: 44ch;
+  margin: 0 auto 14px;
+}
+.apo-minhas-vazio .btn {
+  width: auto;
+}
+
+/* um bilhete */
 .apo-minha {
   border: 1px solid var(--linha);
   border-left-width: 3px;
-  border-radius: 9px;
-  padding: 9px 12px 10px;
+  border-radius: 11px;
+  padding: 11px 13px 12px;
+  background: var(--papel);
 }
 .apo-minha-cima {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 10px;
 }
-.apo-minha-cima b {
-  color: var(--tinta);
-}
-.apo-minha-posta {
+.apo-minha-tipo {
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tinta-3);
+}
+.apo-selo {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid var(--linha);
+  border-radius: 999px;
+  padding: 2px 9px;
+  color: var(--tinta-3);
+}
+.apo-selo.aberta {
+  color: var(--crema);
+  border-color: var(--crema-2);
+}
+.apo-selo.ganha {
+  color: var(--verde);
+  border-color: var(--verde);
+}
+.apo-selo.anulada {
   color: var(--tinta-2);
 }
+
+/* as pernas, cada uma a dar para carregar */
 .apo-minha-pernas {
-  list-style: none;
-  margin: 6px 0 0;
+  margin: 9px 0 0;
   padding: 0;
   display: grid;
-  gap: 2px;
+  gap: 3px;
 }
-.apo-minha-pernas li {
+.apo-minha-pernas > li {
+  list-style: none;
+}
+.apo-minha-pernas button {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 4px 10px;
-  font-size: 13px;
-  color: var(--tinta-2);
-  padding: 2px 0;
+  align-items: center;
+  gap: 1px 12px;
+  width: 100%;
+  border: 0;
+  border-left: 2px solid var(--linha);
+  border-radius: 0 7px 7px 0;
+  background: transparent;
+  padding: 5px 9px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.apo-minha-pernas button:hover {
+  background: rgba(240, 220, 192, 0.06);
+  border-left-color: var(--crema);
+}
+.apo-perna-quem {
+  grid-column: 1;
+  font-size: 14px;
+  color: var(--tinta);
 }
 .apo-perna-jogo {
   grid-column: 1;
   font-size: 12px;
   color: var(--tinta-3);
 }
-.apo-perna-quem {
-  grid-column: 1;
-}
 .apo-perna-cotacao {
   grid-column: 2;
   grid-row: 1 / span 2;
-  align-self: center;
   font-family: var(--mono);
-  font-size: 13px;
-  color: var(--tinta-3);
+  font-size: 13.5px;
+  color: var(--tinta-2);
+}
+.apo-minha-pernas li.ganha button {
+  border-left-color: var(--verde);
 }
 .apo-minha-pernas li.ganha .apo-perna-quem {
   color: var(--verde);
@@ -2297,10 +2446,25 @@ footer {
 .apo-minha-pernas li.anulada .apo-perna-cotacao {
   text-decoration: line-through;
 }
-.apo-minha-estado {
-  margin: 8px 0 0;
-  font-size: 12.5px;
+
+.apo-minha-baixo {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--linha);
+  font-size: 13px;
   color: var(--tinta-3);
+}
+.apo-minha-baixo b {
+  font-family: var(--mono);
+  color: var(--tinta-2);
+}
+.apo-minha-volta {
+  color: var(--tinta-2);
 }
 .apo-minha.aberta {
   border-left-color: var(--crema);
@@ -2308,7 +2472,7 @@ footer {
 .apo-minha.ganha {
   border-left-color: var(--verde);
 }
-.apo-minha.ganha .apo-minha-estado {
+.apo-minha.ganha .apo-minha-volta {
   color: var(--verde);
 }
 .apo-minha.perdida {
@@ -2316,6 +2480,15 @@ footer {
 }
 .apo-minha.anulada {
   border-left-color: var(--tinta-3);
+}
+
+@media (max-width: 520px) {
+  .apo-resumo {
+    grid-template-columns: 1fr 1fr;
+  }
+  .apo-resumo > div:last-child {
+    grid-column: 1 / -1;
+  }
 }
 
 .apo-regras {

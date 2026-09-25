@@ -195,10 +195,37 @@ export function Apostas({
     [quadro, aVer, aVerLiga]
   );
 
-  const oJogoAberto = useMemo(
-    () => (quadro?.jogos || []).find((j) => j.id === aVerJogo) || null,
-    [quadro, aVerJogo]
-  );
+  /* O jogo que esta aberto em detalhe. Pode vir da lista, e nesse caso ainda
+     da para apostar nele; ou pode vir de uma perna de uma aposta, quando o jogo
+     ja saiu da lista por ter comecado. Nesse segundo caso mostra-se o que a
+     propria aposta guardou, que e tudo o que se sabe dele. */
+  const oJogoAberto = useMemo(() => {
+    if (!aVerJogo) return null;
+
+    const daLista = (quadro?.jogos || []).find((j) => j.id === aVerJogo);
+    if (daLista) return { jogo: daLista, daLista: true };
+
+    for (const a of minhas) {
+      const perna = (a.pernas || []).find((x) => x.jogo === aVerJogo);
+      if (!perna) continue;
+      return {
+        daLista: false,
+        jogo: {
+          id: perna.jogo,
+          chave: perna.chave,
+          liga: perna.liga,
+          desporto: perna.desporto,
+          casa: perna.casa,
+          fora: perna.fora,
+          comeca: perna.comeca,
+          /* Da aposta so se sabe a cotacao do lado em que se apostou. As outras
+             nao se inventam: mostra-se a que ficou guardada e mais nada. */
+          cotacoes: { casa: 0, fora: 0 }
+        } as JogoDeApostas
+      };
+    }
+    return null;
+  }, [quadro, aVerJogo, minhas]);
 
   const abertas = minhas.filter((a) => a.estado === 'aberta');
   const fechadas = minhas.filter((a) => a.estado !== 'aberta');
@@ -411,15 +438,15 @@ export function Apostas({
               fechadas={fechadas}
               presos={presos}
               aosJogos={() => setVista('jogos')}
+              abrirJogo={abrirJogo}
             />
           ) : (
             <>
           {!aCarregar && quadro?.temFeed && jogos.length === 0 && (
-            <p className="notas">
-              {aVer
-                ? `Não há nada marcado no ${aVer.toLowerCase()} nestes dias. Aparece aqui assim que houver.`
-                : 'Não há jogos à espera. Ou já começaram todos, ou a próxima volta ainda não trouxe os de hoje.'}
-            </p>
+            <div className="apo-vazio">
+              <b>{aVer ? `Sem ${aVer.toLowerCase()} nestes dias` : 'Sem jogos à espera'}</b>
+              <span>Aparece aqui assim que houver.</span>
+            </div>
           )}
 
           <div className="apo-jogos">
@@ -490,7 +517,8 @@ export function Apostas({
 
       {oJogoAberto && (
         <DetalheDoJogo
-          jogo={oJogoAberto}
+          jogo={oJogoAberto.jogo}
+          daLista={oJogoAberto.daLista}
           minhas={minhas}
           noBoletim={noBoletim}
           escolher={escolher}
@@ -531,14 +559,22 @@ function AsMinhas({
   abertas,
   fechadas,
   presos,
-  aosJogos
+  aosJogos,
+  abrirJogo
 }: {
   minhas: ApostaDesportiva[];
   abertas: ApostaDesportiva[];
   fechadas: ApostaDesportiva[];
   presos: number;
   aosJogos: () => void;
+  abrirJogo: (id: string) => void;
 }) {
+  /* O que se ganhou ao todo, para haver um numero que nao seja so o que esta
+     preso. Conta as ganhas e as anuladas, que essas devolveram o que levaram. */
+  const ganhou = minhas
+    .filter((a) => a.estado === 'ganha')
+    .reduce((soma, a) => soma + a.lucro, 0);
+
   return (
     <div className="apo-minhas">
       <div className="apo-minhas-cima">
@@ -548,69 +584,130 @@ function AsMinhas({
         </button>
       </div>
 
-      {minhas.length === 0 && (
-        <p className="notas">
-          Ainda não puseste nenhuma. Escolhe uma cotação na lista dos jogos e ela aparece aqui.
-        </p>
-      )}
+      {minhas.length === 0 ? (
+        <div className="apo-minhas-vazio">
+          <p>Ainda não puseste nenhuma.</p>
+          <p className="notas">
+            Escolhe uma cotação na lista dos jogos. Duas ou mais fazem uma múltipla, com as
+            cotações multiplicadas umas pelas outras.
+          </p>
+          <button type="button" className="btn azul" onClick={aosJogos}>
+            Ver os jogos
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="apo-resumo">
+            <div>
+              <b>{abertas.length}</b>
+              <span>por fechar</span>
+            </div>
+            <div>
+              <b>{presos}</b>
+              <span>torrões presos</span>
+            </div>
+            <div className={ganhou > 0 ? 'bem' : ganhou < 0 ? 'mal' : ''}>
+              <b>
+                {ganhou > 0 ? '+' : ''}
+                {ganhou}
+              </b>
+              <span>ganhos até agora</span>
+            </div>
+          </div>
 
-      {minhas.length > 0 && (
-        <p className="notas apo-minhas-conta">
-          {abertas.length === 0
-            ? 'Não tens nenhuma por fechar.'
-            : `${abertas.length} por fechar, com ${presos} torrões presos.`}
-        </p>
-      )}
+          {abertas.length > 0 && (
+            <>
+              <h3>Por fechar</h3>
+              <ul>
+                {abertas.map((a) => (
+                  <Bilhete key={a.id} aposta={a} abrirJogo={abrirJogo} />
+                ))}
+              </ul>
+            </>
+          )}
 
-      <ul>
-        {[...abertas, ...fechadas].map((a) => (
-          <Bilhete key={a.id} aposta={a} />
-        ))}
-      </ul>
+          {fechadas.length > 0 && (
+            <>
+              <h3>Já fechadas</h3>
+              <ul>
+                {fechadas.map((a) => (
+                  <Bilhete key={a.id} aposta={a} abrirJogo={abrirJogo} />
+                ))}
+              </ul>
+            </>
+          )}
+        </>
+      )}
     </div>
   );
 }
 
 /* ======================== um bilhete já apostado ======================== */
 
-function Bilhete({ aposta }: { aposta: ApostaDesportiva }) {
+function Bilhete({
+  aposta,
+  abrirJogo
+}: {
+  aposta: ApostaDesportiva;
+  abrirJogo: (id: string) => void;
+}) {
   /* Uma aposta sem pernas nao existe, mas se alguma vez aparecer uma, e melhor
      nao a mostrar do que levar a pagina toda atras dela. */
   if (!Array.isArray(aposta.pernas) || aposta.pernas.length === 0) return null;
 
   const multipla = aposta.pernas.length > 1;
-  const cabeca = multipla
-    ? `Múltipla de ${aposta.pernas.length}`
-    : quemE(aposta.pernas[0].escolha, aposta.pernas[0]);
+  const cotacao = aposta.cotacaoFinal || aposta.cotacao;
+  const aPagar = Math.round(aposta.quanto * cotacao);
+
+  const selo =
+    aposta.estado === 'aberta'
+      ? 'Por fechar'
+      : aposta.estado === 'ganha'
+        ? 'Ganha'
+        : aposta.estado === 'anulada'
+          ? 'Anulada'
+          : 'Perdida';
 
   return (
     <li className={`apo-minha ${aposta.estado}`}>
       <div className="apo-minha-cima">
-        <b>{cabeca}</b>
-        <span className="apo-minha-posta">
-          {aposta.quanto} a {(aposta.cotacaoFinal || aposta.cotacao).toFixed(2)}
+        <span className="apo-minha-tipo">
+          {multipla ? `Múltipla de ${aposta.pernas.length}` : 'Simples'}
         </span>
+        <span className={`apo-selo ${aposta.estado}`}>{selo}</span>
       </div>
+
+      {/* Cada perna abre a pagina do jogo dela. Numa multipla de quatro, e a
+          unica maneira de se ir ver um dos jogos sem ter de o procurar na
+          lista. */}
       <ul className="apo-minha-pernas">
         {aposta.pernas.map((p) => (
           <li key={p.jogo} className={p.estado}>
-            <span className="apo-perna-quem">{quemE(p.escolha, p)}</span>
-            <span className="apo-perna-jogo">
-              {p.casa} - {p.fora}
-            </span>
-            <span className="apo-perna-cotacao">{p.cotacao.toFixed(2)}</span>
+            <button type="button" onClick={() => abrirJogo(p.jogo)} title="Ver este jogo">
+              <span className="apo-perna-quem">{quemE(p.escolha, p)}</span>
+              <span className="apo-perna-jogo">
+                {p.casa} - {p.fora}
+              </span>
+              <span className="apo-perna-cotacao">{p.cotacao.toFixed(2)}</span>
+            </button>
           </li>
         ))}
       </ul>
-      <p className="apo-minha-estado">
-        {aposta.estado === 'aberta'
-          ? `Por fechar. Se acertar, voltam ${Math.round(aposta.quanto * aposta.cotacao)}.`
-          : aposta.estado === 'ganha'
-            ? `Ganhaste ${aposta.volta}.`
-            : aposta.estado === 'anulada'
-              ? `Anulada, voltaram ${aposta.volta}.`
-              : 'Não deu.'}
-      </p>
+
+      <div className="apo-minha-baixo">
+        <span>
+          <b>{aposta.quanto}</b> torrões a <b>{cotacao.toFixed(2)}</b>
+        </span>
+        <span className="apo-minha-volta">
+          {aposta.estado === 'aberta'
+            ? `Se acertar, voltam ${aPagar}`
+            : aposta.estado === 'ganha'
+              ? `Voltaram ${aposta.volta}`
+              : aposta.estado === 'anulada'
+                ? `Devolvidos ${aposta.volta}`
+                : 'Não voltou nada'}
+        </span>
+      </div>
     </li>
   );
 }
@@ -629,12 +726,16 @@ function Bilhete({ aposta }: { aposta: ApostaDesportiva }) {
  */
 function DetalheDoJogo({
   jogo,
+  daLista,
   minhas,
   noBoletim,
   escolher,
   fechar
 }: {
   jogo: JogoDeApostas;
+  /** Se o jogo ainda esta na lista de quem da cotacoes. Quando nao esta, ele
+   *  vem de uma aposta e nao ha cotacoes para mostrar. */
+  daLista: boolean;
   minhas: ApostaDesportiva[];
   noBoletim: (jogo: string, escolha?: Escolha) => boolean;
   escolher: (jogo: JogoDeApostas, escolha: Escolha) => void;
@@ -684,7 +785,8 @@ function DetalheDoJogo({
           )}
         </p>
 
-        <h3>Quem ganha</h3>
+        {daLista && <h3>Quem ganha</h3>}
+        {daLista && (
         <div className="apo-cotacoes grandes">
           {DE_LADO.map(({ escolha, curto }) => {
             const cotacao = jogo.cotacoes[escolha];
@@ -704,8 +806,9 @@ function DetalheDoJogo({
             );
           })}
         </div>
+        )}
 
-        {jaComecou(jogo) && (
+        {daLista && jaComecou(jogo) && (
           <p className="notas">
             As cotações ficam trancadas a partir da hora de começo, aqui e em qualquer casa de
             apostas: quem está a ver o jogo saberia sempre mais do que quem não está.

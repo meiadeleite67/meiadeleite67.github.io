@@ -819,7 +819,11 @@ export default {
           contas: await contasDaFeed(env),
           /* O que a ultima volta fez. E so para se poder ver de fora porque e
              que ela nao trouxe o que se esperava; o site nao o mostra. */
-          volta: await relatorioDaVolta(env)
+          volta: await relatorioDaVolta(env),
+          /* As contas das apostas guardadas, sem nome de ninguem. E so para
+             quem mantem isto poder ver que ha apostas la dentro sem ter de
+             pedir o PIN a alguem. */
+          apostas: await doBanco(env, '/apostas/contas')
         },
         request
       );

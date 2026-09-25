@@ -254,6 +254,19 @@ export class Banco extends DurableObject {
     return { apostas: minhas, linha: semSegredos(achado.linha) };
   }
 
+  /** As contas das apostas guardadas, sem nomes nem nada de ninguem: quantas
+   *  ha, quantas estao abertas, e quantas nao tem pernas. A ultima e a que
+   *  interessa: uma aposta sem pernas vem do tempo em que uma aposta era um
+   *  jogo so, e se alguma ficou assim e porque a conversao nao lhe chegou. */
+  contasDasApostas() {
+    return {
+      quantas: this.apostas.length,
+      abertas: this.apostas.filter((a) => a.estado === 'aberta').length,
+      semPernas: this.apostas.filter((a) => !Array.isArray(a.pernas) || a.pernas.length === 0).length,
+      deQuantosNomes: new Set(this.apostas.map((a) => a.nome)).size
+    };
+  }
+
   /**
    * Os jogos onde ha apostas por fechar, por liga.
    *
@@ -598,7 +611,9 @@ export class Banco extends DurableObject {
                               ? await this.minhasApostas(veio)
                               : caminho === '/apostas/por-fechar'
                                 ? this.ligasPorFechar()
-                                : caminho === '/apostas/fechar'
+                                : caminho === '/apostas/contas'
+                                  ? this.contasDasApostas()
+                                  : caminho === '/apostas/fechar'
                                   ? await this.fechar(veio)
                                   : { erro: 'O banco não sabe fazer isso.', estado: 404 };
 
