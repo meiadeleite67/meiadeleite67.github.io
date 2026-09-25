@@ -123,9 +123,9 @@ export function Privacidade({
       <h2>Os jogos e as cotações</h2>
       <p>
         Os jogos, as cotações e os resultados das apostas desportivas vêm da The Odds API. O
-        servidor vai lá uma vez por dia e traz a lista; não é feito nenhum pedido quando abres a
-        página, e não lhes vai daqui nada a teu respeito. Eles não sabem quem tu és nem que
-        apostaste.
+        servidor vai lá algumas vezes por dia e traz a lista; não é feito nenhum pedido quando
+        abres a página, e não lhes vai daqui nada a teu respeito. Eles não sabem quem tu és nem
+        que apostaste.
       </p>
 
       <h2>As fotos</h2>

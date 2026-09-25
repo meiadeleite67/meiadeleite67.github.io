@@ -20,9 +20,9 @@ import type {
  * puseram e ainda estão de pé.
  *
  * Os jogos e as cotações vêm de uma feed a sério, mas não se vão lá buscar
- * quando alguém abre a página: vêm do que o servidor guardou na volta da manhã.
- * O plano que temos dá uns dezasseis pedidos por dia, e um pedido por visita
- * gastava-os antes do almoço.
+ * quando alguém abre a página: vêm do que o servidor guardou na última volta,
+ * que dá de seis em seis horas. O plano que temos é contado ao pedido, e um
+ * pedido por cada visita gastava o mês numa tarde.
  *
  * A cotação que conta é a que estava quando se apostou, e fica guardada dentro
  * da aposta. É assim numa casa de apostas e é a única maneira honesta: de outra
@@ -207,8 +207,8 @@ export function Apostas({
 
       {!aCarregar && quadro?.temFeed && jogos.length === 0 && (
         <p className="notas">
-          Não há jogos à espera. Ou já começaram todos, ou a volta da manhã ainda não trouxe os de
-          hoje.
+          Não há jogos à espera. Ou já começaram todos, ou a próxima volta ainda não trouxe os
+          de hoje.
         </p>
       )}
 
@@ -375,8 +375,8 @@ export function Apostas({
       <p className="notas apo-regras">
         A cotação que conta é a que estava quando apostaste, e fica guardada com a aposta. Um jogo
         que acabe empatado sem se poder ter apostado no empate devolve o que puseste, e um jogo que
-        seja adiado e nunca mais se faça devolve tudo ao fim de uma semana. Os jogos e as cotações
-        são atualizados uma vez por dia, de manhã.
+        seja adiado e nunca mais se faça devolve tudo ao fim de uma semana. Os jogos e as
+        cotações são atualizados de seis em seis horas.
       </p>
     </section>
   );

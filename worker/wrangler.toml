@@ -46,10 +46,13 @@ new_sqlite_classes = ["MesaDePoker"]
 tag = "v2"
 new_sqlite_classes = ["Banco"]
 
-# O relogio das apostas desportivas. Uma volta por dia, as oito da manha em
-# Lisboa (a Cloudflare conta em UTC), que e quando ja acabaram os jogos da
-# noite anterior. Nessa volta fecham-se as apostas dos jogos que acabaram e
-# vao-se buscar as cotacoes do dia. A feed gratuita da uns dezasseis creditos
-# por dia e uma volta destas gasta onze.
+# O relogio das apostas desportivas, de seis em seis horas.
+#
+# Sao quatro voltas por dia e nao uma porque quase nenhuma custa alguma coisa:
+# saber que jogos ha e quais ja acabaram e de graca na feed, e so se paga para
+# saber as cotacoes de uma liga que tenha jornada nova e o resultado de um jogo
+# que se saiba ja acabado. Numa semana calma isto gasta menos do que gastava a
+# dar uma volta por dia, e as apostas fecham no proprio dia em vez de ficarem a
+# espera da manha seguinte.
 [triggers]
-crons = ["0 8 * * *"]
+crons = ["0 */6 * * *"]

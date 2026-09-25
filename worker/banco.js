@@ -225,18 +225,33 @@ export class Banco extends DurableObject {
     return { apostas: minhas, linha: semSegredos(achado.linha) };
   }
 
-  /** As ligas onde ha apostas por fechar. E por aqui que se sabe a quem vale a
-   *  pena pedir resultados, em vez de os pedir a todas e gastar creditos a
-   *  perguntar por jogos que ninguem apostou. */
+  /**
+   * Os jogos onde ha apostas por fechar, por liga.
+   *
+   * E por aqui que se sabe a quem vale a pena perguntar, em vez de perguntar a
+   * todas e gastar creditos com jogos que ninguem apostou. Vai o numero do jogo
+   * e a hora a que ele comecou, que e o que deixa la fora decidir se ja ha
+   * alguma coisa para saber ou se ainda esta a decorrer.
+   */
   ligasPorFechar() {
-    const chaves = new Set();
+    const porLiga = new Map();
     let quantas = 0;
     this.apostas.forEach((a) => {
       if (a.estado !== 'aberta') return;
       quantas += 1;
-      if (a.chave) chaves.add(a.chave);
+      if (!a.chave) return;
+      const ja = porLiga.get(a.chave) || new Map();
+      ja.set(a.jogo, a.comeca);
+      porLiga.set(a.chave, ja);
     });
-    return { chaves: [...chaves], quantas };
+    return {
+      quantas,
+      chaves: [...porLiga.keys()],
+      ligas: [...porLiga.entries()].map(([chave, jogos]) => ({
+        chave,
+        jogos: [...jogos.entries()].map(([jogo, comeca]) => ({ jogo, comeca }))
+      }))
+    };
   }
 
   /**

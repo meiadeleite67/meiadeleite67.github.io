@@ -382,6 +382,7 @@ function limparEvento(veio, antes) {
    conhecer e o ficheiro de entrada do Worker. */
 import {
   contasDaFeed,
+  jaAcabaram,
   jogoGuardado,
   jogosGuardados,
   refrescarJogos,
@@ -392,33 +393,46 @@ import { quemGanhou } from './apostas.js';
 
 export { Banco, MesaDePoker };
 
-/* ==================== a volta do dia das apostas ====================
+/* ====================== a volta das apostas ======================
 
-   Isto corre pelo relogio da Cloudflare e nao quando alguem abre a pagina. A
-   feed gratuita da quinhentos creditos por mes, uns dezasseis por dia, e um
-   pedido por cada visita gastava-os antes do almoco.
+   Isto corre pelo relogio da Cloudflare e nao quando alguem abre a pagina. Um
+   pedido por visita gastava a quota de um mes numa tarde.
 
-   Fecham-se as apostas primeiro e so depois se vao buscar jogos novos. E de
-   proposito: se os creditos estiverem a acabar, quem tem torroes presos numa
-   aposta por fechar tem mais direito ao que resta do que quem quer ver a
-   jornada seguinte. */
+   A volta da-se de seis em seis horas e quase sempre nao custa nada, porque
+   perguntar o que ha e de graca e so se paga o que faz falta saber. Primeiro
+   fecha-se o que ja acabou, e so depois se vao buscar jogos novos: se os
+   creditos estiverem a acabar, quem tem torroes presos numa aposta tem mais
+   direito ao que resta do que quem quer ver a jornada seguinte. */
 
 async function aVoltaDoDia(env) {
   const feito = { fechadas: 0, ligas: [], jogos: 0, erros: [] };
 
-  /* ---- fechar o que ja acabou ---- */
+  /* ---- fechar o que ja acabou ----
+
+     A pergunta cara e a dos resultados, que custa dois creditos por liga. Antes
+     de a fazer pergunta-se de graca se ha ali sequer alguma coisa acabada: um
+     jogo que ainda esta na lista de jogos nao acabou, e enquanto as apostas de
+     uma liga forem todas de jogos que ainda la estao, essa liga nao custa nada
+     esta volta. */
   const porFechar = await doBanco(env, '/apostas/por-fechar');
-  const chaves = Array.isArray(porFechar?.chaves) ? porFechar.chaves.slice(0, 3) : [];
+  const ligas = Array.isArray(porFechar?.ligas) ? porFechar.ligas : [];
   const resultados = [];
 
   if (temChaveDaFeed(env)) {
-    for (const chave of chaves) {
-      const r = await resultadosDe(env, chave);
-      if (r.erro) {
-        feito.erros.push(`${chave}: ${r.erro}`);
+    for (const liga of ligas.slice(0, 4)) {
+      const fim = await jaAcabaram(env, liga.chave, liga.jogos);
+      if (fim.erro) {
+        feito.erros.push(`${liga.chave}: ${fim.erro}`);
         continue;
       }
-      feito.ligas.push(chave);
+      if (fim.acabados.length === 0) continue;
+
+      const r = await resultadosDe(env, liga.chave);
+      if (r.erro) {
+        feito.erros.push(`${liga.chave}: ${r.erro}`);
+        continue;
+      }
+      feito.ligas.push(liga.chave);
       for (const cru of r.resultados) {
         const ganhou = quemGanhou(cru, cru.home_team, cru.away_team);
         if (ganhou) resultados.push({ jogo: cru.id, ganhou });
@@ -432,10 +446,16 @@ async function aVoltaDoDia(env) {
   feito.fechadas = fim?.fechadas || 0;
 
   /* ---- e so depois ir buscar jogos novos ---- */
-  const novos = await refrescarJogos(env);
-  if (novos.erro) feito.erros.push(novos.erro);
-  else feito.jogos = novos.jogos.length;
+  if (temChaveDaFeed(env)) {
+    const novos = await refrescarJogos(env);
+    if (novos.erro) feito.erros.push(novos.erro);
+    else {
+      feito.jogos = novos.jogos.length;
+      feito.comprados = novos.comprados;
+    }
+  }
 
+  feito.contas = await contasDaFeed(env);
   return feito;
 }
 
