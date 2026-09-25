@@ -54,7 +54,16 @@ const ONDE_O_RELATORIO = 'desporto:ultima-volta';
 const A_SEGUIR = [
   { grupo: 'Soccer', quantas: 3, nome: 'Futebol' },
   { grupo: 'Basketball', quantas: 2, nome: 'Basquetebol' },
-  { grupo: 'Tennis', quantas: 2, nome: 'Ténis' }
+  { grupo: 'Tennis', quantas: 2, nome: 'Ténis' },
+  /* Os de baixo entram para a pagina nao ficar pobre quando os de cima estao
+     parados. O tenis nesta feed e por torneio, e entre o US Open e as finais
+     nao ha um unico; o futebol americano e o basebol, nessas mesmas semanas,
+     estao a meio da epoca. Como um desporto sem jogos nao gasta nada, segui-los
+     nao e uma despesa, e so uma rede. */
+  { grupo: 'American Football', quantas: 1, nome: 'Futebol americano' },
+  { grupo: 'Ice Hockey', quantas: 1, nome: 'Hoquei no gelo' },
+  { grupo: 'Baseball', quantas: 1, nome: 'Basebol' },
+  { grupo: 'Mixed Martial Arts', quantas: 1, nome: 'MMA' }
 ];
 
 /** Quantas ligas se experimentam por grupo, além das que se querem. É o que
@@ -81,7 +90,11 @@ const PRIMEIRO = [
   'soccer_uefa_europa_league',
   'soccer_uefa_europa_conference_league',
   'basketball_nba',
-  'basketball_euroleague'
+  'basketball_euroleague',
+  'americanfootball_nfl',
+  'icehockey_nhl',
+  'baseball_mlb',
+  'mma_mixed_martial_arts'
 ];
 
 /**
@@ -124,6 +137,16 @@ export const FECHOS_POR_VOLTA = 2;
  *  tocar. */
 const SO_ATE = 5 * 24 * 60 * 60 * 1000;
 
+/**
+ * Quanto tempo um jogo fica na lista depois de ter comecado.
+ *
+ * Ele ja nao se pode apostar, mas continua a fazer parte do que esta a
+ * acontecer, e uma lista que faz desaparecer um jogo a hora a que ele comeca
+ * da a impressao de que se perdeu alguma coisa. Fica visivel, com as cotacoes
+ * trancadas, e sai quando tiver tido tempo de acabar.
+ */
+const AINDA_A_DECORRER = 4 * 60 * 60 * 1000;
+
 /** Um jogo só se considera acabado depois de ter tido tempo de acabar. Serve
  *  para não se ir comprar o resultado de um jogo que saiu da lista mal
  *  começou. Cinco horas chegam para um cinco sets de ténis. */
@@ -134,10 +157,26 @@ const DEMORA_A_ACABAR = 5 * 60 * 60 * 1000;
  *  quem quer ver jogos novos. */
 const GUARDADOS_PARA_FECHAR = 40;
 
-/** E um travão por dia, que é a rede por baixo de tudo o resto: por muito que
- *  se engane a conta lá em cima, um dia não leva mais do que isto. Doze por dia
- *  dão trezentos e sessenta no mês mais comprido, e o mês tem quinhentos. */
-const NO_MAXIMO_POR_DIA = 12;
+/**
+ * O travão do dia, que é a rede por baixo de tudo o resto.
+ *
+ * Era um número fixo e isso é uma regra cega: num dia em que restem quase
+ * quinhentos créditos não há razão nenhuma para travar aos doze, e num dia em
+ * que restem quarenta os doze já são demais. Agora olha para o que resta, que
+ * é o que a própria feed diz em cada resposta.
+ *
+ * Em cruzeiro isto nunca chega a apertar, que uma volta normal custa um ou dois
+ * créditos. Serve para os dias em que se estreia alguma coisa, em que há muito
+ * para ir buscar de uma vez, e para os fins de mês apertados, em que o pouco
+ * que resta tem de dar para fechar as apostas que estão de pé.
+ */
+function tectoDoDia(restam) {
+  if (!Number.isFinite(restam)) return 12;
+  if (restam > 300) return 30;
+  if (restam > 150) return 12;
+  if (restam > 60) return 6;
+  return 2;
+}
 
 const cabecalhoDasContas = (r) => ({
   restam: Number(r.headers.get('x-requests-remaining')),
@@ -223,7 +262,7 @@ async function daParaGastar(env, quanto) {
   const contas = await contasDaFeed(env);
   const dia = new Date().toISOString().slice(0, 10);
   const hoje = contas.dia === dia ? contas.hoje || 0 : 0;
-  if (hoje + quanto > NO_MAXIMO_POR_DIA) return false;
+  if (hoje + quanto > tectoDoDia(contas.restam)) return false;
   if (Number.isFinite(contas.restam) && contas.restam - quanto < 0) return false;
   return true;
 }
@@ -260,6 +299,10 @@ export async function ligasDeHoje(env) {
     grupos.push({
       desporto: nome,
       quantas,
+      /* Quantas a feed tem em epoca neste grupo, antes de se cortar pelas que
+         cabem. Serve para se ver de fora se um desporto vem pobre porque a
+         feed so tem aquilo, ou porque sou eu que nao pergunto a mais. */
+      emEpoca: doGrupo.length,
       candidatas: ordenadas
         .slice(0, quantas + EXPERIMENTAR_MAIS)
         .map((d) => ({ chave: d.key, liga: d.title, desporto: nome }))
@@ -362,14 +405,33 @@ export async function refrescarJogos(env) {
     }
   }
 
-  aPrecisar.sort((a, b) => a.primeiro - b.primeiro);
+  /* Quem ja tem jogos na prateleira espera; quem nao tem nenhum vai a frente.
+     Sem isto, a liga com o jogo mais proximo ganhava sempre, e como o futebol
+     tem jogos a toda a hora a pagina ficava com trinta e oito jogos de futebol
+     e mais nada, com o basebol e o hoquei a espera da vez durante dias. */
+  const desportosComJogos = new Set(
+    guardado.jogos.filter((j) => Date.parse(j.comeca) > agora).map((j) => j.desporto)
+  );
+  aPrecisar.sort((a, b) => {
+    const aVazio = desportosComJogos.has(a.desporto) ? 1 : 0;
+    const bVazio = desportosComJogos.has(b.desporto) ? 1 : 0;
+    if (aVazio !== bVazio) return aVazio - bVazio;
+    return a.primeiro - b.primeiro;
+  });
 
   /* ---- e so agora se gasta ---- */
   const comprados = [];
   const novos = [];
+  /* Compram-se tres quando ha pouco na prateleira, e tambem enquanto houver
+     um desporto que se segue sem um unico jogo: e o que faz a pagina encher-se
+     em horas em vez de dias, quando se comeca ou quando se acrescenta um
+     desporto novo. O tecto do dia esta por cima disto na mesma. */
   const aindaPorComecar = guardado.jogos.filter((j) => Date.parse(j.comeca) > agora).length;
+  const haDesportoAZero = aPrecisar.some((l) => !desportosComJogos.has(l.desporto));
   const quantasComprar =
-    aindaPorComecar < PRATELEIRA_VAZIA ? COMPRAS_COM_A_PRATELEIRA_VAZIA : COMPRAS_POR_VOLTA;
+    aindaPorComecar < PRATELEIRA_VAZIA || haDesportoAZero
+      ? COMPRAS_COM_A_PRATELEIRA_VAZIA
+      : COMPRAS_POR_VOLTA;
 
   for (const liga of aPrecisar.slice(0, quantasComprar)) {
     const contas = await contasDaFeed(env);
@@ -398,7 +460,9 @@ export async function refrescarJogos(env) {
      uma cotacao velha num jogo de amanha vale mais do que jogo nenhum. */
   const por = new Map();
   [...guardado.jogos, ...novos].forEach((j) => {
-    if (Date.parse(j.comeca) > agora) por.set(j.id, j);
+    /* Os que ja comecaram ficam mais umas horas, trancados. Quem esta a ver o
+       jogo quer ve-lo na lista, ainda que ja nao possa apostar nele. */
+    if (Date.parse(j.comeca) > agora - AINDA_A_DECORRER) por.set(j.id, j);
   });
   const jogos = [...por.values()].sort((a, b) => Date.parse(a.comeca) - Date.parse(b.comeca));
 
@@ -410,22 +474,51 @@ export async function refrescarJogos(env) {
   );
 
   const guardar = {
-    jogos: jogos.slice(0, 80),
+    jogos: jogos.slice(0, 160),
     compradas,
     quando: new Date().toISOString()
   };
   await env.QUADRO.put(ONDE_OS_JOGOS, JSON.stringify(guardar));
-  return { ...guardar, comprados, ligas: seguidas, perguntadas, quantasComprar };
+  return {
+    ...guardar,
+    comprados,
+    ligas: seguidas,
+    perguntadas,
+    quantasComprar,
+    emEpoca: quais.grupos.map((g) => `${g.desporto}: ${g.emEpoca} em epoca, ${g.candidatas.length} experimentadas`)
+  };
+}
+
+/**
+ * Se ha algum desporto que se segue sem um unico jogo na prateleira.
+ *
+ * Nao gasta nada: e uma conta sobre o que ja esta guardado. Serve para decidir
+ * se vale a pena dar uma volta, e existe porque a pergunta "ha poucos jogos?"
+ * nao chegava: com quarenta jogos de futebol a prateleira parecia cheia
+ * enquanto cinco desportos inteiros estavam a zero, e a volta que os traria
+ * nunca se dava.
+ */
+export async function faltamDesportos(env) {
+  const guardado = await env.QUADRO.get(ONDE_OS_JOGOS, 'json');
+  const agora = Date.now();
+  const tem = new Set(
+    (guardado?.jogos || []).filter((j) => Date.parse(j.comeca) > agora).map((j) => j.desporto)
+  );
+  return A_SEGUIR.some(({ nome }) => !tem.has(nome));
 }
 
 /** Os jogos que estão guardados, sem gastar crédito nenhum. */
 export async function jogosGuardados(env) {
   const guardado = await env.QUADRO.get(ONDE_OS_JOGOS, 'json');
   if (!guardado) return { jogos: [], quando: null };
-  /* Os que já começaram saem da lista sem ser preciso ir buscar nada: a hora
-     de começo já está guardada e o relógio anda sozinho. */
+  /* Os que ja acabaram saem sem ser preciso ir buscar nada: a hora de comeco
+     ja esta guardada e o relogio anda sozinho. Os que estao a decorrer ficam,
+     e e o site que os mostra trancados. */
   const agora = Date.now();
-  return { ...guardado, jogos: guardado.jogos.filter((j) => Date.parse(j.comeca) > agora) };
+  return {
+    ...guardado,
+    jogos: guardado.jogos.filter((j) => Date.parse(j.comeca) > agora - AINDA_A_DECORRER)
+  };
 }
 
 /** Um jogo pelo seu número, para se confirmar uma aposta contra ele. */

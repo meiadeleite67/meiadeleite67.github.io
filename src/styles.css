@@ -1685,16 +1685,41 @@ footer {
   border-left: 1px solid var(--linha);
 }
 .apo-ligas li {
+  list-style: none;
+}
+.apo-ligas button {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 8px;
-  padding: 4px 0 4px 8px;
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 5px 8px;
+  font: inherit;
   font-size: 12.5px;
   color: var(--tinta-3);
+  cursor: pointer;
+  text-align: left;
+}
+.apo-ligas button:hover {
+  background: rgba(240, 220, 192, 0.06);
+  color: var(--tinta-2);
+}
+.apo-ligas button.escolhido {
+  color: var(--crema);
+  background: rgba(224, 158, 89, 0.12);
+}
+.apo-ligas span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .apo-ligas b {
   font-family: var(--mono);
   font-weight: 400;
+  flex: 0 0 auto;
 }
 
 /* ---- a lista dos jogos ---- */
@@ -1719,6 +1744,38 @@ footer {
 }
 .apo-jogo.no-boletim {
   border-color: var(--crema-2);
+}
+/* Um jogo a decorrer fica na lista mas nao se aposta nele. Esmaece-se em vez
+   de se esconder: quem esta a ver o jogo quer ve-lo aqui na mesma. */
+.apo-jogo.a-decorrer .apo-equipas b {
+  color: var(--tinta-2);
+}
+.apo-aovivo {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--vinho);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.apo-aovivo::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--vinho);
+}
+.apo-detalhe-quando .apo-aovivo {
+  font-size: 12px;
+}
+.apo-cotacao:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.apo-cotacao:disabled:hover {
+  border-color: var(--linha);
 }
 .apo-abrir {
   display: grid;

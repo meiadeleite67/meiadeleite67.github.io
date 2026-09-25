@@ -384,6 +384,7 @@ import {
   FECHOS_POR_VOLTA,
   PRATELEIRA_VAZIA,
   contasDaFeed,
+  faltamDesportos,
   guardarRelatorio,
   relatorioDaVolta,
   jaAcabaram,
@@ -461,6 +462,7 @@ async function aVoltaDoDia(env) {
       feito.comprados = novos.comprados;
       feito.perguntadas = novos.perguntadas;
       feito.quantasComprar = novos.quantasComprar;
+      feito.emEpoca = novos.emEpoca;
     }
   }
 
@@ -793,7 +795,12 @@ export default {
          prateleira vazia, o trinco de seis horas e o mesmo intervalo do
          relogio, e o tecto do dia esta por cima de tudo. Refrescar a pagina
          vinte vezes nao manda dar vinte voltas. */
-      if (guardado.jogos.length < PRATELEIRA_VAZIA && temChaveDaFeed(env)) {
+      /* Da-se uma volta quando ha pouco para apostar, e tambem quando falta
+         um desporto inteiro. A segunda condicao existe porque a primeira nao
+         chegava: com quarenta jogos de futebol a prateleira parecia cheia
+         enquanto o basebol, o hoquei e o resto estavam a zero. */
+      const aFaltar = guardado.jogos.length < PRATELEIRA_VAZIA || (await faltamDesportos(env));
+      if (aFaltar && temChaveDaFeed(env)) {
         const trinco = await env.QUADRO.get('desporto:arranque');
         if (!trinco) {
           await env.QUADRO.put('desporto:arranque', new Date().toISOString(), {

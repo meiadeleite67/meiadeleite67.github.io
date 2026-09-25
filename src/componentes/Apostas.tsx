@@ -70,6 +70,10 @@ function aQueHoras(iso: string) {
   return `${quandoEmPalavras(aqui)}, às ${hora}`;
 }
 
+/** Se o jogo ja comecou. A partir dai as cotacoes trancam-se: o servidor
+ *  recusa a aposta na mesma, e isto e so para nao se carregar em vao. */
+const jaComecou = (jogo: { comeca: string }) => Date.parse(jogo.comeca) <= Date.now();
+
 const quemE = (escolha: Escolha, jogo: { casa: string; fora: string }) =>
   escolha === 'casa' ? jogo.casa : escolha === 'fora' ? jogo.fora : 'Empate';
 
@@ -97,8 +101,12 @@ export function Apostas({
   const [quanto, setQuanto] = useState(FICHAS[0]);
   const [aPor, setAPor] = useState(false);
 
-  /** Que desporto se está a ver, e que jogo está aberto em detalhe. */
-  const [desporto, setDesporto] = useState('');
+  /** O que se está a ver: um desporto, ou uma competição dentro dele. Vazio é
+   *  tudo. E que jogo está aberto em detalhe. */
+  const [filtro, setFiltro] = useState<{ desporto: string; liga: string }>({
+    desporto: '',
+    liga: ''
+  });
   const [aVerJogo, setAVerJogo] = useState(jogoNoEndereco);
 
   const passe = nome ? passeDe(nome) : '';
@@ -164,10 +172,18 @@ export function Apostas({
     return por;
   }, [quadro]);
 
-  const aVer = desporto && arrumados.has(desporto) ? desporto : '';
+  /* Um filtro que já não existe, porque os jogos daquela competição começaram
+     todos, não pode deixar a página vazia: cai para o desporto, e daí para
+     tudo. */
+  const aVer = filtro.desporto && arrumados.has(filtro.desporto) ? filtro.desporto : '';
+  const aVerLiga = aVer && arrumados.get(aVer)?.ligas.has(filtro.liga) ? filtro.liga : '';
+
   const jogos = useMemo(
-    () => (quadro?.jogos || []).filter((j) => !aVer || j.desporto === aVer),
-    [quadro, aVer]
+    () =>
+      (quadro?.jogos || []).filter(
+        (j) => (!aVer || j.desporto === aVer) && (!aVerLiga || j.liga === aVerLiga)
+      ),
+    [quadro, aVer, aVerLiga]
   );
 
   const oJogoAberto = useMemo(
@@ -197,6 +213,7 @@ export function Apostas({
   /** Põe ou tira uma escolha do boletim. Duas escolhas do mesmo jogo não podem
    *  ir juntas na mesma múltipla, por isso a segunda substitui a primeira. */
   const escolher = useCallback((jogo: JogoDeApostas, escolha: Escolha) => {
+    if (jaComecou(jogo)) return;
     setRecado('');
     setBoletim((antes) => {
       const igual = antes.find((e) => e.jogo.id === jogo.id && e.escolha === escolha);
@@ -291,7 +308,7 @@ export function Apostas({
                 <button
                   type="button"
                   className={aVer === '' ? 'escolhido' : ''}
-                  onClick={() => setDesporto('')}
+                  onClick={() => setFiltro({ desporto: '', liga: '' })}
                 >
                   <span>Tudo</span>
                   <b>{quadro?.jogos.length || 0}</b>
@@ -302,17 +319,37 @@ export function Apostas({
                   <button
                     type="button"
                     className={aVer === d ? 'escolhido' : ''}
-                    onClick={() => setDesporto(d)}
+                    onClick={() =>
+                      setFiltro((antes) =>
+                        antes.desporto === d && !antes.liga
+                          ? { desporto: '', liga: '' }
+                          : { desporto: d, liga: '' }
+                      )
+                    }
                   >
                     <span>{d}</span>
                     <b>{contas.quantos}</b>
                   </button>
+                  {/* As competicoes de dentro do desporto escolhido. Carregar
+                      numa ve-se so ela; carregar outra vez volta ao desporto
+                      inteiro. */}
                   {aVer === d && contas.ligas.size > 0 && (
                     <ul className="apo-ligas">
                       {[...contas.ligas.entries()].map(([liga, quantos]) => (
                         <li key={liga}>
-                          <span>{liga}</span>
-                          <b>{quantos}</b>
+                          <button
+                            type="button"
+                            className={aVerLiga === liga ? 'escolhido' : ''}
+                            onClick={() =>
+                              setFiltro((antes) => ({
+                                desporto: d,
+                                liga: antes.liga === liga ? '' : liga
+                              }))
+                            }
+                          >
+                            <span>{liga}</span>
+                            <b>{quantos}</b>
+                          </button>
                         </li>
                       ))}
                     </ul>
@@ -334,7 +371,12 @@ export function Apostas({
 
           <div className="apo-jogos">
             {jogos.map((j) => (
-              <article key={j.id} className={`apo-jogo${noBoletim(j.id) ? ' no-boletim' : ''}`}>
+              <article
+                key={j.id}
+                className={`apo-jogo${noBoletim(j.id) ? ' no-boletim' : ''}${
+                  jaComecou(j) ? ' a-decorrer' : ''
+                }`}
+              >
                 <button
                   className="apo-abrir"
                   type="button"
@@ -343,7 +385,11 @@ export function Apostas({
                 >
                   <span className="apo-liga">
                     <span>{j.liga || j.desporto}</span>
-                    <time dateTime={j.comeca}>{aQueHoras(j.comeca)}</time>
+                    {jaComecou(j) ? (
+                      <span className="apo-aovivo">A decorrer</span>
+                    ) : (
+                      <time dateTime={j.comeca}>{aQueHoras(j.comeca)}</time>
+                    )}
                   </span>
                   <span className="apo-equipas">
                     <b>{j.casa}</b>
@@ -360,7 +406,8 @@ export function Apostas({
                         type="button"
                         className={`apo-cotacao${noBoletim(j.id, escolha) ? ' escolhido' : ''}`}
                         onClick={() => escolher(j, escolha)}
-                        title={quemE(escolha, j)}
+                        disabled={jaComecou(j)}
+                        title={jaComecou(j) ? 'Este jogo já está a decorrer' : quemE(escolha, j)}
                       >
                         <span className="apo-curto">{curto}</span>
                         <span className="apo-preco">{cotacao.toFixed(2)}</span>
@@ -534,7 +581,11 @@ function DetalheDoJogo({
           {jogo.casa} <span>vs</span> {jogo.fora}
         </h2>
         <p className="apo-detalhe-quando">
-          <time dateTime={jogo.comeca}>{aQueHoras(jogo.comeca)}</time>
+          {jaComecou(jogo) ? (
+            <span className="apo-aovivo">Este jogo está a decorrer</span>
+          ) : (
+            <time dateTime={jogo.comeca}>{aQueHoras(jogo.comeca)}</time>
+          )}
         </p>
 
         <h3>Quem ganha</h3>
@@ -548,6 +599,7 @@ function DetalheDoJogo({
                 type="button"
                 className={`apo-cotacao${noBoletim(jogo.id, escolha) ? ' escolhido' : ''}`}
                 onClick={() => escolher(jogo, escolha)}
+                disabled={jaComecou(jogo)}
               >
                 <span className="apo-quem">{quemE(escolha, jogo)}</span>
                 <span className="apo-curto">{curto}</span>
@@ -556,6 +608,13 @@ function DetalheDoJogo({
             );
           })}
         </div>
+
+        {jaComecou(jogo) && (
+          <p className="notas">
+            As cotações ficam trancadas a partir da hora de começo, aqui e em qualquer casa de
+            apostas: quem está a ver o jogo saberia sempre mais do que quem não está.
+          </p>
+        )}
 
         <h3>A ficha do jogo</h3>
         <dl className="apo-ficha">
@@ -616,10 +675,6 @@ function DetalheDoJogo({
           </>
         )}
 
-        <p className="notas">
-          Aqui só se aposta em quem ganha. Mais mercados, como o total de golos ou o handicap,
-          custariam à feed três créditos por cada jogo aberto, e o plano que temos não dá para isso.
-        </p>
       </div>
     </div>
   );
