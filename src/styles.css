@@ -1479,7 +1479,7 @@ footer {
 }
 @media (min-width: 720px) {
   .rodape {
-    grid-template-columns: 1.6fr 1fr 1fr 1fr;
+    grid-template-columns: 1.6fr 1fr 1fr 1fr 1fr;
   }
 }
 /* entre os dois tamanhos as quatro colunas ficavam estreitas de mais: passam
@@ -1571,26 +1571,6 @@ footer {
 .rodape-fim .direita {
   margin-left: auto;
 }
-/* a papelada: dois botoes que se fingem de links, como tudo o resto que
-   navega dentro do site sem recarregar a pagina */
-.rodape-papelada {
-  display: inline-flex;
-  gap: 12px;
-}
-.rodape-papelada button {
-  background: none;
-  border: 0;
-  padding: 0;
-  font: inherit;
-  color: var(--tinta-3);
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.rodape-papelada button:hover {
-  color: var(--crema);
-}
-
 /* ============================== a papelada ==============================
    Os termos e a privacidade. Uma coluna de texto e mais nada: quem vem aqui
    vem ler, nao vem ver. */
