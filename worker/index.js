@@ -381,6 +381,7 @@ function limparEvento(veio, antes) {
 /* Os objectos proprios vivem nos ficheiros deles, mas quem os tem de dar a
    conhecer e o ficheiro de entrada do Worker. */
 import {
+  DESPORTOS,
   FECHOS_POR_VOLTA,
   PRATELEIRA_VAZIA,
   contasDaFeed,
@@ -813,6 +814,7 @@ export default {
       return responder(
         {
           ...guardado,
+          desportos: DESPORTOS,
           temFeed: temChaveDaFeed(env),
           contas: await contasDaFeed(env),
           /* O que a ultima volta fez. E so para se poder ver de fora porque e

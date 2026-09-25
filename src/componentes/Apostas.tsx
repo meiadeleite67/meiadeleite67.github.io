@@ -162,6 +162,12 @@ export function Apostas({
      desporto, ele aparece ali sozinho. */
   const arrumados = useMemo(() => {
     const por = new Map<string, { quantos: number; ligas: Map<string, number> }>();
+    /* Os desportos que o servidor segue entram todos, mesmo a zero: um que
+       desaparecesse da lista parecia um erro, e o que se passa e so que nao ha
+       nada a jogar nele esta semana. */
+    (quadro?.desportos || []).forEach((d) =>
+      por.set(d, { quantos: 0, ligas: new Map<string, number>() })
+    );
     (quadro?.jogos || []).forEach((j) => {
       const d = j.desporto || 'Outros';
       const ja = por.get(d) || { quantos: 0, ligas: new Map<string, number>() };
@@ -316,16 +322,16 @@ export function Apostas({
               </li>
               {[...arrumados.entries()].map(([d, contas]) => (
                 <li key={d}>
+                  {/* Carregar num desporto escolhe-o e mostra as competicoes dele.
+                      Nao alterna: alternar fazia com que carregar num desporto
+                      ja escolhido o fechasse, o que a clicar se le como se ele
+                      nao abrisse. Para voltar a tudo ha o "Tudo". */}
                   <button
                     type="button"
-                    className={aVer === d ? 'escolhido' : ''}
-                    onClick={() =>
-                      setFiltro((antes) =>
-                        antes.desporto === d && !antes.liga
-                          ? { desporto: '', liga: '' }
-                          : { desporto: d, liga: '' }
-                      )
-                    }
+                    className={`${aVer === d ? 'escolhido' : ''}${
+                      contas.quantos === 0 ? ' vazio' : ''
+                    }`}
+                    onClick={() => setFiltro({ desporto: d, liga: '' })}
                   >
                     <span>{d}</span>
                     <b>{contas.quantos}</b>
@@ -340,12 +346,7 @@ export function Apostas({
                           <button
                             type="button"
                             className={aVerLiga === liga ? 'escolhido' : ''}
-                            onClick={() =>
-                              setFiltro((antes) => ({
-                                desporto: d,
-                                liga: antes.liga === liga ? '' : liga
-                              }))
-                            }
+                            onClick={() => setFiltro({ desporto: d, liga })}
                           >
                             <span>{liga}</span>
                             <b>{quantos}</b>
@@ -364,8 +365,9 @@ export function Apostas({
         <div className="apo-meio">
           {!aCarregar && quadro?.temFeed && jogos.length === 0 && (
             <p className="notas">
-              Não há jogos à espera. Ou já começaram todos, ou a próxima volta ainda não trouxe os
-              de hoje.
+              {aVer
+                ? `Não há nada marcado no ${aVer.toLowerCase()} nestes dias. Aparece aqui assim que houver.`
+                : 'Não há jogos à espera. Ou já começaram todos, ou a próxima volta ainda não trouxe os de hoje.'}
             </p>
           )}
 

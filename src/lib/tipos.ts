@@ -121,6 +121,10 @@ export type ApostaDesportiva = {
 
 export type QuadroDeJogos = {
   jogos: JogoDeApostas[];
+  /** Os desportos que o servidor segue, pela ordem em que os segue. Vem daqui
+   *  e nao dos jogos para o filtro os poder mostrar todos, mesmo os que hoje
+   *  estao a zero. */
+  desportos?: string[];
   quando: string | null;
   /** Se o servidor tem chave da feed. Sem ela nao ha jogos novos, e o site diz
    *  isso em vez de mostrar uma pagina vazia sem explicacao. */

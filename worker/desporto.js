@@ -51,7 +51,7 @@ const ONDE_O_RELATORIO = 'desporto:ultima-volta';
  *  São mais do que pareceria prudente com quinhentos créditos, e são-no de
  *  propósito: uma liga que não tenha jornada nova não custa nada, por isso
  *  seguir sete em vez de quatro não multiplica a despesa, só a espalha. */
-const A_SEGUIR = [
+export const A_SEGUIR = [
   { grupo: 'Soccer', quantas: 3, nome: 'Futebol' },
   { grupo: 'Basketball', quantas: 2, nome: 'Basquetebol' },
   { grupo: 'Tennis', quantas: 2, nome: 'Ténis' },
@@ -182,6 +182,12 @@ const cabecalhoDasContas = (r) => ({
   restam: Number(r.headers.get('x-requests-remaining')),
   gastos: Number(r.headers.get('x-requests-used'))
 });
+
+/** Os desportos que se seguem, pelo nome com que se leem. O site precisa
+ *  desta lista para os poder mostrar todos no filtro, mesmo os que hoje nao
+ *  tem jogo nenhum: um desporto que desaparece da lista parece um erro, e o
+ *  que se passa e so que nao ha nada a jogar nele esta semana. */
+export const DESPORTOS = A_SEGUIR.map((d) => d.nome);
 
 export const temChaveDaFeed = (env) =>
   typeof env.ODDS_API_CHAVE === 'string' && env.ODDS_API_CHAVE.length > 8;

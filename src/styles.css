@@ -1671,6 +1671,11 @@ footer {
   font-size: 12px;
   color: var(--tinta-3);
 }
+/* Um desporto a zero fica na lista, mas mais apagado: esta la para se saber
+   que se segue, e nao para chamar por ninguem. */
+.apo-lado > ul > li > button.vazio {
+  color: var(--tinta-3);
+}
 .apo-lado > ul > li > button.escolhido {
   background: var(--crema);
   color: #201208;
