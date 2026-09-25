@@ -395,8 +395,10 @@ export function Roleta({
       {recado && <p className="recado mal rol-recado">{recado}</p>}
 
       <div className="rol-bancada">
-        <span className="notas">Ficha:</span>
-        <div className="rol-fichas">
+        {/* Sem rotulo a vista: ele empurrava as fichas para o lado e elas
+            deixavam de ficar debaixo do meio da roda. O nome fica dito a quem
+            navega por leitor de ecra, que e quem dele precisa. */}
+        <div className="rol-fichas" role="group" aria-label="Que ficha pegar">
           {FICHAS.map((fila, i) => (
             <div className="rol-fichas-fila" key={i}>
               {fila.map((f) => (
