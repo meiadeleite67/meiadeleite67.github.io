@@ -66,9 +66,26 @@ const PRIMEIRO = [
 
 /** Quantas cotações se compram numa volta, no máximo. Sem isto, uma semana em
  *  que todas as ligas estreiam jornada ao mesmo tempo levava sete créditos de
- *  uma vez. Assim compram-se as mais urgentes e as outras esperam pela volta
- *  seguinte, que é daqui a seis horas. */
-const COMPRAS_POR_VOLTA = 2;
+ *  uma vez. Assim compra-se à mais urgente e as outras esperam pela volta
+ *  seguinte, que é daqui a seis horas. Com quatro voltas por dia, isto é o que
+ *  põe um tecto de quatro créditos por dia em cotações. */
+const COMPRAS_POR_VOLTA = 1;
+
+/**
+ * Quanto tempo uma liga descansa depois de se lhe comprarem as cotações.
+ *
+ * Isto é a tampa de uma fuga. Nem todos os jogos que a feed lista têm casa de
+ * apostas com preço: há sempre alguns que ficam sem cotação por mais vezes que
+ * se pergunte. Sem este descanso, esses jogos ficavam para sempre a contar como
+ * "por cobrir", e essa liga mandava comprar cotações a cada volta, todos os
+ * dias, sem nunca ficar satisfeita.
+ */
+const LIGA_DESCANSA = 10 * 60 * 60 * 1000;
+
+/** E quantas ligas se fecham por volta, no máximo. Os resultados são o que
+ *  custa mais, dois créditos cada, e uma liga só chega aqui depois de a lista
+ *  de jogos ter dito de graça que há ali algo acabado. */
+export const FECHOS_POR_VOLTA = 2;
 
 /** Não se compram cotações para jogos que ainda estão longe. Uma liga que
  *  publique a época inteira de uma vez não nos vai fazer pagar hoje por um jogo
@@ -87,8 +104,9 @@ const DEMORA_A_ACABAR = 5 * 60 * 60 * 1000;
 const GUARDADOS_PARA_FECHAR = 40;
 
 /** E um travão por dia, que é a rede por baixo de tudo o resto: por muito que
- *  se engane a conta lá em cima, um dia não leva mais do que isto. */
-const NO_MAXIMO_POR_DIA = 14;
+ *  se engane a conta lá em cima, um dia não leva mais do que isto. Doze por dia
+ *  dão trezentos e sessenta no mês mais comprido, e o mês tem quinhentos. */
+const NO_MAXIMO_POR_DIA = 12;
 
 const cabecalhoDasContas = (r) => ({
   restam: Number(r.headers.get('x-requests-remaining')),
@@ -243,10 +261,17 @@ export async function refrescarJogos(env) {
   const guardado = (await env.QUADRO.get(ONDE_OS_JOGOS, 'json')) || { jogos: [] };
   const agora = Date.now();
   const temCotacao = new Set(guardado.jogos.map((j) => j.id));
+  const descanso = guardado.compradas || {};
 
   /* ---- de graça: o que ha por cobrir em cada liga ---- */
   const aPrecisar = [];
   for (const liga of quais.ligas) {
+    /* Uma liga a quem se comprou ha pouco nao se volta a perguntar, mesmo que
+       tenha jogos sem preco: se eles nao vieram da ultima vez, nao ha razao
+       nenhuma para virem agora. */
+    const ultima = Date.parse(descanso[liga.chave] || '');
+    if (Number.isFinite(ultima) && agora - ultima < LIGA_DESCANSA) continue;
+
     const r = await eventosDe(env, liga.chave, {
       commenceTimeFrom: new Date(agora).toISOString().slice(0, 19) + 'Z',
       commenceTimeTo: new Date(agora + SO_ATE).toISOString().slice(0, 19) + 'Z'
@@ -277,6 +302,7 @@ export async function refrescarJogos(env) {
     if (r.erro) continue;
     await apontar(env, r, 1);
     comprados.push(liga.chave);
+    descanso[liga.chave] = new Date(agora).toISOString();
 
     for (const cru of Array.isArray(r.corpo) ? r.corpo : []) {
       const jogo = jogoDaFeed(cru, agora);
@@ -294,7 +320,18 @@ export async function refrescarJogos(env) {
   });
   const jogos = [...por.values()].sort((a, b) => Date.parse(a.comeca) - Date.parse(b.comeca));
 
-  const guardar = { jogos: jogos.slice(0, 80), quando: new Date().toISOString() };
+  /* O descanso so guarda as ligas que ainda se seguem, senao ia juntando
+     torneios de tenis do ano passado ate encher. */
+  const aSeguir = new Set(quais.ligas.map((l) => l.chave));
+  const compradas = Object.fromEntries(
+    Object.entries(descanso).filter(([chave]) => aSeguir.has(chave))
+  );
+
+  const guardar = {
+    jogos: jogos.slice(0, 80),
+    compradas,
+    quando: new Date().toISOString()
+  };
   await env.QUADRO.put(ONDE_OS_JOGOS, JSON.stringify(guardar));
   return { ...guardar, comprados, ligas: quais.ligas.length };
 }

@@ -381,6 +381,7 @@ function limparEvento(veio, antes) {
 /* Os objectos proprios vivem nos ficheiros deles, mas quem os tem de dar a
    conhecer e o ficheiro de entrada do Worker. */
 import {
+  FECHOS_POR_VOLTA,
   contasDaFeed,
   jaAcabaram,
   jogoGuardado,
@@ -419,7 +420,9 @@ async function aVoltaDoDia(env) {
   const resultados = [];
 
   if (temChaveDaFeed(env)) {
-    for (const liga of ligas.slice(0, 4)) {
+    let fechadas = 0;
+    for (const liga of ligas) {
+      if (fechadas >= FECHOS_POR_VOLTA) break;
       const fim = await jaAcabaram(env, liga.chave, liga.jogos);
       if (fim.erro) {
         feito.erros.push(`${liga.chave}: ${fim.erro}`);
@@ -432,6 +435,7 @@ async function aVoltaDoDia(env) {
         feito.erros.push(`${liga.chave}: ${r.erro}`);
         continue;
       }
+      fechadas += 1;
       feito.ligas.push(liga.chave);
       for (const cru of r.resultados) {
         const ganhou = quemGanhou(cru, cru.home_team, cru.away_team);
