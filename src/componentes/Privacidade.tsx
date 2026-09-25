@@ -99,17 +99,11 @@ export function Privacidade({
         logo que se acerte no PIN. O mesmo se faz na entrada da administração, com quinze minutos.
       </p>
       <p>
-        Fora disso não registamos endereços de IP nem guardamos histórico de visitas. Quem serve o
-        site vê-os na mesma, como qualquer servidor vê, e é disso que se fala a seguir.
+        Fora disso não registamos endereços de IP nem guardamos histórico de visitas.
       </p>
 
       <h2>Os de fora que veem alguma coisa</h2>
       <ul>
-        <li>
-          <b>GitHub Pages</b> serve as páginas, e <b>Cloudflare</b> corre o servidor dos jogos e
-          guarda o que está aqui em cima. Os dois veem o endereço de IP de quem abre o site, que é
-          o que acontece em qualquer sítio da internet.
-        </li>
         <li>
           <b>Google Fonts</b>. Os tipos de letra do site vêm de servidores do Google, e por isso o
           Google vê o endereço de IP de quem abre qualquer página daqui.
