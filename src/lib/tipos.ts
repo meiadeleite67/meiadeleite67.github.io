@@ -73,12 +73,16 @@ export type JogoDeApostas = {
   casa: string;
   fora: string;
   comeca: string;
-  cotacoes: { casa: number; fora: number; empate?: number };
+  cotacoes: { casa: number; fora: number; empate?: number; fonte?: string };
+  /** Quantas casas de apostas deram preco a este jogo, e qual foi a que se
+   *  usou. Serve so para a pagina de detalhe poder dizer de onde veio o
+   *  numero em vez de o mostrar como se tivesse caido do ceu. */
+  casasDeApostas?: number;
+  fonte?: string;
 };
 
-export type ApostaDesportiva = {
-  id: string;
-  nome: string;
+/** Uma perna de um bilhete: um jogo e o que se escolheu nele. */
+export type PernaDeAposta = {
   jogo: string;
   chave: string;
   desporto: string;
@@ -88,15 +92,31 @@ export type ApostaDesportiva = {
   comeca: string;
   escolha: Escolha;
   cotacao: number;
-  quanto: number;
   tinhaEmpate: boolean;
-  /** Anulada e a que nao chegou a valer: o jogo foi adiado ou deu empate onde
-   *  nao se podia apostar no empate. Devolve o que se pos. */
+  /** Anulada e a perna que nao chegou a valer: o jogo foi adiado, ou deu
+   *  empate onde nao se podia apostar no empate. Conta 1,00 na multipla. */
+  estado: 'aberta' | 'ganha' | 'perdida' | 'anulada';
+};
+
+/** O que esta no boletim antes de se apostar. */
+export type Escolhida = { jogo: JogoDeApostas; escolha: Escolha };
+
+export type ApostaDesportiva = {
+  id: string;
+  nome: string;
+  /** Uma perna e uma simples; varias sao uma multipla, em que as cotacoes se
+   *  multiplicam e todas tem de acertar. */
+  pernas: PernaDeAposta[];
+  cotacao: number;
+  quanto: number;
   estado: 'aberta' | 'ganha' | 'perdida' | 'anulada';
   posta: string;
   fechada: string | null;
   volta: number;
   lucro: number;
+  /** A cotacao com que se acabou por pagar, se alguma perna foi anulada e por
+   *  isso contou 1,00 em vez da sua. */
+  cotacaoFinal?: number;
 };
 
 export type QuadroDeJogos = {

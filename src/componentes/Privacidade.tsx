@@ -80,8 +80,9 @@ export function Privacidade({
         <li>as contas dos jogos: mãos, vitórias, blackjacks, mãos de poker, rodadas de roleta,
         apostas desportivas feitas e ganhas, o maior pote, o maior prémio e os recordes do Cusco,
         da Colherada e do jogo do balcão;</li>
-        <li>as apostas desportivas que puseste: em que jogo, em quem, quanto, a que cotação e como
-        acabaram. As que já fecharam vão saindo à medida que entram outras;</li>
+        <li>as apostas desportivas que puseste: em que jogos, em quem, quanto, a que cotação e
+        como acabaram, e numa múltipla o mesmo para cada um dos jogos. As que já fecharam vão
+        saindo à medida que entram outras;</li>
         <li>a data da última vez que jogaste.</li>
       </ul>
       <p>

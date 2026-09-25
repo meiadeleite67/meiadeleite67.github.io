@@ -6,6 +6,7 @@ import type {
   Estado,
   Evento,
   ItemDaGaleria,
+  JogoDeApostas,
   Membro,
   Pontuacao,
   Post,
@@ -179,10 +180,22 @@ export const api = {
 
   jogosDeApostas: () => pedir<QuadroDeJogos>('/desporto'),
 
-  apostarNoJogo: (nome: string, passe: string, jogo: string, escolha: Escolha, quanto: number) =>
+  /** Um jogo so, para a pagina de detalhe. Sai do que o servidor ja tem
+   *  guardado, por isso nao gasta creditos da feed. */
+  jogoDeApostas: (id: string) =>
+    pedir<{ jogo: JogoDeApostas }>(`/desporto/jogo/${encodeURIComponent(id)}`),
+
+  /** Poe um bilhete: uma perna e uma simples, varias sao uma multipla. Daqui
+   *  vai so em que jogo e em quem; as cotacoes sao as do servidor. */
+  apostar: (
+    nome: string,
+    passe: string,
+    pernas: { jogo: string; escolha: Escolha }[],
+    quanto: number
+  ) =>
     pedir<{ linha: Pontuacao; aposta: ApostaDesportiva }>('/desporto/apostar', {
       method: 'POST',
-      body: JSON.stringify({ nome, passe, jogo, escolha, quanto })
+      body: JSON.stringify({ nome, passe, pernas, quanto })
     }),
 
   minhasApostas: (nome: string, passe: string) =>

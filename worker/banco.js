@@ -29,7 +29,7 @@ import {
   pinNovo,
   pinServe
 } from './chaves.js';
-import { fecharAposta, limparAposta } from './apostas.js';
+import { fecharBilhete, limparBilhete } from './apostas.js';
 
 export const SALDO_INICIAL = 250;
 export const EMPRESTIMO = 100;
@@ -94,6 +94,40 @@ const completa = (linha, nome) => ({
   recordes: { jogo: 0, cusco: 0, colherada: 0, ...(linha.recordes || {}) }
 });
 
+/**
+ * Uma aposta com pernas, venha ela de que tempo vier.
+ *
+ * Antes das multiplas, uma aposta era um jogo so e os campos do jogo estavam
+ * a mistura com os da aposta. Agora e sempre uma lista de pernas, mesmo quando
+ * ha uma so, para haver um caminho unico e nao dois parecidos. Isto converte
+ * as antigas na chegada, e deixa as novas como estao.
+ */
+function comPernas(a) {
+  if (!a || Array.isArray(a.pernas)) return a;
+  const { jogo, chave, desporto, liga, casa, fora, comeca, escolha, cotacao, tinhaEmpate, ...resto } = a;
+  return {
+    ...resto,
+    cotacao,
+    pernas: [
+      {
+        jogo,
+        chave,
+        desporto: desporto || '',
+        liga: liga || '',
+        casa,
+        fora,
+        comeca,
+        escolha,
+        cotacao,
+        tinhaEmpate: !!tinhaEmpate,
+        /* A perna herda o estado da aposta, que com uma perna so era a mesma
+           coisa. */
+        estado: a.estado === 'aberta' ? 'aberta' : a.estado
+      }
+    ]
+  };
+}
+
 /** Quantas apostas ja fechadas se guardam ao todo. Servem para cada um ver o
  *  que lhe aconteceu, e por isso guardam-se; mas nao para sempre, que isto
  *  vive todo em memoria e nao pode crescer sem fim. */
@@ -115,7 +149,12 @@ export class Banco extends DurableObject {
       /* As apostas desportivas vivem aqui e nao no KV pela mesma razao por que
          os torroes vivem aqui: pagar uma aposta e mexer na carteira, e as duas
          coisas tem de acontecer juntas ou nao acontecer nenhuma. */
-      this.apostas = (await ctx.storage.get('apostas')) || [];
+      const guardadas = (await ctx.storage.get('apostas')) || [];
+      this.apostas = guardadas.map(comPernas);
+      /* Se alguma vinha do tempo em que uma aposta era um jogo so, fica
+         convertida ja gravada, para nao se andar a converter em cada arranque. */
+      if (guardadas.some((a) => !Array.isArray(a.pernas)))
+        await ctx.storage.put('apostas', this.apostas);
     });
   }
 
@@ -160,43 +199,33 @@ export class Banco extends DurableObject {
   }
 
   /**
-   * Poe uma aposta. Os torroes saem da carteira agora, que e o que faz com que
-   * ninguem possa apostar o que nao tem enquanto o jogo nao acaba.
+   * Poe uma aposta, de uma perna ou de varias. Os torroes saem da carteira
+   * agora, que e o que faz com que ninguem possa apostar o que nao tem
+   * enquanto os jogos nao acabam.
    *
-   * O jogo vem de quem atende a rua, ja lido da feed, e a cotacao sai de dentro
-   * dele. Nao se aceita cotacao vinda do site: bastava mexer no pedido para
-   * apostar a cinquenta para um.
+   * Os jogos vem de quem atende a rua, ja lidos da feed, e as cotacoes saem de
+   * dentro deles. Nao se aceita cotacao vinda do site: bastava mexer no pedido
+   * para apostar a cinquenta para um.
    */
   async apostar(veio) {
     const nome = texto(veio.nome, 24);
     const achado = await this.daPessoa(nome, veio.passe);
     if (achado.erro) return achado;
     const linha = achado.linha;
-    const jogo = veio.jogo;
 
-    const limpa = limparAposta(veio, jogo, linha.torroes, this.abertasDe(nome).length);
-    if (limpa.erro) return { erro: limpa.erro, estado: 400 };
+    const jogos = new Map((veio.jogos || []).map((j) => [j.id, j]));
+    const limpo = limparBilhete(veio, jogos, linha.torroes, this.abertasDe(nome).length);
+    if (limpo.erro) return { erro: limpo.erro, estado: 400 };
 
-    linha.torroes -= limpa.quanto;
+    linha.torroes -= limpo.quanto;
     linha.desporto.apostas += 1;
 
     const aposta = {
       id: aoCalhasEmHex(16),
       nome,
-      jogo: jogo.id,
-      chave: jogo.chave,
-      desporto: jogo.desporto || '',
-      liga: jogo.liga || '',
-      casa: jogo.casa,
-      fora: jogo.fora,
-      comeca: jogo.comeca,
-      escolha: limpa.escolha,
-      cotacao: limpa.cotacao,
-      quanto: limpa.quanto,
-      /* Se neste jogo se podia apostar no empate. Fica guardado com a aposta
-         porque e o que decide, la mais para a frente, se um empate a anula ou
-         se a faz perder, e a essa altura o jogo ja nao esta a mao. */
-      tinhaEmpate: !!(jogo.cotacoes && jogo.cotacoes.empate),
+      pernas: limpo.pernas,
+      cotacao: limpo.cotacao,
+      quanto: limpo.quanto,
       estado: 'aberta',
       posta: new Date().toISOString(),
       fechada: null,
@@ -232,6 +261,9 @@ export class Banco extends DurableObject {
    * todas e gastar creditos com jogos que ninguem apostou. Vai o numero do jogo
    * e a hora a que ele comecou, que e o que deixa la fora decidir se ja ha
    * alguma coisa para saber ou se ainda esta a decorrer.
+   *
+   * Conta as pernas e nao os bilhetes: numa multipla de tres, sao tres jogos a
+   * seguir, possivelmente em tres ligas diferentes.
    */
   ligasPorFechar() {
     const porLiga = new Map();
@@ -239,10 +271,12 @@ export class Banco extends DurableObject {
     this.apostas.forEach((a) => {
       if (a.estado !== 'aberta') return;
       quantas += 1;
-      if (!a.chave) return;
-      const ja = porLiga.get(a.chave) || new Map();
-      ja.set(a.jogo, a.comeca);
-      porLiga.set(a.chave, ja);
+      a.pernas.forEach((perna) => {
+        if (perna.estado !== 'aberta' || !perna.chave) return;
+        const ja = porLiga.get(perna.chave) || new Map();
+        ja.set(perna.jogo, perna.comeca);
+        porLiga.set(perna.chave, ja);
+      });
     });
     return {
       quantas,
@@ -268,28 +302,36 @@ export class Banco extends DurableObject {
     (Array.isArray(veio.resultados) ? veio.resultados : []).forEach((r) => {
       if (r && r.jogo) sabidos.set(String(r.jogo), r.ganhou ?? null);
     });
+    const ganhouDe = (jogo) => (sabidos.has(jogo) ? sabidos.get(jogo) : null);
 
     const agora = Date.now();
     const fechadas = [];
 
     for (const aposta of this.apostas) {
       if (aposta.estado !== 'aberta') continue;
-      const quem = sabidos.has(aposta.jogo) ? sabidos.get(aposta.jogo) : null;
-      const fim = fecharAposta(aposta, quem, agora);
+      const fim = fecharBilhete(aposta, ganhouDe, agora);
       if (!fim) continue;
+
+      aposta.pernas = fim.pernas;
+
+      /* Uma aposta que continua aberta com uma perna ja decidida nao se fecha:
+         so se guarda o que ja se sabe, para se ver no site quais e que ja
+         cairam. */
+      if (fim.estado === 'aberta') continue;
 
       aposta.estado = fim.estado;
       aposta.volta = fim.volta;
       aposta.lucro = fim.lucro;
       aposta.fechada = new Date(agora).toISOString();
+      if (fim.cotacaoFinal) aposta.cotacaoFinal = fim.cotacaoFinal;
 
       const linha = this.nomes[aposta.nome];
       if (linha) {
         const cheia = completa(linha, aposta.nome);
         cheia.torroes += fim.volta;
-        /* Uma aposta anulada nao conta como ganha nem como perdida: o jogo e
-           que nao se fez. A conta de apostas feitas foi somada quando ela foi
-           posta, e essa fica. */
+        /* Uma aposta anulada nao conta como ganha nem como perdida: os jogos e
+           que nao se fizeram. A conta de apostas feitas foi somada quando ela
+           foi posta, e essa fica. */
         if (fim.estado === 'ganha') {
           cheia.desporto.ganhas += 1;
           if (fim.volta > cheia.desporto.maior) cheia.desporto.maior = fim.volta;

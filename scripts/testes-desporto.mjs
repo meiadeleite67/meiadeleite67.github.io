@@ -156,71 +156,76 @@ const passe = entrou.corpo?.passe;
 prova('o nome novo entra', !!passe);
 const comecou = entrou.corpo.linha.torroes;
 
-const posta = await pedir('/desporto/apostar', {
-  nome,
-  passe,
-  jogo: 'prova-futebol-1',
-  escolha: 'casa',
-  quanto: 100
-});
-prova('a aposta passa', !posta.corpo?.erro, JSON.stringify(posta.corpo));
+const apostar = (pernas, quanto, quem = passe) =>
+  pedir('/desporto/apostar', { nome, passe: quem, quanto, pernas });
+
+const posta = await apostar([{ jogo: 'prova-futebol-1', escolha: 'casa' }], 100);
+prova('a simples passa', !posta.corpo?.erro, JSON.stringify(posta.corpo));
 prova('os torroes saem da carteira logo', posta.corpo?.linha?.torroes === comecou - 100);
-prova('e a aposta fica com a cotacao do servidor', posta.corpo?.aposta?.cotacao === 2.1);
+prova('e a aposta fica com a cotacao do servidor', posta.corpo?.aposta?.pernas?.[0]?.cotacao === 2.1);
+prova('com uma perna so', posta.corpo?.aposta?.pernas?.length === 1);
 prova('e fica aberta', posta.corpo?.aposta?.estado === 'aberta');
+
+/* Uma multipla: as cotacoes multiplicam-se. */
+const multi = await apostar(
+  [
+    { jogo: 'prova-basquete-1', escolha: 'casa' },
+    { jogo: 'prova-tenis-1', escolha: 'casa' }
+  ],
+  20
+);
+prova('a multipla passa', !multi.corpo?.erro, JSON.stringify(multi.corpo));
+prova('com duas pernas', multi.corpo?.aposta?.pernas?.length === 2);
+prova('e a cotacao e o produto das duas', multi.corpo?.aposta?.cotacao === 2.97);
+prova('e ja saiu da carteira', multi.corpo?.linha?.torroes === comecou - 120);
 
 /* Uma cotacao mandada pelo site nao pode valer nada. */
 const batota = await pedir('/desporto/apostar', {
   nome,
   passe,
-  jogo: 'prova-basquete-1',
-  escolha: 'casa',
   quanto: 10,
-  cotacao: 50
+  pernas: [{ jogo: 'prova-futebol-1', escolha: 'fora', cotacao: 50 }]
 });
-prova('uma cotacao mandada pelo site e ignorada', batota.corpo?.aposta?.cotacao === 1.8);
+prova('uma cotacao mandada pelo site e ignorada', batota.corpo?.aposta?.pernas?.[0]?.cotacao === 3.4);
 
-const demais = await pedir('/desporto/apostar', {
-  nome,
-  passe,
-  jogo: 'prova-tenis-1',
-  escolha: 'casa',
-  quanto: 999999
-});
+const repetido = await apostar(
+  [
+    { jogo: 'prova-futebol-1', escolha: 'casa' },
+    { jogo: 'prova-futebol-1', escolha: 'fora' }
+  ],
+  10
+);
+prova('o mesmo jogo duas vezes na multipla nao passa', !!repetido.corpo?.erro);
+
+const demais = await apostar([{ jogo: 'prova-tenis-1', escolha: 'casa' }], 999999);
 prova('nao se aposta mais do que o maximo', !!demais.corpo?.erro);
 
-const semEmpate = await pedir('/desporto/apostar', {
-  nome,
-  passe,
-  jogo: 'prova-basquete-1',
-  escolha: 'empate',
-  quanto: 10
-});
+const semEmpate = await apostar([{ jogo: 'prova-basquete-1', escolha: 'empate' }], 10);
 prova('nao se aposta no empate de um jogo sem empate', !!semEmpate.corpo?.erro);
 
-const semNome = await pedir('/desporto/apostar', {
-  nome,
-  passe: 'passe-a-fingir',
-  jogo: 'prova-futebol-1',
-  escolha: 'casa',
-  quanto: 10
-});
+const semNome = await apostar([{ jogo: 'prova-futebol-1', escolha: 'casa' }], 10, 'passe-a-fingir');
 prova('sem o passe certo nao se aposta', semNome.estado === 403 || !!semNome.corpo?.erro);
 
-const jogoQueNaoHa = await pedir('/desporto/apostar', {
-  nome,
-  passe,
-  jogo: 'nao-existe',
-  escolha: 'casa',
-  quanto: 10
-});
+const jogoQueNaoHa = await apostar([{ jogo: 'nao-existe', escolha: 'casa' }], 10);
 prova('nem num jogo que nao existe', !!jogoQueNaoHa.corpo?.erro);
+
+const semNada = await pedir('/desporto/apostar', { nome, passe, quanto: 10, pernas: [] });
+prova('nem sem escolher nada', !!semNada.corpo?.erro);
+
+/* ---------------- a pagina de um jogo ---------------- */
+
+const umJogo = await pedir('/desporto/jogo/prova-futebol-1');
+prova('um jogo so vem pelo seu numero', umJogo.corpo?.jogo?.casa === 'Benfica');
+prova('com as cotacoes dentro', umJogo.corpo?.jogo?.cotacoes?.casa === 2.1);
+const jogoQueNaoExiste = await pedir('/desporto/jogo/nao-existe');
+prova('e um que nao existe da 404', jogoQueNaoExiste.estado === 404);
 
 /* ---------------- ver as minhas ---------------- */
 
 const minhas = await pedir('/desporto/minhas', { nome, passe });
-prova('vejo as minhas apostas', minhas.corpo?.apostas?.length === 2);
-prova('as duas estao abertas', minhas.corpo.apostas.every((a) => a.estado === 'aberta'));
-prova('e o saldo ja conta com as duas', minhas.corpo.linha.torroes === comecou - 110);
+prova('vejo as minhas apostas', minhas.corpo?.apostas?.length === 3);
+prova('as tres estao abertas', minhas.corpo.apostas.every((a) => a.estado === 'aberta'));
+prova('e o saldo ja conta com as tres', minhas.corpo.linha.torroes === comecou - 130);
 
 const deOutro = await pedir('/desporto/minhas', { nome, passe: 'nao-e-meu' });
 prova('as de outra pessoa nao se veem', !!deOutro.corpo?.erro);
@@ -236,41 +241,52 @@ const semChave = await pedir('/desporto/resolver', {
 });
 prova('sem a chave da administracao nao se resolve nada', semChave.estado === 401);
 
+const resolver = (resultados) => pedir('/desporto/resolver', { resultados }, chave);
+
+/* ---- a simples ---- */
 const antes = (await pedir('/desporto/minhas', { nome, passe })).corpo.linha.torroes;
-const fechou = await pedir(
-  '/desporto/resolver',
-  { resultados: [{ jogo: 'prova-futebol-1', ganhou: 'casa' }] },
-  chave
-);
+const fechou = await resolver([{ jogo: 'prova-futebol-1', ganhou: 'casa' }]);
 prova('fecha-se a aposta do futebol', fechou.corpo?.fechadas >= 1, JSON.stringify(fechou.corpo));
 
 const depois = await pedir('/desporto/minhas', { nome, passe });
-const doFutebol = depois.corpo.apostas.find((a) => a.jogo === 'prova-futebol-1');
-prova('a aposta fica ganha', doFutebol?.estado === 'ganha');
-prova('paga o que a cotacao prometia', doFutebol?.volta === 210);
+const aSimples = depois.corpo.apostas.find((a) => a.id === posta.corpo.aposta.id);
+prova('a simples fica ganha', aSimples?.estado === 'ganha');
+prova('paga o que a cotacao prometia', aSimples?.volta === 210);
 prova('e os torroes voltam a carteira', depois.corpo.linha.torroes === antes + 210);
 prova('a conta de ganhas sobe', depois.corpo.linha.desporto.ganhas === 1);
 prova('e o maior premio fica apontado', depois.corpo.linha.desporto.maior === 210);
-prova('as apostas feitas contam as duas', depois.corpo.linha.desporto.apostas === 2);
+prova('as apostas feitas contam as tres', depois.corpo.linha.desporto.apostas === 3);
 
 /* O mesmo resultado outra vez nao pode pagar outra vez. */
-const outraVez = await pedir(
-  '/desporto/resolver',
-  { resultados: [{ jogo: 'prova-futebol-1', ganhou: 'casa' }] },
-  chave
-);
+const outraVez = await resolver([{ jogo: 'prova-futebol-1', ganhou: 'casa' }]);
 const igual = await pedir('/desporto/minhas', { nome, passe });
 prova('resolver o mesmo jogo outra vez nao fecha nada', outraVez.corpo?.fechadas === 0);
 prova('e nao paga outra vez', igual.corpo.linha.torroes === depois.corpo.linha.torroes);
 
-/* E quem falhou nao recebe nada. */
-const antesDoBasquete = igual.corpo.linha.torroes;
-await pedir('/desporto/resolver', { resultados: [{ jogo: 'prova-basquete-1', ganhou: 'fora' }] }, chave);
+/* ---- a multipla, uma perna de cada vez ---- */
+const antesDaMulti = igual.corpo.linha.torroes;
+await resolver([{ jogo: 'prova-basquete-1', ganhou: 'casa' }]);
+const aMeio = await pedir('/desporto/minhas', { nome, passe });
+const multiAMeio = aMeio.corpo.apostas.find((a) => a.id === multi.corpo.aposta.id);
+prova('com so uma perna decidida a multipla continua aberta', multiAMeio?.estado === 'aberta');
+prova('mas a perna que caiu ja esta marcada', multiAMeio?.pernas?.[0]?.estado === 'ganha');
+prova('e ainda nao se pagou nada', aMeio.corpo.linha.torroes === antesDaMulti);
+
+await resolver([{ jogo: 'prova-tenis-1', ganhou: 'casa' }]);
 const fim = await pedir('/desporto/minhas', { nome, passe });
-const doBasquete = fim.corpo.apostas.find((a) => a.jogo === 'prova-basquete-1');
-prova('quem falhou fica com a aposta perdida', doBasquete?.estado === 'perdida');
-prova('e nao recebe nada', fim.corpo.linha.torroes === antesDoBasquete);
-prova('nem sobe a conta das ganhas', fim.corpo.linha.desporto.ganhas === 1);
+const multiFeita = fim.corpo.apostas.find((a) => a.id === multi.corpo.aposta.id);
+prova('com as duas certas a multipla ganha', multiFeita?.estado === 'ganha');
+prova('e paga pelas cotacoes multiplicadas', multiFeita?.volta === 59, `deu ${multiFeita?.volta}`);
+prova('e os torroes chegam a carteira', fim.corpo.linha.torroes === antesDaMulti + 59);
+
+/* ---- e quem falhou nao recebe nada ---- */
+const antesDaFalhada = fim.corpo.linha.torroes;
+await resolver([{ jogo: 'prova-futebol-1', ganhou: 'casa' }]);
+const falhada = await pedir('/desporto/minhas', { nome, passe });
+const aFalhada = falhada.corpo.apostas.find((a) => a.id === batota.corpo.aposta.id);
+prova('quem falhou fica com a aposta perdida', aFalhada?.estado === 'perdida');
+prova('e nao recebe nada', falhada.corpo.linha.torroes === antesDaFalhada);
+prova('nem sobe a conta das ganhas', falhada.corpo.linha.desporto.ganhas === 2);
 
 /* ---------------- a conta do fim ---------------- */
 

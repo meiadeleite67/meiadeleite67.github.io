@@ -782,9 +782,12 @@ export default {
       );
     }
 
-    /* Pôr uma aposta. A cotação não vem do site: vai-se buscar ao jogo que
-       está guardado aqui. Se viesse do site, bastava mexer no pedido para
-       apostar a cinquenta para um. */
+    /* Pôr uma aposta, de uma perna ou de várias.
+
+       As cotações não vêm do site: vão-se buscar aos jogos que estão guardados
+       aqui. Se viessem do site, bastava mexer no pedido no browser para
+       apostar a cinquenta para um. Do site vem só em que jogo e em quem, que é
+       o que ele tem direito a escolher. */
     if (caminho === '/desporto/apostar' && metodo === 'POST') {
       let veio;
       try {
@@ -792,18 +795,37 @@ export default {
       } catch {
         return responder({ erro: 'Corpo inválido.' }, request, 400);
       }
-      const jogo = await jogoGuardado(env, texto(veio?.jogo, 64));
-      if (!jogo) return responder({ erro: 'Esse jogo já não está aberto a apostas.' }, request, 400);
+
+      const pedidas = Array.isArray(veio?.pernas) ? veio.pernas.slice(0, 12) : [];
+      if (pedidas.length === 0) return responder({ erro: 'Não escolheste nada.' }, request, 400);
+
+      const pernas = pedidas.map((p) => ({
+        jogo: texto(p?.jogo, 64),
+        escolha: texto(p?.escolha, 10)
+      }));
+
+      const todos = await jogosGuardados(env);
+      const jogos = pernas
+        .map((p) => todos.jogos.find((j) => j.id === p.jogo))
+        .filter(Boolean);
 
       const feito = await aoBanco(env, '/apostar', {
         nome: texto(veio?.nome, 24),
         passe: texto(veio?.passe, 40),
-        escolha: texto(veio?.escolha, 10),
         quanto: veio?.quanto,
-        jogo
+        pernas,
+        jogos
       });
       if (feito.erro) return responder({ erro: feito.erro }, request, feito.estado || 400);
       return responder(feito, request);
+    }
+
+    /* Um jogo só, para a página de detalhe. Sai do que já está guardado, por
+       isso não gasta crédito nenhum por muita gente que lá entre. */
+    if (caminho.startsWith('/desporto/jogo/') && metodo === 'GET') {
+      const jogo = await jogoGuardado(env, texto(caminho.slice(15), 64));
+      if (!jogo) return responder({ erro: 'Esse jogo já não está aberto a apostas.' }, request, 404);
+      return responder({ jogo }, request);
     }
 
     /* As apostas de quem prova ser dono do nome. */
