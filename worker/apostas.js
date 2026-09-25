@@ -176,6 +176,10 @@ export function limparBilhete(veio, jogosPorId, saldo, jaAbertas = 0, agora = Da
     pernas.push({
       jogo: jogo.id,
       chave: jogo.chave,
+      /* De que fonte veio o jogo. E isto que deixa trocar de fonte sem estragar
+         as apostas ja feitas: cada perna fecha-se por onde nasceu, e as que
+         vem de antes da troca nao tem isto posto. */
+      fonte: jogo.fonte || '',
       desporto: jogo.desporto || '',
       liga: jogo.liga || '',
       casa: jogo.casa,

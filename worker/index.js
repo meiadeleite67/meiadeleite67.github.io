@@ -388,13 +388,20 @@ import {
   guardarRelatorio,
   relatorioDaVolta,
   jaAcabaram,
-  jogoGuardado,
   jogosGuardados,
   refrescarJogos,
   resultadosDe,
   temChaveDaFeed
 } from './desporto.js';
 import { quemGanhou } from './apostas.js';
+import {
+  CASAS as DESPORTOS_NOVOS,
+  cotacoesDoDia,
+  jogosDaFeedNova,
+  quemGanhouNova,
+  resultadosPorNumero,
+  temChaveNova
+} from './api-sports.js';
 import {
   apagarTicket,
   arrumarTickets,
@@ -416,23 +423,129 @@ export { Banco, MesaDePoker };
    creditos estiverem a acabar, quem tem torroes presos numa aposta tem mais
    direito ao que resta do que quem quer ver a jornada seguinte. */
 
+/**
+ * Que desporto se trata nesta volta.
+ *
+ * Trata-se um de cada vez, a rodar, e nao os sete de uma vez. Com sete
+ * desportos a tres dias de jogos mais as cotacoes, uma volta unica dava umas
+ * quarenta chamadas espacadas de sete segundos, o que sao cinco minutos de
+ * espera dentro de uma volta so. A rodar, cada volta custa meia duzia de
+ * chamadas e cada desporto e refrescado a cada poucas horas.
+ */
+async function aVez(env) {
+  const nomes = Object.keys(DESPORTOS_NOVOS);
+  const ultimo = (await ler(env, 'desporto:vez', null)) || '';
+  const i = nomes.indexOf(ultimo);
+  const seguinte = nomes[(i + 1) % nomes.length];
+  await env.QUADRO.put('desporto:vez', JSON.stringify(seguinte));
+  return seguinte;
+}
+
+/**
+ * Os jogos da fonte nova, guardados por desporto.
+ *
+ * Cada desporto tem a sua gaveta. Assim uma volta que trate do basquetebol nao
+ * mexe no que ja se sabia do futebol, e a pagina mostra sempre tudo o que ha
+ * de todos, mesmo que cada um tenha sido refrescado a horas diferentes.
+ */
+const ONDE_OS_NOVOS = (desporto) => `desporto:novo:${desporto}`;
+
+async function guardarJogosNovos(env, desporto, jogos) {
+  await env.QUADRO.put(
+    ONDE_OS_NOVOS(desporto),
+    JSON.stringify({ jogos, quando: new Date().toISOString() })
+  );
+}
+
+/**
+ * Tudo o que ha para apostar, das duas fontes.
+ *
+ * Enquanto a troca de fonte nao estiver acabada, ha jogos das duas: os novos
+ * vem por desporto da fonte nova, e o que restava da antiga fica a vista ate
+ * comecar. Nao se apaga nada a mao: o que comecou sai sozinho pelo relogio.
+ */
+async function todosOsJogos(env) {
+  const novos = await jogosNovosGuardados(env);
+  const velhos = (await jogosGuardados(env)).jogos || [];
+  const por = new Map();
+  [...velhos, ...novos].forEach((j) => por.set(j.id, j));
+  return [...por.values()].sort((a, b) => Date.parse(a.comeca) - Date.parse(b.comeca));
+}
+
+export async function jogosNovosGuardados(env) {
+  const tudo = [];
+  for (const desporto of Object.keys(DESPORTOS_NOVOS)) {
+    const g = await ler(env, ONDE_OS_NOVOS(desporto), null);
+    if (g && Array.isArray(g.jogos)) tudo.push(...g.jogos);
+  }
+  /* Fora os que ja acabaram de vez. Os que estao a decorrer ficam, trancados,
+     e agora com o resultado a vista. */
+  const agora = Date.now();
+  return tudo
+    .filter((j) => !j.acabou || Date.parse(j.comeca) > agora - 4 * 60 * 60 * 1000)
+    .sort((a, b) => Date.parse(a.comeca) - Date.parse(b.comeca));
+}
+
+/* ====================== a volta ======================
+
+   Fecha-se o que ja acabou e so depois se vao buscar jogos novos: se houver
+   pouco por onde pedir, quem tem torroes presos numa aposta tem mais direito
+   ao que resta do que quem quer ver a jornada seguinte.
+
+   As apostas fecham-se pela fonte de onde nasceram. As que ja estavam feitas
+   quando se trocou de fonte nao tem a marca posta, e essas continuam a fechar
+   pelo caminho antigo ate a ultima delas estar resolvida. E a unica maneira de
+   trocar de fonte sem que ninguem fique a espera de um resultado que nunca
+   chega. */
+
 async function aVoltaDoDia(env) {
-  const feito = { fechadas: 0, ligas: [], jogos: 0, erros: [] };
+  /* Um trinco, para nao haver duas voltas ao mesmo tempo.
+     A feed nova trava aos dez pedidos por minuto, e uma volta leva umas seis
+     chamadas espacadas de sete segundos: duas voltas a andar juntas passam do
+     travao e as duas saem de maos vazias. Isto aconteceu ao pe da letra ao
+     experimentar, com o relogio a disparar uma volta enquanto eu forcava
+     outra. O trinco dura dois minutos, que e mais do que uma volta leva. */
+  if (await env.QUADRO.get('desporto:a-andar'))
+    return { erros: ['ja ha uma volta a andar'], fechadas: 0, jogos: 0 };
+  await env.QUADRO.put('desporto:a-andar', '1', { expirationTtl: 120 });
 
-  /* ---- fechar o que ja acabou ----
+  const feito = { fechadas: 0, ligas: [], jogos: 0, erros: [], pedidos: 0 };
 
-     A pergunta cara e a dos resultados, que custa dois creditos por liga. Antes
-     de a fazer pergunta-se de graca se ha ali sequer alguma coisa acabada: um
-     jogo que ainda esta na lista de jogos nao acabou, e enquanto as apostas de
-     uma liga forem todas de jogos que ainda la estao, essa liga nao custa nada
-     esta volta. */
   const porFechar = await doBanco(env, '/apostas/por-fechar');
   const ligas = Array.isArray(porFechar?.ligas) ? porFechar.ligas : [];
   const resultados = [];
 
-  if (temChaveDaFeed(env)) {
+  /* ---- fechar o que nasceu na fonte nova ---- */
+  if (temChaveNova(env)) {
+    /* As pernas novas trazem o desporto, e e por ele que se sabe a que API
+       perguntar. Vinte numeros por pedido. */
+    const porDesporto = new Map();
+    ligas.forEach((l) =>
+      (l.jogos || []).forEach((j) => {
+        if (j.fonte !== 'api-sports' || !j.desporto) return;
+        porDesporto.set(j.desporto, [...(porDesporto.get(j.desporto) || []), j.jogo]);
+      })
+    );
+
+    for (const [desporto, numeros] of porDesporto) {
+      const r = await resultadosPorNumero(env, desporto, numeros);
+      feito.pedidos += r.pedidos || 0;
+      if (r.erro) {
+        feito.erros.push(`${desporto}: ${r.erro}`);
+        continue;
+      }
+      r.jogos.forEach((j) => {
+        const ganhou = quemGanhouNova(j);
+        if (ganhou) resultados.push({ jogo: j.id, ganhou });
+      });
+    }
+  }
+
+  /* ---- e o que nasceu na fonte antiga, enquanto houver ---- */
+  const antigas = ligas.filter((l) => (l.jogos || []).some((j) => j.fonte !== 'api-sports'));
+  if (temChaveDaFeed(env) && antigas.length > 0) {
     let fechadas = 0;
-    for (const liga of ligas) {
+    for (const liga of antigas) {
       if (fechadas >= FECHOS_POR_VOLTA) break;
       const fim = await jaAcabaram(env, liga.chave, liga.jogos);
       if (fim.erro) {
@@ -455,26 +568,86 @@ async function aVoltaDoDia(env) {
     }
   }
 
-  /* Chama-se sempre, mesmo sem resultado nenhum: e aqui que as apostas de
-     jogos adiados que nunca mais se fizeram devolvem os torroes. */
   const fim = await aoBanco(env, '/apostas/fechar', { resultados });
   feito.fechadas = fim?.fechadas || 0;
 
-  /* ---- e so depois ir buscar jogos novos ---- */
-  if (temChaveDaFeed(env)) {
-    const novos = await refrescarJogos(env);
-    if (novos.erro) feito.erros.push(novos.erro);
-    else {
-      feito.jogos = novos.jogos.length;
-      feito.comprados = novos.comprados;
-      feito.perguntadas = novos.perguntadas;
-      feito.quantasComprar = novos.quantasComprar;
-      feito.emEpoca = novos.emEpoca;
+  /* ---- e so depois ir buscar jogos novos, do desporto desta vez ---- */
+  if (temChaveNova(env)) {
+    const desporto = await aVez(env);
+    feito.desporto = desporto;
+
+    const novos = await jogosDaFeedNova(env, desporto);
+    feito.pedidos += novos.pedidos || 0;
+    if (novos.erro) feito.erros.push(`${desporto}: ${novos.erro}`);
+
+    const jogos = novos.jogos || [];
+    if (jogos.length > 0) {
+      const com = await cotacoesDoDia(env, desporto);
+      feito.pedidos += com.pedidos || 0;
+      if (com.erro) feito.erros.push(`${desporto} cotacoes: ${com.erro}`);
+
+      const cotacoes = com.cotacoes || new Map();
+      /* Um jogo sem cotacao nao se mostra: nao ha nada para apostar nele. Só
+         fica sem ela o que esta a decorrer, que esse mostra-se pelo resultado.
+         A condicao de antes deixava passar tambem os ja acabados, e numa volta
+         em que as cotacoes levassem travao a pagina enchia-se de jogos sem
+         nada para apostar. */
+      const antesDisto = await ler(env, ONDE_OS_NOVOS(desporto), null);
+      const jaSabidas = new Map(
+        ((antesDisto && antesDisto.jogos) || []).map((j) => [j.id, j.cotacoes])
+      );
+
+      const comPreco = jogos
+        .map((j) => ({ ...j, cotacoes: cotacoes.get(j.id) || jaSabidas.get(j.id) || null }))
+        .filter((j) => j.cotacoes || (!j.porComecar && !j.acabou));
+
+      await guardarJogosNovos(env, desporto, comPreco);
+      feito.jogos = comPreco.length;
+    }
+  }
+
+  /* ---- e quem esta a jogar agora, que e um pedido e traz o resultado ----
+
+     A chamada que lista os jogos de um dia ja traz os golos e o minuto. Por
+     isso manter o resultado fresco custa um pedido por desporto a jogar, e nao
+     um pedido por jogo: e o que torna isto possivel com cem por dia. */
+  if (temChaveNova(env)) {
+    const agora = Date.now();
+    const aJogar = new Set(
+      (await jogosNovosGuardados(env))
+        .filter(
+          (j) =>
+            j.fonte === 'api-sports' &&
+            !j.acabou &&
+            Date.parse(j.comeca) <= agora &&
+            j.desporto !== feito.desporto
+        )
+        .map((j) => j.desporto)
+    );
+
+    for (const desporto of [...aJogar].slice(0, 2)) {
+      const r = await jogosDaFeedNova(env, desporto, 1);
+      feito.pedidos += r.pedidos || 0;
+      if (r.erro) {
+        feito.erros.push(`${desporto} ao vivo: ${r.erro}`);
+        continue;
+      }
+      /* Guarda-se o que veio por cima do que se sabia, mantendo as cotacoes
+         que ja estavam: este pedido nao as traz. */
+      const antes = await ler(env, ONDE_OS_NOVOS(desporto), null);
+      const jaSabidas = new Map(((antes && antes.jogos) || []).map((j) => [j.id, j.cotacoes]));
+      const juntos = (r.jogos || []).map((j) => ({ ...j, cotacoes: jaSabidas.get(j.id) || null }));
+      const por = new Map(((antes && antes.jogos) || []).map((j) => [j.id, j]));
+      juntos.forEach((j) => por.set(j.id, j));
+      await guardarJogosNovos(env, desporto, [...por.values()]);
+      feito.aoVivo = [...(feito.aoVivo || []), desporto];
     }
   }
 
   feito.contas = await contasDaFeed(env);
   await guardarRelatorio(env, feito);
+  await env.QUADRO.delete('desporto:a-andar');
+  console.log('VOLTA ' + JSON.stringify(feito).slice(0, 1500));
   return feito;
 }
 
@@ -790,7 +963,7 @@ export default {
        rota nao gasta crédito nenhum por muita gente que a abra. */
 
     if (caminho === '/desporto' && metodo === 'GET') {
-      const guardado = await jogosGuardados(env);
+      const guardado = { jogos: await todosOsJogos(env), quando: null };
 
       /* Com a prateleira quase vazia, da-se uma volta agora, por tras desta
          resposta, em vez de deixar a pagina sem nada ate a proxima. Serve para
@@ -857,10 +1030,8 @@ export default {
         escolha: texto(p?.escolha, 10)
       }));
 
-      const todos = await jogosGuardados(env);
-      const jogos = pernas
-        .map((p) => todos.jogos.find((j) => j.id === p.jogo))
-        .filter(Boolean);
+      const todos = await todosOsJogos(env);
+      const jogos = pernas.map((p) => todos.find((j) => j.id === p.jogo)).filter(Boolean);
 
       const feito = await aoBanco(env, '/apostar', {
         nome: texto(veio?.nome, 24),
@@ -876,7 +1047,8 @@ export default {
     /* Um jogo só, para a página de detalhe. Sai do que já está guardado, por
        isso não gasta crédito nenhum por muita gente que lá entre. */
     if (caminho.startsWith('/desporto/jogo/') && metodo === 'GET') {
-      const jogo = await jogoGuardado(env, texto(caminho.slice(15), 64));
+      const qual = texto(caminho.slice(15), 64);
+      const jogo = (await todosOsJogos(env)).find((j) => j.id === qual);
       if (!jogo) return responder({ erro: 'Esse jogo já não está aberto a apostas.' }, request, 404);
       return responder({ jogo }, request);
     }

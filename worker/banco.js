@@ -287,7 +287,13 @@ export class Banco extends DurableObject {
       a.pernas.forEach((perna) => {
         if (perna.estado !== 'aberta' || !perna.chave) return;
         const ja = porLiga.get(perna.chave) || new Map();
-        ja.set(perna.jogo, perna.comeca);
+        /* Vai tambem a fonte e o desporto: e por eles que quem atende a rua
+           sabe a que API perguntar o resultado desta perna. */
+        ja.set(perna.jogo, {
+          comeca: perna.comeca,
+          fonte: perna.fonte || '',
+          desporto: perna.desporto || ''
+        });
         porLiga.set(perna.chave, ja);
       });
     });
@@ -296,7 +302,7 @@ export class Banco extends DurableObject {
       chaves: [...porLiga.keys()],
       ligas: [...porLiga.entries()].map(([chave, jogos]) => ({
         chave,
-        jogos: [...jogos.entries()].map(([jogo, comeca]) => ({ jogo, comeca }))
+        jogos: [...jogos.entries()].map(([jogo, o]) => ({ jogo, ...o }))
       }))
     };
   }
