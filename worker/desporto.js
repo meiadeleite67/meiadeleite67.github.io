@@ -53,6 +53,12 @@ const A_SEGUIR = [
   { grupo: 'Tennis', quantas: 2, nome: 'Ténis' }
 ];
 
+/** Quantas ligas se experimentam por grupo, além das que se querem. É o que
+ *  permite cair para a seguinte quando as preferidas estão de férias: numa
+ *  pausa de seleções a Primeira Liga e a Premier não têm jornada nenhuma, e
+ *  quem tem jogos é a Liga das Nações. Perguntar a estas não custa nada. */
+const EXPERIMENTAR_MAIS = 4;
+
 /** Quando há mais ligas do que lugares, estas vão à frente. É a única parte
  *  disto que tem gosto pessoal lá dentro. */
 const PRIMEIRO = [
@@ -200,9 +206,16 @@ async function daParaGastar(env, quanto) {
 /* ============================ o que é de graça ============================ */
 
 /**
- * Que ligas seguir hoje. Não gasta créditos, e é por isso que se pergunta em
- * vez de se adivinhar: o ténis não tem uma chave só, cada torneio é a sua, e
- * adivinhar quais estão a decorrer esta semana não daria.
+ * Que ligas se podem seguir hoje, com folga para escolher.
+ *
+ * Não gasta créditos, e é por isso que se pergunta em vez de se adivinhar: o
+ * ténis não tem uma chave só, cada torneio é a sua, e adivinhar quais estão a
+ * decorrer esta semana não daria.
+ *
+ * Devolve mais candidatas do que os lugares que há, por grupo e já por ordem
+ * de preferência. Quem escolhe de verdade é quem for ver, de graça, quais
+ * delas têm jogos marcados: uma liga estar em época não quer dizer que jogue
+ * esta semana, e numa pausa de seleções as melhores estão todas paradas.
  */
 export async function ligasDeHoje(env) {
   const r = await pedir(env, '/sports/');
@@ -210,7 +223,7 @@ export async function ligasDeHoje(env) {
   await apontar(env, r, 0);
   const todas = Array.isArray(r.corpo) ? r.corpo : [];
 
-  const escolhidas = [];
+  const grupos = [];
   for (const { grupo, quantas, nome } of A_SEGUIR) {
     /* Sem os vencedores de campeonato: ali não há jogo nenhum para acabar, e
        uma aposta que só fecha em maio ficava meio ano à espera. */
@@ -219,11 +232,15 @@ export async function ligasDeHoje(env) {
       ...doGrupo.filter((d) => PRIMEIRO.includes(d.key)),
       ...doGrupo.filter((d) => !PRIMEIRO.includes(d.key))
     ];
-    ordenadas
-      .slice(0, quantas)
-      .forEach((d) => escolhidas.push({ chave: d.key, liga: d.title, desporto: nome }));
+    grupos.push({
+      desporto: nome,
+      quantas,
+      candidatas: ordenadas
+        .slice(0, quantas + EXPERIMENTAR_MAIS)
+        .map((d) => ({ chave: d.key, liga: d.title, desporto: nome }))
+    });
   }
-  return { ligas: escolhidas };
+  return { grupos };
 }
 
 /** Os jogos de uma liga, sem cotações. Não gasta créditos. */
@@ -274,30 +291,49 @@ export async function refrescarJogos(env) {
   const temCotacao = new Set(guardado.jogos.map((j) => j.id));
   const descanso = guardado.compradas || {};
 
-  /* ---- de graça: o que ha por cobrir em cada liga ---- */
-  const aPrecisar = [];
-  for (const liga of quais.ligas) {
-    /* Uma liga a quem se comprou ha pouco nao se volta a perguntar, mesmo que
-       tenha jogos sem preco: se eles nao vieram da ultima vez, nao ha razao
-       nenhuma para virem agora. */
-    const ultima = Date.parse(descanso[liga.chave] || '');
-    if (Number.isFinite(ultima) && agora - ultima < LIGA_DESCANSA) continue;
+  const daqui = new Date(agora).toISOString().slice(0, 19) + 'Z';
+  const ate = new Date(agora + SO_ATE).toISOString().slice(0, 19) + 'Z';
 
-    const r = await eventosDe(env, liga.chave, {
-      commenceTimeFrom: new Date(agora).toISOString().slice(0, 19) + 'Z',
-      commenceTimeTo: new Date(agora + SO_ATE).toISOString().slice(0, 19) + 'Z'
-    });
-    if (r.erro) continue;
-    const porCobrir = r.eventos.filter((e) => e && e.id && !temCotacao.has(e.id));
-    if (porCobrir.length === 0) continue;
-    /* o mais cedo desta liga decide a pressa dela */
-    const primeiro = Math.min(...porCobrir.map((e) => Date.parse(e.commence_time) || Infinity));
-    aPrecisar.push({ ...liga, quantos: porCobrir.length, primeiro });
+  /* ---- de graca: quais das candidatas tem jogos, e o que falta cobrir ---- */
+  const aPrecisar = [];
+  const seguidas = [];
+
+  for (const grupo of quais.grupos) {
+    let lugares = grupo.quantas;
+    for (const liga of grupo.candidatas) {
+      if (lugares <= 0) break;
+
+      const r = await eventosDe(env, liga.chave, {
+        commenceTimeFrom: daqui,
+        commenceTimeTo: ate
+      });
+      if (r.erro) continue;
+
+      /* Uma liga sem jogos marcados nao ocupa lugar: passa-se a seguinte. E
+         assim que numa pausa de selecoes se cai da Primeira Liga para a Liga
+         das Nacoes, sem ninguem ter de andar a mexer em listas a mao. */
+      if (r.eventos.length === 0) continue;
+
+      lugares -= 1;
+      seguidas.push(liga.chave);
+
+      /* Uma liga a quem se comprou ha pouco nao se volta a comprar, mesmo que
+         tenha jogos sem preco: se eles nao vieram da ultima vez, nao ha razao
+         nenhuma para virem agora. */
+      const ultima = Date.parse(descanso[liga.chave] || '');
+      if (Number.isFinite(ultima) && agora - ultima < LIGA_DESCANSA) continue;
+
+      const porCobrir = r.eventos.filter((e) => e && e.id && !temCotacao.has(e.id));
+      if (porCobrir.length === 0) continue;
+
+      const primeiro = Math.min(...porCobrir.map((e) => Date.parse(e.commence_time) || Infinity));
+      aPrecisar.push({ ...liga, quantos: porCobrir.length, primeiro });
+    }
   }
 
   aPrecisar.sort((a, b) => a.primeiro - b.primeiro);
 
-  /* ---- e só agora se gasta ---- */
+  /* ---- e so agora se gasta ---- */
   const comprados = [];
   const novos = [];
   const aindaPorComecar = guardado.jogos.filter((j) => Date.parse(j.comeca) > agora).length;
@@ -326,9 +362,9 @@ export async function refrescarJogos(env) {
     }
   }
 
-  /* Os novos por cima dos velhos, e fora os que já começaram. As cotações de
-     uma liga que não se comprou esta volta ficam como estavam: velhas, sim, mas
-     uma cotação velha num jogo de amanhã vale mais do que jogo nenhum. */
+  /* Os novos por cima dos velhos, e fora os que ja comecaram. As cotacoes de
+     uma liga que nao se comprou esta volta ficam como estavam: velhas, sim, mas
+     uma cotacao velha num jogo de amanha vale mais do que jogo nenhum. */
   const por = new Map();
   [...guardado.jogos, ...novos].forEach((j) => {
     if (Date.parse(j.comeca) > agora) por.set(j.id, j);
@@ -337,7 +373,7 @@ export async function refrescarJogos(env) {
 
   /* O descanso so guarda as ligas que ainda se seguem, senao ia juntando
      torneios de tenis do ano passado ate encher. */
-  const aSeguir = new Set(quais.ligas.map((l) => l.chave));
+  const aSeguir = new Set(seguidas);
   const compradas = Object.fromEntries(
     Object.entries(descanso).filter(([chave]) => aSeguir.has(chave))
   );
@@ -348,7 +384,7 @@ export async function refrescarJogos(env) {
     quando: new Date().toISOString()
   };
   await env.QUADRO.put(ONDE_OS_JOGOS, JSON.stringify(guardar));
-  return { ...guardar, comprados, ligas: quais.ligas.length };
+  return { ...guardar, comprados, ligas: seguidas };
 }
 
 /** Os jogos que estão guardados, sem gastar crédito nenhum. */
