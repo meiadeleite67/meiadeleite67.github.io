@@ -46,7 +46,10 @@ const NAIPES = [
 ];
 const VALORES = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 
-export const APOSTAS = [5, 10, 25, 50];
+/** As fichas que se podem pôr numa mão. O servidor aceita muito mais do que
+ *  isto por mão; o que manda aqui é o que cabe na bancada e o que faz sentido
+ *  numa mesa onde o saldo inicial são dois mil e quinhentos torrões. */
+export const APOSTAS = [5, 10, 25, 50, 100, 250, 500];
 const MAX_MAOS = 4;
 
 export function novoSapato(): Carta[] {

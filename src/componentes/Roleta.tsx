@@ -42,16 +42,21 @@ const RODA = [
 const VERMELHOS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
 const cor = (n: number) => (n === 0 ? 'verde' : VERMELHOS.has(n) ? 'vermelho' : 'preto');
 
-/** Quanto vale cada ficha que se pode pegar da bancada. */
-const FICHAS = [1, 5, 10, 25, 100];
+/** Quanto vale cada ficha que se pode pegar da bancada. O servidor aceita
+ *  fichas até cinco mil, por isso a de mil cabe com folga. */
+const FICHAS = [1, 5, 10, 25, 100, 500, 1000];
 
-/** A cor de cada ficha, a mesma na bancada e em cima do pano. */
+/** A cor de cada ficha, a mesma na bancada e em cima do pano. As duas novas
+ *  não repetem nenhuma das que já lá estavam: numa pilha de seis discos, duas
+ *  fichas da mesma cor não se distinguem. */
 const COR_DA_FICHA: Record<number, string> = {
   1: '#3f8d63',
   5: '#4f7fc0',
   10: '#a52725',
   25: '#6d6d7c',
-  100: '#9d6fc4'
+  100: '#9d6fc4',
+  500: '#c9711c',
+  1000: '#1f6f78'
 };
 
 /** Quanto tempo a bola anda antes de assentar. */
@@ -389,7 +394,10 @@ export function Roleta({
             className={`rol-ficha${ficha === f ? ' pegada' : ''}`}
             data-valor={f}
             onClick={() => setFicha(f)}
-            disabled={aRodar}
+            /* Uma ficha que nao da para pagar apaga-se em vez de dar recado
+               depois de se carregar nela. Com fichas de quinhentos e de mil,
+               isso passou a acontecer a muita gente. */
+            disabled={aRodar || naMesa + f > saldo}
           >
             {f}
           </button>

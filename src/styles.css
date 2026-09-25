@@ -578,6 +578,20 @@ label .rotulo {
 .ficha.v50 {
   --ficha: linear-gradient(160deg, #47342a, #120c08);
 }
+.ficha.v100 {
+  --ficha: linear-gradient(160deg, #8d5fb5, #45256a);
+}
+.ficha.v250 {
+  --ficha: linear-gradient(160deg, #2a8b93, #10454a);
+}
+.ficha.v500 {
+  --ficha: linear-gradient(160deg, #d0801f, #7a430c);
+}
+/* Tres algarismos ja apertam contra o anel de dentro da ficha. */
+.ficha.v250 span,
+.ficha.v500 span {
+  font-size: 13px;
+}
 .ficha:hover:not(:disabled) {
   transform: translateY(-5px);
 }
@@ -6278,6 +6292,19 @@ footer {
 }
 .rol-ficha[data-valor='100'] {
   background: #9d6fc4;
+}
+.rol-ficha[data-valor='500'] {
+  background: #c9711c;
+}
+.rol-ficha[data-valor='1000'] {
+  background: #1f6f78;
+}
+/* Quatro algarismos nao cabem numa ficha de quarenta pixeis ao tamanho das
+   outras: dentro da borda tracejada sobram trinta e quatro, e "1000" ao
+   tamanho normal passa deles. */
+.rol-ficha[data-valor='1000'] {
+  font-size: 11px;
+  letter-spacing: -0.03em;
 }
 .rol-ficha.pegada {
   outline: 2px solid var(--crema);
