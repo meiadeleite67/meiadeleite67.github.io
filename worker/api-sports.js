@@ -115,7 +115,14 @@ export async function pedir(env, casa, caminho, procura = {}) {
     minuto: r.headers.get('X-RateLimit-Limit'),
     minutoRestam: r.headers.get('X-RateLimit-Remaining')
   };
-  console.log('LIMITES ' + caminho + ' ' + JSON.stringify(limites));
+  console.log(
+    'LIMITES ' +
+      caminho +
+      ' ' +
+      JSON.stringify(limites) +
+      ' TODOS ' +
+      JSON.stringify([...r.headers].filter(([k]) => /limit|rate|remain|quota/i.test(k)))
+  );
 
   if (!r.ok) return { erro: `a feed nova respondeu ${r.status}`, estado: r.status, limites };
 
@@ -266,11 +273,20 @@ export async function jogosDaFeedNova(env, desporto, dias = SO_ATE_DIAS) {
 
   const todos = [];
   let pedidos = 0;
+  let falhou = '';
+
   for (let d = 0; d < dias; d += 1) {
     if (d > 0) await esperar(ESPERA_ENTRE_PEDIDOS);
     const r = await pedir(env, casa, '/fixtures', { date: diaDe(d) });
     pedidos += 1;
-    if (r.erro) return { erro: r.erro, jogos: todos, pedidos };
+    if (r.erro) {
+      /* Um dia que falhe nao deita fora os dias que ja vieram, mas o que ja
+         veio tem de sair daqui limpo como sairia se nao tivesse falhado nada.
+         Antes devolvia-se aqui a lista em bruto, e por isso um jogo adiado
+         chegou a aparecer na pagina: o filtro estava depois deste return. */
+      falhou = r.erro;
+      break;
+    }
     r.lista.forEach((cru) => {
       const j = jogoDaFeedNova(cru, desporto);
       if (j) todos.push(j);
@@ -290,7 +306,8 @@ export async function jogosDaFeedNova(env, desporto, dias = SO_ATE_DIAS) {
     return Date.parse(a.comeca) - Date.parse(b.comeca);
   });
 
-  return { jogos: servem.slice(0, JOGOS_NO_MAXIMO), pedidos };
+  const saida = { jogos: servem.slice(0, JOGOS_NO_MAXIMO), pedidos };
+  return falhou ? { ...saida, erro: falhou } : saida;
 }
 
 /**

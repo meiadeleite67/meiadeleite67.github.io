@@ -480,9 +480,15 @@ export async function jogosNovosGuardados(env) {
   }
   /* Fora os que ja acabaram de vez. Os que estao a decorrer ficam, trancados,
      e agora com o resultado a vista. */
+  /* Um jogo sem cotacao nao se mostra a nao ser que esteja a decorrer, e este
+     e o sitio certo para essa regra: aqui ela protege a pagina de qualquer
+     feed que se porte mal, e nao so daquela que se portou mal hoje. Um jogo
+     sem preco e uma linha onde nao se pode carregar em nada. */
   const agora = Date.now();
+  const aDecorrer = (j) => Date.parse(j.comeca) <= agora && !j.acabou;
   return tudo
     .filter((j) => !j.acabou || Date.parse(j.comeca) > agora - 4 * 60 * 60 * 1000)
+    .filter((j) => j.cotacoes || aDecorrer(j))
     .sort((a, b) => Date.parse(a.comeca) - Date.parse(b.comeca));
 }
 
@@ -508,6 +514,12 @@ async function aVoltaDoDia(env) {
   if (await env.QUADRO.get('desporto:a-andar'))
     return { erros: ['ja ha uma volta a andar'], fechadas: 0, jogos: 0 };
   await env.QUADRO.put('desporto:a-andar', '1', { expirationTtl: 120 });
+
+  /* Se a fonte nova recusou na volta passada, nao se lhe pede nada por uma
+     hora. Insistir contra uma conta esgotada nao traz jogos e gasta a conta do
+     dia seguinte quando ela virar: o que ela responde e sempre "too many
+     requests per minute", mesmo quando o que esta esgotado e o dia. */
+  const novaDeCastigo = !!(await env.QUADRO.get('desporto:nova-de-castigo'));
 
   const feito = { fechadas: 0, ligas: [], jogos: 0, erros: [], pedidos: 0 };
 
@@ -572,7 +584,7 @@ async function aVoltaDoDia(env) {
   feito.fechadas = fim?.fechadas || 0;
 
   /* ---- e so depois ir buscar jogos novos, do desporto desta vez ---- */
-  if (temChaveNova(env)) {
+  if (temChaveNova(env) && !novaDeCastigo) {
     const desporto = await aVez(env);
     feito.desporto = desporto;
 
@@ -611,7 +623,7 @@ async function aVoltaDoDia(env) {
      A chamada que lista os jogos de um dia ja traz os golos e o minuto. Por
      isso manter o resultado fresco custa um pedido por desporto a jogar, e nao
      um pedido por jogo: e o que torna isto possivel com cem por dia. */
-  if (temChaveNova(env)) {
+  if (temChaveNova(env) && !novaDeCastigo) {
     const agora = Date.now();
     const aJogar = new Set(
       (await jogosNovosGuardados(env))
@@ -642,6 +654,20 @@ async function aVoltaDoDia(env) {
       await guardarJogosNovos(env, desporto, [...por.values()]);
       feito.aoVivo = [...(feito.aoVivo || []), desporto];
     }
+  }
+
+  /* Se a fonte nova recusou alguma coisa nesta volta, poe-se de castigo. */
+  if (feito.erros.some((e) => /too many requests|recusou/i.test(e)))
+    await env.QUADRO.put('desporto:nova-de-castigo', '1', { expirationTtl: 3600 });
+
+  /* E a fonte antiga continua a encher a prateleira. Enquanto a nova nao
+     estiver provada por um dia inteiro, e ela que garante que ha jogos na
+     pagina: tem quatrocentos e setenta creditos por gastar e um desenho que
+     ja se sabe barato. */
+  if (temChaveDaFeed(env)) {
+    const velhos = await refrescarJogos(env);
+    if (velhos.erro) feito.erros.push('antiga: ' + velhos.erro);
+    else feito.jogosAntigos = velhos.jogos.length;
   }
 
   feito.contas = await contasDaFeed(env);

@@ -172,6 +172,7 @@ const GUARDADOS_PARA_FECHAR = 40;
  */
 function tectoDoDia(restam) {
   if (!Number.isFinite(restam)) return 12;
+  if (restam > 400) return 40;
   if (restam > 300) return 30;
   if (restam > 150) return 12;
   if (restam > 60) return 6;

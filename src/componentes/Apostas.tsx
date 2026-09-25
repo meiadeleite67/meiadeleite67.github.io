@@ -74,6 +74,10 @@ function aQueHoras(iso: string) {
  *  recusa a aposta na mesma, e isto e so para nao se carregar em vao. */
 const jaComecou = (jogo: { comeca: string }) => Date.parse(jogo.comeca) <= Date.now();
 
+/** Se ha resultado para mostrar. A fonte nova da-o; a antiga nao dava. */
+const temMarca = (j: { marcaCasa?: number | null; marcaFora?: number | null }) =>
+  typeof j.marcaCasa === 'number' && typeof j.marcaFora === 'number';
+
 const quemE = (escolha: Escolha, jogo: { casa: string; fora: string }) =>
   escolha === 'casa' ? jogo.casa : escolha === 'fora' ? jogo.fora : 'Empate';
 
@@ -235,7 +239,7 @@ export function Apostas({
      outras, a duas casas, que é como o servidor a vai calcular. */
   const cotacaoDoBoletim = useMemo(
     () =>
-      Math.round(boletim.reduce((tudo, e) => tudo * (e.jogo.cotacoes[e.escolha] || 1), 1) * 100) /
+      Math.round(boletim.reduce((tudo, e) => tudo * (e.jogo.cotacoes?.[e.escolha] || 1), 1) * 100) /
       100,
     [boletim]
   );
@@ -249,7 +253,7 @@ export function Apostas({
   /** Põe ou tira uma escolha do boletim. Duas escolhas do mesmo jogo não podem
    *  ir juntas na mesma múltipla, por isso a segunda substitui a primeira. */
   const escolher = useCallback((jogo: JogoDeApostas, escolha: Escolha) => {
-    if (jaComecou(jogo)) return;
+    if (jaComecou(jogo) || !jogo.cotacoes?.[escolha]) return;
     setRecado('');
     setBoletim((antes) => {
       /* O boletim abre-se sozinho só quando a primeira escolha entra num
@@ -466,19 +470,29 @@ export function Apostas({
                   <span className="apo-liga">
                     <span>{j.liga || j.desporto}</span>
                     {jaComecou(j) ? (
-                      <span className="apo-aovivo">A decorrer</span>
+                      <span className="apo-aovivo">
+                        {j.acabou ? 'Acabou' : j.minuto ? `${j.minuto}'` : 'A decorrer'}
+                      </span>
                     ) : (
                       <time dateTime={j.comeca}>{aQueHoras(j.comeca)}</time>
                     )}
                   </span>
+                  {/* O resultado, quando a fonte o da. Vem na mesma chamada que
+                      lista os jogos, por isso nao custa nada mostra-lo. */}
                   <span className="apo-equipas">
-                    <b>{j.casa}</b>
-                    <b>{j.fora}</b>
+                    <b>
+                      {j.casa}
+                      {temMarca(j) && <i className="apo-marca">{j.marcaCasa}</i>}
+                    </b>
+                    <b>
+                      {j.fora}
+                      {temMarca(j) && <i className="apo-marca">{j.marcaFora}</i>}
+                    </b>
                   </span>
                 </button>
                 <div className="apo-cotacoes">
                   {DE_LADO.map(({ escolha, curto }) => {
-                    const cotacao = j.cotacoes[escolha];
+                    const cotacao = j.cotacoes?.[escolha];
                     if (!cotacao) return null;
                     return (
                       <button
@@ -763,7 +777,9 @@ function DetalheDoJogo({
      justas, e não custa nada mostrá-lo. */
   const implicita = (c?: number) => (c ? 1 / c : 0);
   const soma =
-    implicita(jogo.cotacoes.casa) + implicita(jogo.cotacoes.fora) + implicita(jogo.cotacoes.empate);
+    implicita(jogo.cotacoes?.casa) +
+    implicita(jogo.cotacoes?.fora) +
+    implicita(jogo.cotacoes?.empate);
   const margem = soma > 1 ? (soma - 1) * 100 : 0;
 
   return (
@@ -779,17 +795,25 @@ function DetalheDoJogo({
         </h2>
         <p className="apo-detalhe-quando">
           {jaComecou(jogo) ? (
-            <span className="apo-aovivo">Este jogo está a decorrer</span>
+            <span className="apo-aovivo">
+              {temMarca(jogo)
+                ? `${jogo.casa} ${jogo.marcaCasa} - ${jogo.marcaFora} ${jogo.fora}${
+                    jogo.acabou ? ', acabou' : jogo.minuto ? `, ${jogo.minuto} minutos` : ''
+                  }`
+                : jogo.acabou
+                  ? 'Este jogo já acabou'
+                  : 'Este jogo está a decorrer'}
+            </span>
           ) : (
             <time dateTime={jogo.comeca}>{aQueHoras(jogo.comeca)}</time>
           )}
         </p>
 
-        {daLista && <h3>Quem ganha</h3>}
-        {daLista && (
+        {daLista && jogo.cotacoes && <h3>Quem ganha</h3>}
+        {daLista && jogo.cotacoes && (
         <div className="apo-cotacoes grandes">
           {DE_LADO.map(({ escolha, curto }) => {
-            const cotacao = jogo.cotacoes[escolha];
+            const cotacao = jogo.cotacoes?.[escolha];
             if (!cotacao) return null;
             return (
               <button
@@ -833,7 +857,7 @@ function DetalheDoJogo({
             <dt>Visitante</dt>
             <dd>{jogo.fora}</dd>
           </div>
-          {jogo.cotacoes.fonte && (
+          {jogo.cotacoes?.fonte && (
             <div>
               <dt>Cotações de</dt>
               <dd>{jogo.cotacoes.fonte}</dd>
@@ -853,7 +877,7 @@ function DetalheDoJogo({
           )}
           <div>
             <dt>Empate</dt>
-            <dd>{jogo.cotacoes.empate ? 'dá para apostar' : 'não há neste desporto'}</dd>
+            <dd>{jogo.cotacoes?.empate ? 'dá para apostar' : 'não há neste desporto'}</dd>
           </div>
         </dl>
 
@@ -963,7 +987,7 @@ function Boletim({
                   </span>
                 </div>
                 <span className="apo-boletim-preco">
-                  {(e.jogo.cotacoes[e.escolha] || 0).toFixed(2)}
+                  {(e.jogo.cotacoes?.[e.escolha] || 0).toFixed(2)}
                 </span>
                 <button type="button" onClick={() => tirar(e)} aria-label="Tirar do boletim">
                   ×

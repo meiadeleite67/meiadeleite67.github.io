@@ -94,12 +94,25 @@ export type JogoDeApostas = {
   casa: string;
   fora: string;
   comeca: string;
-  cotacoes: { casa: number; fora: number; empate?: number; fonte?: string };
+  /** As cotacoes, ou nada. Um jogo a decorrer aparece na lista pelo resultado
+   *  e nao tem cotacoes: a partir da hora de comeco elas ja nao servem para
+   *  nada, e a fonte deixa de as dar. */
+  cotacoes: { casa: number; fora: number; empate?: number; fonte?: string } | null;
   /** Quantas casas de apostas deram preco a este jogo, e qual foi a que se
    *  usou. Serve so para a pagina de detalhe poder dizer de onde veio o
    *  numero em vez de o mostrar como se tivesse caido do ceu. */
   casasDeApostas?: number;
   fonte?: string;
+  /** O emblema de cada equipa, quando a fonte o da. */
+  brasaoCasa?: string;
+  brasaoFora?: string;
+  /** O resultado e o minuto, quando a fonte os da. A chamada que lista os
+   *  jogos ja os traz, por isso isto nao custa um pedido a mais. */
+  marcaCasa?: number | null;
+  marcaFora?: number | null;
+  minuto?: number | null;
+  estado?: string;
+  acabou?: boolean;
 };
 
 /** Uma perna de um bilhete: um jogo e o que se escolheu nele. */

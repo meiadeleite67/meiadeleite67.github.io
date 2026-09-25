@@ -2119,9 +2119,20 @@ footer {
   gap: 1px;
 }
 .apo-equipas b {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
   font-size: 16px;
   color: var(--tinta);
   font-weight: 600;
+}
+/* O resultado, encostado a direita do nome da equipa. Em mono, que numeros
+   que mudam num tipo de largura variavel saltam de sitio a cada golo. */
+.apo-marca {
+  font-family: var(--mono);
+  font-style: normal;
+  font-size: 15px;
+  color: var(--crema);
 }
 
 .apo-cotacoes {
