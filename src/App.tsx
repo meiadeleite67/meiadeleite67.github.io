@@ -15,9 +15,12 @@ import { Colherada } from './componentes/Colherada';
 import { Rodape } from './componentes/Rodape';
 import { Entrada } from './componentes/Entrada';
 import { MesaFechada, Porteiro } from './componentes/Porteiro';
+import { Termos } from './componentes/Termos';
+import { Privacidade } from './componentes/Privacidade';
 import { api } from './lib/api';
 import { nomeGuardado } from './lib/nick';
 import { guardarIdade, idadeSabida, SO_PARA_MAIORES, type Resposta } from './lib/idade';
+import { PAPELADA_MEXIDA } from './lib/dados';
 import { JOGOS, MENU, TODAS_AS_PAGINAS, eJogo } from './lib/dados';
 import type { Estado, Pagina } from './lib/tipos';
 
@@ -179,6 +182,11 @@ export default function App() {
      de outra forma bastava escrever o endereço à mão para entrar na mesma. */
   const mesaFechada = idade === 'nao' && SO_PARA_MAIORES.includes(pagina);
 
+  /* A papelada lê-se sem ter de responder a nada. A porta promete que a
+     resposta não sai do aparelho, e ninguém tem de acreditar numa promessa
+     sem poder ir ver o que ela quer dizer. */
+  const papelada = pagina === 'termos' || pagina === 'privacidade';
+
   return (
     <>
       <header className="bar">
@@ -337,6 +345,8 @@ export default function App() {
         {pagina === 'jogo' && <Jogo estado={estado} semRede={semRede} />}
         {pagina === 'cusco' && <JogoDoCusco />}
         {pagina === 'colherada' && <Colherada estado={estado} />}
+        {pagina === 'termos' && <Termos atualizado={PAPELADA_MEXIDA} irPara={irPara} />}
+        {pagina === 'privacidade' && <Privacidade atualizado={PAPELADA_MEXIDA} irPara={irPara} />}
 
         <Rodape irPara={irPara} />
       </main>
@@ -377,8 +387,9 @@ export default function App() {
       )}
 
       {/* Por último de todos, que é uma porta: fica por cima de tudo o resto. */}
-      {(idade === null || aPerguntarIdade) && (
+      {(idade === null || aPerguntarIdade) && !papelada && (
         <Porteiro
+          irPara={irPara}
           aoResponder={(r) => {
             guardarIdade(r);
             setIdade(r);

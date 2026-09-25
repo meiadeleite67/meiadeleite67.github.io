@@ -31,12 +31,19 @@ export const MENU: ({ id: Pagina; nome: string } | { jogos: true })[] = [
 export const eJogo = (p: Pagina) => JOGOS.some((j) => j.id === p);
 
 /** A de admin não está em sítio nenhum de propósito: chega-se lá pelo
- *  endereço. */
+ *  endereço. A papelada não está no menu porque não é sítio de passear: vive
+ *  no fundo do rodapé, que é onde se procura. */
 export const TODAS_AS_PAGINAS: Pagina[] = [
   ...PAGINAS.map((p) => p.id),
   ...JOGOS.map((j) => j.id),
-  'admin'
+  'admin',
+  'termos',
+  'privacidade'
 ];
+
+/** Quando a papelada foi mexida pela última vez. Muda-se aqui e muda nas duas
+ *  páginas, que é para não ficar uma a dizer uma coisa e a outra outra. */
+export const PAPELADA_MEXIDA = '25 de setembro de 2026';
 
 export const TIPOS: Record<TipoEvento, { nome: string; cls: string; cor: string }> = {
   copos: { nome: 'Copos', cls: 't-copos', cor: 'var(--crema)' },

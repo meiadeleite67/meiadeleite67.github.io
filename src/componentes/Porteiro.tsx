@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { Resposta } from '../lib/idade';
+import type { Pagina } from '../lib/tipos';
 
 /**
  * O porteiro: a pergunta da idade à entrada, e o aviso que fica nas mesas
@@ -29,7 +30,13 @@ const SINAL = (
   </svg>
 );
 
-export function Porteiro({ aoResponder }: { aoResponder: (r: Resposta) => void }) {
+export function Porteiro({
+  aoResponder,
+  irPara
+}: {
+  aoResponder: (r: Resposta) => void;
+  irPara: (p: Pagina) => void;
+}) {
   const primeiro = useRef<HTMLButtonElement>(null);
 
   /* O teclado tem de ir dar à janela, senão quem anda de tabulador continuava
@@ -59,8 +66,20 @@ export function Porteiro({ aoResponder }: { aoResponder: (r: Resposta) => void }
         <button className="btn claro" type="button" onClick={() => aoResponder('nao')}>
           Ainda não tenho
         </button>
+        {/* A porta faz aqui uma promessa a respeito de dados, e quem a ouve tem
+            de poder ir confirmá-la antes de responder. Por isso a papelada
+            abre-se daqui, e nessas duas páginas a porta afasta-se. */}
         <p className="porteiro-miudinho">
-          A resposta fica só neste aparelho. Não vai para o servidor nem é ligada a nome nenhum.
+          A resposta fica só neste aparelho. Não vai para o servidor nem é ligada a nome nenhum, e
+          podes ler isso por extenso na{' '}
+          <button type="button" className="como-link" onClick={() => irPara('privacidade')}>
+            privacidade
+          </button>{' '}
+          e nos{' '}
+          <button type="button" className="como-link" onClick={() => irPara('termos')}>
+            termos
+          </button>
+          .
         </p>
       </div>
     </div>

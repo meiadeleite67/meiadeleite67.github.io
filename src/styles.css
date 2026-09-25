@@ -1571,6 +1571,83 @@ footer {
 .rodape-fim .direita {
   margin-left: auto;
 }
+/* a papelada: dois botoes que se fingem de links, como tudo o resto que
+   navega dentro do site sem recarregar a pagina */
+.rodape-papelada {
+  display: inline-flex;
+  gap: 12px;
+}
+.rodape-papelada button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--tinta-3);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.rodape-papelada button:hover {
+  color: var(--crema);
+}
+
+/* ============================== a papelada ==============================
+   Os termos e a privacidade. Uma coluna de texto e mais nada: quem vem aqui
+   vem ler, nao vem ver. */
+
+.legal {
+  max-width: 680px;
+  margin: 0 auto;
+}
+.legal h2 {
+  font-size: 21px;
+  margin: 30px 0 0;
+}
+.legal p,
+.legal li {
+  color: var(--tinta-2);
+  line-height: 1.65;
+}
+.legal p {
+  margin: 10px 0 0;
+}
+.legal .lead {
+  color: var(--tinta);
+}
+.legal ul {
+  margin: 10px 0 0;
+  padding-left: 20px;
+}
+.legal li {
+  margin-top: 7px;
+}
+.legal li b {
+  color: var(--tinta);
+  font-family: var(--mono);
+  font-size: 13.5px;
+}
+.legal .legal-data {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--tinta-3);
+  margin-top: 14px;
+}
+.legal .legal-fim {
+  margin-top: 34px;
+  padding-top: 16px;
+  border-top: 1px solid var(--linha);
+  font-size: 14px;
+}
+.como-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--crema);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 
 /* ================= a meia de leite a ser entornada =================
    Uma folha de líquido que atravessa o ecrã de uma ponta à outra sem

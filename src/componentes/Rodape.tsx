@@ -94,6 +94,15 @@ export function Rodape({ irPara }: { irPara: (p: Pagina) => void }) {
           Feito ao balcão pelo senhor Luís
         </span>
         <span>Os torrões do blackjack não valem nada em lado nenhum, nem no bar.</span>
+        {/* a papelada vive aqui em baixo, que e onde se procura por ela */}
+        <span className="rodape-papelada">
+          <button type="button" onClick={() => irPara('termos')}>
+            Termos e condições
+          </button>
+          <button type="button" onClick={() => irPara('privacidade')}>
+            Privacidade
+          </button>
+        </span>
         <span className="direita">
           © {new Date().getFullYear()} MEIadeLEIte. Todos os direitos reservados.
         </span>

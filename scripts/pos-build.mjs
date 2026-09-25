@@ -23,7 +23,9 @@ const PAGINAS = [
   'admin',
   'jogo',
   'cusco',
-  'colherada'
+  'colherada',
+  'termos',
+  'privacidade'
 ];
 
 if (!existsSync('dist/index.html')) {

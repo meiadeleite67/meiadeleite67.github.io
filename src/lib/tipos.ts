@@ -240,4 +240,6 @@ export type Pagina =
   | 'colherada'
   | 'poker'
   | 'roleta'
-  | 'quadro';
+  | 'quadro'
+  | 'termos'
+  | 'privacidade';
