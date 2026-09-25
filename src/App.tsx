@@ -16,6 +16,7 @@ import { Colherada } from './componentes/Colherada';
 import { Rodape } from './componentes/Rodape';
 import { Entrada } from './componentes/Entrada';
 import { MesaFechada, Porteiro } from './componentes/Porteiro';
+import { Avisar } from './componentes/Avisar';
 import { Termos } from './componentes/Termos';
 import { Privacidade } from './componentes/Privacidade';
 import { api } from './lib/api';
@@ -50,6 +51,7 @@ export default function App() {
      jogos so mostram com que nome se esta a jogar. */
   const [nome, setNome] = useState(nomeGuardado);
   const [aPedirNome, setAPedirNome] = useState(false);
+  const [aAvisar, setAAvisar] = useState(false);
   /* Quem chega pela primeira vez leva com a pergunta da idade antes de mais
      nada. Quem já respondeu não volta a ser chateado, a não ser que peça. */
   const [idade, setIdade] = useState<Resposta | null>(idadeSabida);
@@ -352,7 +354,7 @@ export default function App() {
         {pagina === 'termos' && <Termos atualizado={PAPELADA_MEXIDA} irPara={irPara} />}
         {pagina === 'privacidade' && <Privacidade atualizado={PAPELADA_MEXIDA} irPara={irPara} />}
 
-        <Rodape irPara={irPara} />
+        <Rodape irPara={irPara} avisar={() => setAAvisar(true)} />
       </main>
 
       {aPedirNome && (
@@ -419,6 +421,8 @@ export default function App() {
           }}
         />
       )}
+
+      {aAvisar && <Avisar nome={nome} fechar={() => setAAvisar(false)} />}
 
       <Entornar fase={fase} />
     </>

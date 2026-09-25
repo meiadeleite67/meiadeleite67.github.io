@@ -44,7 +44,7 @@ export const TODAS_AS_PAGINAS: Pagina[] = [
 
 /** Quando a papelada foi mexida pela última vez. Muda-se aqui e muda nas duas
  *  páginas, que é para não ficar uma a dizer uma coisa e a outra outra. */
-export const PAPELADA_MEXIDA = '26 de setembro de 2026';
+export const PAPELADA_MEXIDA = '27 de setembro de 2026';
 
 export const TIPOS: Record<TipoEvento, { nome: string; cls: string; cor: string }> = {
   copos: { nome: 'Copos', cls: 't-copos', cor: 'var(--crema)' },

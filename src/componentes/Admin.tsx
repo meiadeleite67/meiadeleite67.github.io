@@ -1,8 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, temServidor } from '../lib/api';
 import { AdminMembros, encolherParaGaleria } from './AdminMembros';
 import { MESES_INTEIROS, TIPOS, dataCurta, hoje } from '../lib/dados';
-import type { Estado, Pontuacao, Post, TipoEvento } from '../lib/tipos';
+import type { ContasDosTickets, Estado, Pontuacao, Post, Ticket, TipoEvento } from '../lib/tipos';
+
+/** Quantos nomes cabem numa pagina do quadro. O mesmo numero da Leader Board
+ *  publica, que e onde toda a gente ja se habituou a ele. */
+const POR_PAGINA = 10;
 
 export function Admin({ estado, recarregar }: { estado: Estado; recarregar: () => void }) {
   const [codigo, setCodigo] = useState('');
@@ -146,6 +150,21 @@ function Cozinha({
     }
   }
 
+  /* A cozinha tinha tudo empilhado numa pagina so, e chegou a um ponto em que
+     era preciso rolar meia hora para chegar ao quadro. Cada coisa passa a ter
+     a sua aba, como a Leader Board ja tinha. */
+  const ABAS = [
+    { id: 'agenda', nome: 'Agenda' },
+    { id: 'membros', nome: 'Membros' },
+    { id: 'mural', nome: 'Mural' },
+    { id: 'quadro', nome: 'Leader Board' },
+    { id: 'avisos', nome: 'Avisos' }
+  ] as const;
+
+  const [aba, setAba] = useState<'agenda' | 'membros' | 'mural' | 'quadro' | 'avisos'>('agenda');
+  /** Quantos avisos estao por ler, para o numero na aba. */
+  const [porLer, setPorLer] = useState(0);
+
   const porMes = new Map<string, typeof estado.agenda>();
   for (const e of estado.agenda) {
     const chave = e.data.slice(0, 7);
@@ -172,7 +191,26 @@ function Cozinha({
           </button>
         </div>
 
-        <div className="painel" style={{ marginTop: 18 }}>
+        <div className="qd-abas admin-abas" role="tablist" aria-label="Secções da cozinha">
+          {ABAS.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              role="tab"
+              aria-selected={a.id === aba}
+              className={a.id === aba ? 'aberta' : ''}
+              onClick={() => setAba(a.id)}
+            >
+              {a.nome}
+              {a.id === 'avisos' && porLer > 0 && <b className="admin-conta">{porLer}</b>}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {aba === 'agenda' && (
+      <section>
+        <div className="painel">
           <p className="rotulo" style={{ marginBottom: 9 }}>
             Marcar coisa nova
           </p>
@@ -237,10 +275,8 @@ function Cozinha({
           </div>
           {recado && <p className={`recado${mal ? ' mal' : ''}`}>{recado}</p>}
         </div>
-      </section>
 
-      <section>
-        <h2 style={{ fontSize: 22, marginBottom: 12 }}>O que está marcado</h2>
+        <h2 style={{ fontSize: 22, margin: '26px 0 12px' }}>O que está marcado</h2>
         <div className="painel">
           {estado.agenda.length === 0 ? (
             <p className="vazio">A agenda está vazia.</p>
@@ -274,26 +310,233 @@ function Cozinha({
           )}
         </div>
       </section>
+      )}
 
-      <AdminMembros membros={estado.membros} recarregar={recarregar} />
+      {aba === 'membros' && <AdminMembros membros={estado.membros} recarregar={recarregar} />}
 
-      <MuralDoAdmin estado={estado} recarregar={recarregar} />
+      {aba === 'mural' && <MuralDoAdmin estado={estado} recarregar={recarregar} />}
 
-      <section>
-        <h2 style={{ fontSize: 22, marginBottom: 12 }}>Leaderboard</h2>
-        <div className="painel">
-          {estado.ranking.length === 0 ? (
-            <p className="vazio">Ninguém jogou ainda.</p>
-          ) : (
-            estado.ranking.map((r) => (
-              <LinhaDoQuadro key={r.nome} linha={r} recarregar={recarregar} />
-            ))
-          )}
+      {aba === 'quadro' && <QuadroDoAdmin ranking={estado.ranking} recarregar={recarregar} />}
 
-          <LimparQuadro quantos={estado.ranking.length} recarregar={recarregar} />
-        </div>
-      </section>
+      {aba === 'avisos' && <AvisosDoAdmin aoContar={setPorLer} />}
     </>
+  );
+}
+
+/* ======================== o quadro, por paginas ========================
+
+   Sao perto de cem nomes, e antes vinham todos de uma vez: para chegar ao
+   ultimo era preciso rolar a pagina inteira, e para encontrar um nome a meio
+   era preciso conhece-lo de cor. Dez de cada vez, com uma caixa de procura por
+   cima, que e o que se usa quando se vem aqui para tratar de um nome so. */
+
+function QuadroDoAdmin({
+  ranking,
+  recarregar
+}: {
+  ranking: Pontuacao[];
+  recarregar: () => void;
+}) {
+  const [procura, setProcura] = useState('');
+  const [pagina, setPagina] = useState(0);
+
+  const achados = useMemo(() => {
+    const q = procura.trim().toLowerCase();
+    return q ? ranking.filter((r) => r.nome.toLowerCase().includes(q)) : ranking;
+  }, [ranking, procura]);
+
+  const paginas = Math.max(1, Math.ceil(achados.length / POR_PAGINA));
+  const naPagina = Math.min(pagina, paginas - 1);
+  const primeiro = naPagina * POR_PAGINA;
+  const aMostrar = achados.slice(primeiro, primeiro + POR_PAGINA);
+
+  return (
+    <section>
+      <h2 style={{ fontSize: 22, marginBottom: 12 }}>Leader Board</h2>
+      <div className="painel">
+        <label style={{ marginBottom: 12, display: 'block' }}>
+          <span className="rotulo">Procurar um nome</span>
+          <input
+            type="search"
+            value={procura}
+            onChange={(e) => {
+              setProcura(e.target.value);
+              setPagina(0);
+            }}
+            placeholder={`Entre ${ranking.length} nomes`}
+          />
+        </label>
+
+        {achados.length === 0 ? (
+          <p className="vazio">
+            {ranking.length === 0 ? 'Ninguém jogou ainda.' : 'Nenhum nome dá com essa procura.'}
+          </p>
+        ) : (
+          aMostrar.map((r) => <LinhaDoQuadro key={r.nome} linha={r} recarregar={recarregar} />)
+        )}
+
+        {paginas > 1 && (
+          <div className="paginas">
+            <button
+              className="btn claro mini"
+              type="button"
+              disabled={naPagina === 0}
+              onClick={() => setPagina(naPagina - 1)}
+            >
+              Anteriores
+            </button>
+            <span className="paginas-conta">
+              {primeiro + 1} a {Math.min(primeiro + POR_PAGINA, achados.length)} de{' '}
+              {achados.length}
+            </span>
+            <button
+              className="btn claro mini"
+              type="button"
+              disabled={naPagina >= paginas - 1}
+              onClick={() => setPagina(naPagina + 1)}
+            >
+              Seguintes
+            </button>
+          </div>
+        )}
+
+        <LimparQuadro quantos={ranking.length} recarregar={recarregar} />
+      </div>
+    </section>
+  );
+}
+
+/* ======================== os avisos de coisas partidas ========================
+
+   A caixa onde cai o que a malta escreve quando encontra um erro. Vem por
+   ordem: primeiro os que ninguem viu, depois os que estao a ser tratados, e os
+   resolvidos por ultimo, que esses ja nao pedem nada a ninguem. */
+
+const COMO_ESTAO: Record<Ticket['estado'], string> = {
+  aberto: 'Por ver',
+  'a-tratar': 'A tratar',
+  resolvido: 'Resolvido'
+};
+
+function AvisosDoAdmin({ aoContar }: { aoContar: (n: number) => void }) {
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [contas, setContas] = useState<ContasDosTickets | null>(null);
+  const [aCarregar, setACarregar] = useState(true);
+  const [recado, setRecado] = useState('');
+
+  const guardar = (r: { tickets: Ticket[]; contas: ContasDosTickets }) => {
+    setTickets(r.tickets);
+    setContas(r.contas);
+    aoContar(r.contas.abertos);
+  };
+
+  useEffect(() => {
+    let vivo = true;
+    api
+      .tickets()
+      .then((r) => {
+        if (vivo) guardar(r);
+      })
+      .catch((e) => {
+        if (vivo) setRecado(e instanceof Error ? e.message : 'Não deu para ler os avisos.');
+      })
+      .finally(() => {
+        if (vivo) setACarregar(false);
+      });
+    return () => {
+      vivo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function mudar(id: string, estado: Ticket['estado']) {
+    setRecado('');
+    try {
+      guardar(await api.mudarTicket(id, estado));
+    } catch (e) {
+      setRecado(e instanceof Error ? e.message : 'Não deu para mudar.');
+    }
+  }
+
+  async function apagar(id: string) {
+    if (!window.confirm('Apagar este aviso de vez?')) return;
+    setRecado('');
+    try {
+      guardar(await api.apagarTicket(id));
+    } catch (e) {
+      setRecado(e instanceof Error ? e.message : 'Não deu para apagar.');
+    }
+  }
+
+  return (
+    <section>
+      <h2 style={{ fontSize: 22, marginBottom: 12 }}>Avisos de coisas partidas</h2>
+
+      {contas && (
+        <p className="notas" style={{ marginBottom: 12 }}>
+          {contas.abertos} por ver, {contas.aTratar} a tratar, {contas.resolvidos} resolvidos.
+        </p>
+      )}
+
+      {recado && <p className="recado mal">{recado}</p>}
+
+      <div className="painel">
+        {aCarregar && <p className="vazio">A abrir a caixa...</p>}
+
+        {!aCarregar && tickets.length === 0 && (
+          <p className="vazio">
+            Ainda ninguém avisou de nada. Ou está tudo bem, ou ninguém encontrou o botão.
+          </p>
+        )}
+
+        {tickets.map((t) => (
+          <article key={t.id} className={`aviso ${t.estado}`}>
+            <div className="aviso-cima">
+              <span className={`aviso-selo ${t.estado}`}>{COMO_ESTAO[t.estado]}</span>
+              <span className="aviso-quando">
+                {new Date(t.quando).toLocaleString('pt-PT', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+                {t.quem ? ` · ${t.quem}` : ' · sem nome'}
+              </span>
+            </div>
+
+            <p className="aviso-texto">{t.texto}</p>
+
+            {(t.onde || t.aparelho) && (
+              <p className="aviso-onde">
+                {t.onde && <code>{t.onde}</code>}
+                {t.aparelho && <span>{t.aparelho}</span>}
+              </p>
+            )}
+
+            <div className="aviso-botoes">
+              {t.estado !== 'a-tratar' && (
+                <button className="btn claro mini" type="button" onClick={() => mudar(t.id, 'a-tratar')}>
+                  A tratar
+                </button>
+              )}
+              {t.estado !== 'resolvido' && (
+                <button className="btn claro mini" type="button" onClick={() => mudar(t.id, 'resolvido')}>
+                  Resolvido
+                </button>
+              )}
+              {t.estado !== 'aberto' && (
+                <button className="btn claro mini" type="button" onClick={() => mudar(t.id, 'aberto')}>
+                  Voltar a abrir
+                </button>
+              )}
+              <button className="btn claro mini" type="button" onClick={() => apagar(t.id)}>
+                Apagar
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 

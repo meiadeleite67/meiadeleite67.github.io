@@ -396,6 +396,13 @@ import {
   temChaveDaFeed
 } from './desporto.js';
 import { quemGanhou } from './apostas.js';
+import {
+  apagarTicket,
+  arrumarTickets,
+  contasDosTickets,
+  limparTicket,
+  mudarEstado
+} from './tickets.js';
 
 export { Banco, MesaDePoker };
 
@@ -926,6 +933,87 @@ export default {
       if (!(await temChave(request, env)))
         return responder({ erro: 'Entra primeiro.' }, request, 401);
       return responder(await aVoltaDoDia(env), request);
+    }
+
+    /* ==================== os avisos de coisas partidas ====================
+
+       Quem encontra um erro no site escreve-o, e quem toma conta da casa le-o
+       na cozinha. Escrever e publico de proposito: obrigar a entrar com um
+       nome para se poder avisar de um erro era perder metade dos avisos, que
+       muita gente encontra o erro sem sessao iniciada. */
+
+    if (caminho === '/tickets' && metodo === 'POST') {
+      /* Ha um travao por endereco, que sem ele bastava um script para encher
+         a caixa. Cinco por hora chega para quem esta mesmo a avisar de coisas,
+         e nao chega para quem esta a brincar. */
+      const daqui = request.headers.get('CF-Connecting-IP') || 'desconhecido';
+      const quantos = (await ler(env, `tickets:${daqui}`, 0)) || 0;
+      if (quantos >= 5)
+        return responder(
+          { erro: 'Já mandaste avisos que cheguem por agora. Tenta daqui a bocado.' },
+          request,
+          429
+        );
+
+      let veio;
+      try {
+        veio = await request.json();
+      } catch {
+        return responder({ erro: 'Corpo inválido.' }, request, 400);
+      }
+
+      const limpo = limparTicket(veio, { id: novoId() });
+      if (limpo.erro) return responder({ erro: limpo.erro }, request, 400);
+
+      const lista = arrumarTickets([limpo.ticket, ...(await ler(env, 'tickets', []))]);
+      await env.QUADRO.put('tickets', JSON.stringify(lista));
+      await env.QUADRO.put(`tickets:${daqui}`, JSON.stringify(quantos + 1), {
+        expirationTtl: 3600
+      });
+
+      return responder({ ok: true, id: limpo.ticket.id }, request);
+    }
+
+    /* Ler e arrumar a caixa e so para quem tem a chave da cozinha. */
+    if (caminho === '/tickets' && metodo === 'GET') {
+      if (!(await temChave(request, env)))
+        return responder({ erro: 'Entra primeiro.' }, request, 401);
+      const lista = await ler(env, 'tickets', []);
+      return responder({ tickets: lista, contas: contasDosTickets(lista) }, request);
+    }
+
+    if (caminho === '/tickets/estado' && metodo === 'POST') {
+      if (!(await temChave(request, env)))
+        return responder({ erro: 'Entra primeiro.' }, request, 401);
+      let veio;
+      try {
+        veio = await request.json();
+      } catch {
+        return responder({ erro: 'Corpo inválido.' }, request, 400);
+      }
+      const nova = mudarEstado(
+        await ler(env, 'tickets', []),
+        texto(veio?.id, 40),
+        texto(veio?.estado, 20)
+      );
+      if (!nova) return responder({ erro: 'Esse aviso já não existe.' }, request, 404);
+      await env.QUADRO.put('tickets', JSON.stringify(nova));
+      return responder({ tickets: nova, contas: contasDosTickets(nova) }, request);
+    }
+
+    if (caminho === '/tickets/apagar' && metodo === 'POST') {
+      if (!(await temChave(request, env)))
+        return responder({ erro: 'Entra primeiro.' }, request, 401);
+      let veio;
+      try {
+        veio = await request.json();
+      } catch {
+        return responder({ erro: 'Corpo inválido.' }, request, 400);
+      }
+      const nova = apagarTicket(await ler(env, 'tickets', []), texto(veio?.id, 40));
+      if (!nova) return responder({ erro: 'Esse aviso já não existe.' }, request, 404);
+      await env.QUADRO.put('tickets', JSON.stringify(nova));
+      return responder({ tickets: nova, contas: contasDosTickets(nova) }, request);
     }
 
     /* ---- entrada na página de admin ---- */

@@ -13,7 +13,9 @@ import type {
   QuantosNaMesa,
   QuadroDeJogos,
   RespostaDaMesa,
-  RespostaDaRoleta
+  RespostaDaRoleta,
+  Ticket,
+  ContasDosTickets
 } from './tipos';
 
 /**
@@ -202,6 +204,32 @@ export const api = {
     pedir<{ apostas: ApostaDesportiva[]; linha: Pontuacao }>('/desporto/minhas', {
       method: 'POST',
       body: JSON.stringify({ nome, passe })
+    }),
+
+  /* ---- os avisos de coisas partidas ----
+
+     Escrever e publico de proposito: obrigar a entrar com um nome para se
+     poder avisar de um erro era perder metade dos avisos. Ler e arrumar a
+     caixa e que so se faz com a chave da cozinha. */
+
+  avisarDeErro: (aviso: { texto: string; onde: string; aparelho: string; quem: string }) =>
+    pedir<{ ok: boolean; id: string }>('/tickets', {
+      method: 'POST',
+      body: JSON.stringify(aviso)
+    }),
+
+  tickets: () => pedir<{ tickets: Ticket[]; contas: ContasDosTickets }>('/tickets'),
+
+  mudarTicket: (id: string, estado: Ticket['estado']) =>
+    pedir<{ tickets: Ticket[]; contas: ContasDosTickets }>('/tickets/estado', {
+      method: 'POST',
+      body: JSON.stringify({ id, estado })
+    }),
+
+  apagarTicket: (id: string) =>
+    pedir<{ tickets: Ticket[]; contas: ContasDosTickets }>('/tickets/apagar', {
+      method: 'POST',
+      body: JSON.stringify({ id })
     }),
 
   /* ---- o mural do Instagram ---- */

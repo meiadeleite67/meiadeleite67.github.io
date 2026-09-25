@@ -121,6 +121,15 @@ export function Privacidade({
       </ul>
       <p>Não há mais ninguém. Sem análise de tráfego, sem publicidade, sem redes de anúncios.</p>
 
+      <h2>Quando avisas de um erro</h2>
+      <p>
+        Se usares o "avisar de um erro" no rodapé, fica guardado o que
+        escreveste, a página onde estavas, o tamanho do ecrã, o nome do browser e o teu nickname,
+        se tiveres entrado com um. Serve para quem for corrigir saber onde ir ver, e é o que está
+        escrito na própria caixa antes de a mandares. Os avisos já resolvidos vão saindo à medida
+        que entram outros, e podes pedir para apagar o teu.
+      </p>
+
       <h2>Os jogos e as cotações</h2>
       <p>
         Os jogos, as cotações e os resultados das apostas desportivas vêm da The Odds API. O

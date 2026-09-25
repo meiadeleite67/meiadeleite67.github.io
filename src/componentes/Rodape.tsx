@@ -19,7 +19,13 @@ function IconeInstagram() {
   );
 }
 
-export function Rodape({ irPara }: { irPara: (p: Pagina) => void }) {
+export function Rodape({
+  irPara,
+  avisar
+}: {
+  irPara: (p: Pagina) => void;
+  avisar: () => void;
+}) {
   return (
     <footer>
       <div className="rodape">
@@ -80,6 +86,13 @@ export function Rodape({ irPara }: { irPara: (p: Pagina) => void }) {
             <li>
               <button type="button" onClick={() => irPara('privacidade')}>
                 Privacidade
+              </button>
+            </li>
+            {/* Aqui e nao noutro sitio qualquer: e onde se procura quando se
+                quer falar com quem faz o site. */}
+            <li>
+              <button type="button" onClick={avisar}>
+                Avisar de um erro
               </button>
             </li>
           </ul>

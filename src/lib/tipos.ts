@@ -58,6 +58,27 @@ export type Pontuacao = {
   recordes: { jogo: number; cusco: number; colherada: number };
 };
 
+/* ------------------- os avisos de coisas partidas ------------------- */
+
+export type Ticket = {
+  id: string;
+  texto: string;
+  /** A pagina onde a pessoa estava, e o aparelho, preenchidos pelo browser. */
+  onde: string;
+  aparelho: string;
+  /** O nickname de quem avisou, se o quis dizer. */
+  quem: string;
+  estado: 'aberto' | 'a-tratar' | 'resolvido';
+  quando: string;
+};
+
+export type ContasDosTickets = {
+  todos: number;
+  abertos: number;
+  aTratar: number;
+  resolvidos: number;
+};
+
 /* ---------------------- as apostas desportivas ---------------------- */
 
 /** Em que se pode apostar num jogo. O empate so existe onde existe. */
