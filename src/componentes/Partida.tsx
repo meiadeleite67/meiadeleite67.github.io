@@ -33,6 +33,21 @@ const jaComecou = (jogo: { comeca: string }) => Date.parse(jogo.comeca) <= Date.
 const temMarca = (jogo: JogoDeApostas) =>
   typeof jogo.marcaCasa === 'number' && typeof jogo.marcaFora === 'number';
 
+/** Como se chama aquilo que se marca, em cada desporto. Estava a dizer "Golos"
+ *  num jogo de basquetebol que acabou setenta e três a setenta e dois. */
+const COMO_SE_MARCA: Record<string, string> = {
+  Basquetebol: 'Pontos',
+  NBA: 'Pontos',
+  'Futebol americano': 'Pontos',
+  Rugby: 'Pontos',
+  AFL: 'Pontos',
+  Voleibol: 'Pontos',
+  Basebol: 'Corridas',
+  Ténis: 'Sets'
+};
+
+const oQueSeMarca = (desporto: string) => COMO_SE_MARCA[desporto] || 'Golos';
+
 /** Se o jogo vem da fonte que sabe contar: resultado, minuto e fim. A outra
  *  traz cotações e mais nada, e por isso não se lhe pode perguntar como vai. */
 const daFonteQueConta = (jogo: JogoDeApostas) => jogo.fonte === 'api-sports';
@@ -528,7 +543,7 @@ function EmDireto({ jogo }: { jogo: JogoDeApostas }) {
           {temMarca(jogo) && (
             <li className="marca">
               <span className="par-stat-valor">{jogo.marcaCasa}</span>
-              <span className="par-stat-nome">Golos</span>
+              <span className="par-stat-nome">{oQueSeMarca(jogo.desporto)}</span>
               <span className="par-stat-valor direita">{jogo.marcaFora}</span>
             </li>
           )}

@@ -635,10 +635,18 @@ const LIGA_SEM_STATS = (jogo) => `desporto:liga-sem-stats:${jogo.desporto}:${jog
  * jogo da FAW Championship para ouvir o mesmo nada, e o orçamento do dia ia-se
  * embora a confirmar uma coisa já sabida.
  */
+/** A versão do leitor das estatísticas, dentro da chave de quem as guarda.
+ *
+ *  Quando o leitor muda, as cópias antigas deixam de servir: foram lidas pelo
+ *  leitor de antes. O basquetebol ficou guardado com "[object Object]" em
+ *  metade das linhas, e as cópias de jogos acabados duram um mês. Subir isto
+ *  deita fora essas de uma vez, sem se andar a apagar nada à mão. */
+const VERSAO_DAS_STATS = 2;
+
 async function comoVaiOJogo(env, jogo) {
   const onde = CAMINHOS[jogo.desporto];
   const casa = DESPORTOS_NOVOS[jogo.desporto];
-  const guardado = await ler(env, `desporto:stats:${jogo.id}`, null);
+  const guardado = await ler(env, `desporto:stats:${VERSAO_DAS_STATS}:${jogo.id}`, null);
 
   const acabou = !!jogo.acabou;
   const idade = guardado ? Date.now() - Date.parse(guardado.quando) : Infinity;
@@ -702,7 +710,7 @@ async function comoVaiOJogo(env, jogo) {
   }
   /* Um jogo acabado fica guardado para sempre; um a decorrer tem prazo, para o
      KV nao ficar a guardar fotografias de jogos do ano passado. */
-  await env.QUADRO.put(`desporto:stats:${jogo.id}`, JSON.stringify(novo), {
+  await env.QUADRO.put(`desporto:stats:${VERSAO_DAS_STATS}:${jogo.id}`, JSON.stringify(novo), {
     expirationTtl: acabou ? 60 * 60 * 24 * 30 : 60 * 60 * 6
   });
   return novo;

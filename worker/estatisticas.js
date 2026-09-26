@@ -83,8 +83,17 @@ const EM_PORTUGUES = {
   'substitutions': 'Substituições',
   'penalties': 'Penáltis',
   'field goals': 'Cestos de campo',
+  field_goals: 'Cestos de campo',
   'free throws': 'Lances livres',
+  freethrows_goals: 'Lances livres',
   'three point goals': 'Triplos',
+  threepoint_goals: 'Triplos',
+  personal_fouls: 'Faltas pessoais',
+  'total rebounds': 'Ressaltos',
+  biggest_lead: 'Maior vantagem',
+  'points in paint': 'Pontos na área',
+  fast_break_points: 'Pontos de contra-ataque',
+  'second chance points': 'Pontos de segunda oportunidade',
   hits: 'Batidas',
   errors: 'Erros',
   runs: 'Corridas',
@@ -102,23 +111,79 @@ const EM_PORTUGUES = {
 
 const emPortugues = (nome) => EM_PORTUGUES[String(nome).toLowerCase().trim()] || String(nome);
 
-/** Um valor pode vir como número, como texto, ou como "67%". Guarda-se o que
- *  se mostra e o número que dá para comparar, se houver. */
+/** Chaves que vêm no meio das estatísticas e não são estatísticas nenhumas.
+ *  O basquetebol manda o jogo e a equipa dentro do mesmo objeto, e sem isto
+ *  apareciam duas linhas a dizer "[object Object]" logo no topo da tabela. */
+const NAO_E_ESTATISTICA = new Set([
+  'game',
+  'team',
+  'id',
+  'league',
+  'country',
+  'logo',
+  'name',
+  'season',
+  'fixture',
+  'players'
+]);
+
+/** O número que lá está dentro, ou nada. Vazio é nada e não é zero: Number('')
+ *  dá zero, e por causa disso os ressaltos apareceram como "40/0 (0%)", com
+ *  uma percentagem que ninguém tinha calculado. */
+const soNum = (v) => {
+  if (v === null || v === undefined) return null;
+  const limpo = String(v).replace('%', '').replace(',', '.').trim();
+  if (limpo === '') return null;
+  const n = Number(limpo);
+  return Number.isFinite(n) ? n : null;
+};
+
+/**
+ * Um valor, seja ele o que for que a feed mandou.
+ *
+ * Pode ser número, texto, "67%", ou um objeto. O basquetebol manda objetos:
+ * os cestos de campo são {total, attempts, percentage}, e os ressaltos são
+ * {total, offence, defense}. Um objeto posto no ecrã dá "[object Object]", que
+ * foi exatamente o que apareceu.
+ *
+ * Um acerto sobre tentativas mostra-se como se diz em voz alta, "30/70", com a
+ * percentagem ao lado; o resto mostra-se pelo total. O número que fica é
+ * sempre o que serve para comparar os dois lados, que é o que a barra desenha.
+ */
 function valorDe(v) {
   if (v === null || v === undefined || v === '') return { mostra: '0', numero: 0 };
+
+  if (typeof v === 'object') {
+    const total = soNum(v.total ?? v.made ?? v.value);
+    const tentativas = soNum(v.attempts ?? v.att);
+    const parte = soNum(v.percentage ?? v.percent);
+
+    if (total !== null && tentativas !== null)
+      return {
+        mostra: `${total}/${tentativas}${parte !== null ? ` (${Math.round(parte)}%)` : ''}`,
+        numero: total
+      };
+    if (total !== null) return { mostra: String(total), numero: total };
+    if (parte !== null) return { mostra: `${Math.round(parte)}%`, numero: parte };
+
+    /* Um objeto que não se entende não vai para o ecrã como objeto. */
+    return { mostra: '0', numero: 0 };
+  }
+
   const texto = String(v);
-  const limpo = texto.replace('%', '').replace(',', '.').trim();
-  const n = Number(limpo);
-  return { mostra: texto, numero: Number.isFinite(n) ? n : null };
+  return { mostra: texto, numero: soNum(texto) };
 }
 
-/** Uma lista de pares tipo/valor, venha ela como lista ou como objeto. */
+/** Uma lista de pares tipo/valor, venha ela como lista ou como objeto, já sem
+ *  o que não são estatísticas. */
 function paresDe(o) {
+  const fora = ([k]) => !NAO_E_ESTATISTICA.has(String(k).toLowerCase().trim());
   if (Array.isArray(o))
     return o
       .filter((x) => x && (x.type || x.name))
-      .map((x) => [String(x.type || x.name), x.value]);
-  if (o && typeof o === 'object') return Object.entries(o);
+      .map((x) => [String(x.type || x.name), x.value])
+      .filter(fora);
+  if (o && typeof o === 'object') return Object.entries(o).filter(fora);
   return [];
 }
 
