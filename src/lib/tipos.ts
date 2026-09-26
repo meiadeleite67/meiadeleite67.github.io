@@ -96,6 +96,51 @@ export type ComoVaiOJogo = {
   erro?: string;
 };
 
+/** Uma linha da classificacao de uma liga. */
+export type LinhaDaTabela = {
+  lugar: number;
+  equipa: string;
+  brasao: string;
+  jogos: number | null;
+  vitorias: number | null;
+  empates: number | null;
+  derrotas: number | null;
+  pontos: number | null;
+  diferenca: number | null;
+  /** As ultimas cinco, tipo "WWLDW". Vazio quando a feed nao a da. */
+  forma: string;
+};
+
+export type AClassificacao = {
+  /** Uma fase de grupos sao varias tabelas, por isso vem sempre em grupos. */
+  grupos?: { nome: string; linhas: LinhaDaTabela[] }[];
+  quando?: string | null;
+  daCopia?: boolean;
+  semFonte?: boolean;
+  semOrcamento?: boolean;
+  ocupado?: boolean;
+  erro?: string;
+};
+
+export type UmConfronto = {
+  quando: string;
+  liga: string;
+  casa: string;
+  fora: string;
+  marcaCasa: number | null;
+  marcaFora: number | null;
+};
+
+export type OsConfrontos = {
+  confrontos?: UmConfronto[];
+  quando?: string | null;
+  daCopia?: boolean;
+  semFonte?: boolean;
+  semOrcamento?: boolean;
+  ocupado?: boolean;
+  erro?: string;
+};
+
 /* ------------------- os avisos de coisas partidas ------------------- */
 
 export type Ticket = {
@@ -127,6 +172,10 @@ export type JogoDeApostas = {
   /** A chave da liga na feed, por onde se vao buscar os resultados. */
   chave: string;
   liga: string;
+  /** O pais da competicao, quando a fonte o da. */
+  pais?: string;
+  /** A temporada, que a classificacao precisa. */
+  temporada?: string;
   /** O nome do desporto como se le: Futebol, Basquetebol, Tenis. */
   desporto: string;
   casa: string;
@@ -381,6 +430,8 @@ export type Estado = {
 
 export type Pagina =
   | 'inicio'
+  /** A pagina de um jogo de apostas, que se abre com ?jogo=<numero>. */
+  | 'partida'
   | 'membros'
   | 'blackjack'
   | 'instagram'

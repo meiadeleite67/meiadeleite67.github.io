@@ -6,6 +6,7 @@ import { Blackjack } from './componentes/Blackjack';
 import { JogoDoPoker } from './componentes/JogoDoPoker';
 import { Roleta } from './componentes/Roleta';
 import { Apostas } from './componentes/Apostas';
+import { Partida } from './componentes/Partida';
 import { Quadro } from './componentes/Quadro';
 import { Mural } from './componentes/Mural';
 import { Agenda } from './componentes/Agenda';
@@ -35,7 +36,8 @@ function paginaDoEndereco(): Pagina {
   return (TODAS_AS_PAGINAS as string[]).includes(p) ? (p as Pagina) : 'inicio';
 }
 
-const enderecoDe = (p: Pagina) => (p === 'inicio' ? '/' : `/${p}`);
+const enderecoDe = (p: Pagina, procura = '') =>
+  (p === 'inicio' ? '/' : `/${p}/`) + (procura ? `?${procura}` : '');
 
 export default function App() {
   const [pagina, setPagina] = useState<Pagina>(paginaDoEndereco);
@@ -104,12 +106,15 @@ export default function App() {
     };
   }, [recarregar]);
 
+  /* A segunda parte do endereço, quando a página precisa dela. A da partida
+     precisa: sem o número do jogo ela não sabe que jogo abrir. */
   const irPara = useCallback(
-    (p: Pagina) => {
-      if (p === pagina) return;
+    (p: Pagina, procura = '') => {
+      const jaLa = p === pagina && procura === window.location.search.replace(/^\?/, '');
+      if (jaLa) return;
       entornar(() => {
         setPagina(p);
-        if (paginaDoEndereco() !== p) window.history.pushState({}, '', enderecoDe(p));
+        window.history.pushState({}, '', enderecoDe(p, procura));
         window.scrollTo(0, 0);
       });
     },
@@ -348,6 +353,7 @@ export default function App() {
         {pagina === 'instagram' && <Mural estado={estado} />}
         {pagina === 'agenda' && <Agenda estado={estado} />}
         {pagina === 'admin' && <Admin estado={estado} recarregar={recarregar} />}
+        {pagina === 'partida' && <Partida voltar={() => irPara('apostas')} />}
         {pagina === 'jogo' && <Jogo estado={estado} semRede={semRede} />}
         {pagina === 'cusco' && <JogoDoCusco />}
         {pagina === 'colherada' && <Colherada estado={estado} />}

@@ -7059,3 +7059,564 @@ footer {
     transform: translate(var(--meio), var(--meio));
   }
 }
+
+/* ==================== a página de uma partida ====================
+
+   Era um popup dentro da lista das apostas, e agora é uma página. As duas
+   barras de cada estatística crescem do meio para fora, uma por equipa, que é
+   como se lê de relance quem está a mandar: uma barra só, a encher da
+   esquerda, obriga a fazer a conta de cabeça. */
+
+.par {
+  max-width: 62rem;
+}
+
+.par-voltar {
+  background: none;
+  border: 0;
+  color: var(--tinta-2);
+  font: inherit;
+  cursor: pointer;
+  padding: 0.2rem 0;
+  margin-bottom: 0.8rem;
+}
+
+.par-voltar:hover {
+  color: var(--crema);
+}
+
+.par-topo {
+  text-align: center;
+}
+
+.par-placar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.8rem;
+  margin: 0.6rem 0 1.2rem;
+}
+
+.par-equipa {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.par-equipa img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+}
+
+.par-equipa strong {
+  font-family: var(--disp);
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.par-marca {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 6rem;
+}
+
+.par-marca b {
+  font-family: var(--disp);
+  font-size: 2.2rem;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
+.par-marca b span {
+  color: var(--tinta-3);
+  margin: 0 0.15rem;
+}
+
+.par-marca b.par-vs {
+  font-size: 1.2rem;
+  color: var(--tinta-3);
+}
+
+.par-marca small {
+  color: var(--tinta-3);
+  font-size: 0.78rem;
+  margin-top: 0.3rem;
+}
+
+/* ---- a probabilidade, tirada das cotações ---- */
+
+.par-prob {
+  border: 1px solid var(--linha);
+  border-radius: 14px;
+  background: var(--papel);
+  padding: 1rem;
+  margin-bottom: 1.1rem;
+}
+
+.par-prob h2 {
+  font-size: 0.95rem;
+  text-align: center;
+  margin: 0 0 0.7rem;
+}
+
+.par-prob-barra {
+  display: flex;
+  height: 9px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: var(--leite-2);
+}
+
+.par-prob-barra i.casa {
+  background: var(--azulejo);
+}
+
+.par-prob-barra i.empate {
+  background: var(--tinta-3);
+}
+
+.par-prob-barra i.fora {
+  background: var(--crema);
+}
+
+.par-prob-legenda {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.par-prob-legenda li {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.par-prob-legenda li:nth-child(2) {
+  text-align: center;
+}
+
+.par-prob-legenda li:last-child {
+  text-align: right;
+}
+
+.par-prob-legenda b {
+  font-family: var(--disp);
+  font-size: 1.15rem;
+}
+
+.par-prob-legenda li.casa b {
+  color: var(--azulejo);
+}
+
+.par-prob-legenda li.fora b {
+  color: var(--crema);
+}
+
+.par-prob-legenda span {
+  color: var(--tinta-3);
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- as cotações ---- */
+
+.par-aposta {
+  margin-bottom: 1.2rem;
+}
+
+.par-aposta h2 {
+  font-size: 0.95rem;
+  margin: 0 0 0.6rem;
+}
+
+/* Com um teto: numa pagina de sessenta e dois rem, dois botoes esticados de
+   lado a lado ficam com o preco a um palmo do nome da equipa, e ninguem le
+   assim. */
+.par-cotacoes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.5rem;
+  max-width: 34rem;
+}
+
+.par-no-boletim {
+  color: var(--verde);
+}
+
+/* ---- os separadores ---- */
+
+.par-abas {
+  display: flex;
+  gap: 0.2rem;
+  border-bottom: 1px solid var(--linha);
+  margin-bottom: 1rem;
+  overflow-x: auto;
+}
+
+/* Com os zeros escritos por extenso: ha estilo de botao pela casa toda e sem
+   isto o separador escolhido aparecia dentro de uma caixinha redonda, que e
+   exatamente o que um separador nao e. */
+.par-abas button {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  border-bottom: 2px solid transparent;
+  color: var(--tinta-3);
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.6rem 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.par-abas button:hover {
+  color: var(--tinta);
+}
+
+.par-abas button.ativa {
+  color: var(--tinta);
+  background: none;
+  border-radius: 0;
+  border-bottom-color: var(--crema);
+}
+
+/* O ponto do em direto, a piscar como pisca em toda a parte. */
+.par-ponto {
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--vinho);
+  animation: par-pisca 1.6s ease-in-out infinite;
+}
+
+@keyframes par-pisca {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .par-ponto {
+    animation: none;
+  }
+}
+
+.par-titulo {
+  font-size: 0.95rem;
+  margin: 1.4rem 0 0.6rem;
+}
+
+.par-nada {
+  text-align: center;
+  padding: 1.6rem 0.6rem;
+}
+
+.par-quando {
+  margin-top: 1rem;
+  text-align: center;
+  font-size: 0.75rem;
+}
+
+/* ---- as estatísticas, com uma barra por lado ---- */
+
+.par-stats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.par-stats li {
+  display: grid;
+  grid-template-columns: 3.2rem 1fr 3.2rem;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0 0.75rem;
+  border-bottom: 1px solid var(--linha);
+}
+
+.par-stats li.marca {
+  padding-bottom: 0.55rem;
+}
+
+.par-stat-valor {
+  font-family: var(--mono);
+  font-size: 0.95rem;
+  color: var(--tinta-3);
+}
+
+.par-stat-valor.manda {
+  color: var(--tinta);
+  font-weight: 700;
+}
+
+.par-stat-valor.direita {
+  text-align: right;
+}
+
+.par-stat-nome {
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--tinta-2);
+}
+
+/* As duas barras crescem do meio para fora, cada uma para o seu lado. */
+.par-stat-barra {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  height: 5px;
+  background: var(--leite-2);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.par-stat-barra i {
+  height: 100%;
+}
+
+.par-stat-barra i.casa {
+  background: var(--azulejo);
+  border-radius: 99px 0 0 99px;
+}
+
+.par-stat-barra i.fora {
+  background: var(--crema);
+  border-radius: 0 99px 99px 0;
+}
+
+/* ---- os eventos ---- */
+
+.par-eventos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.par-eventos li {
+  display: grid;
+  grid-template-columns: 3rem 1fr;
+  gap: 0.2rem 0.7rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--linha);
+}
+
+.par-eventos li b {
+  font-family: var(--mono);
+  color: var(--tinta-3);
+  font-size: 0.85rem;
+}
+
+.par-eventos li.golo b {
+  color: var(--verde);
+}
+
+.par-eventos li.cartao b {
+  color: var(--crema);
+}
+
+.par-evento-que {
+  font-size: 0.9rem;
+}
+
+.par-evento-quem {
+  grid-column: 2;
+  color: var(--tinta-3);
+  font-size: 0.8rem;
+}
+
+/* ---- os confrontos ---- */
+
+.par-contas {
+  list-style: none;
+  margin: 0 0 1.2rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  text-align: center;
+}
+
+.par-contas li {
+  border: 1px solid var(--linha);
+  border-radius: 12px;
+  padding: 0.7rem 0.4rem;
+  background: var(--papel);
+  min-width: 0;
+}
+
+.par-contas b {
+  display: block;
+  font-family: var(--disp);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.par-contas li.ganha b {
+  color: var(--verde);
+}
+
+.par-contas li.perde b {
+  color: var(--vinho);
+}
+
+.par-contas span {
+  display: block;
+  color: var(--tinta-3);
+  font-size: 0.75rem;
+  margin-top: 0.3rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.par-confrontos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.par-confrontos li {
+  display: grid;
+  grid-template-columns: 5.4rem 1fr;
+  gap: 0.2rem 0.7rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--linha);
+  align-items: baseline;
+}
+
+.par-confrontos time {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--tinta-3);
+}
+
+.par-confronto-jogo {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.par-confronto-jogo b {
+  font-weight: 400;
+  color: var(--tinta-2);
+  font-size: 0.9rem;
+}
+
+.par-confronto-jogo b.meu {
+  color: var(--tinta);
+  font-weight: 700;
+}
+
+.par-confronto-jogo em {
+  font-family: var(--mono);
+  font-style: normal;
+  color: var(--crema);
+}
+
+.par-confrontos small {
+  grid-column: 2;
+  color: var(--tinta-3);
+  font-size: 0.75rem;
+}
+
+/* ---- a classificação ---- */
+
+.par-tabela-caixa {
+  overflow-x: auto;
+}
+
+.par-tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.par-tabela th {
+  text-align: right;
+  color: var(--tinta-3);
+  font-weight: 400;
+  font-size: 0.75rem;
+  padding: 0.4rem 0.35rem;
+  border-bottom: 1px solid var(--linha);
+}
+
+.par-tabela th:nth-child(2) {
+  text-align: left;
+}
+
+.par-tabela td {
+  text-align: right;
+  padding: 0.45rem 0.35rem;
+  border-bottom: 1px solid var(--linha);
+  font-family: var(--mono);
+  color: var(--tinta-2);
+}
+
+.par-tabela .lugar {
+  text-align: center;
+  width: 2rem;
+  color: var(--tinta-3);
+}
+
+.par-tabela-equipa {
+  text-align: left !important;
+  font-family: var(--corpo) !important;
+  color: var(--tinta) !important;
+}
+
+.par-tabela-equipa img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  vertical-align: -4px;
+  margin-right: 0.4rem;
+}
+
+.par-tabela .pontos {
+  color: var(--tinta);
+  font-weight: 700;
+}
+
+/* A nossa fica marcada, senão procura-se com o dedo numa tabela de vinte. */
+.par-tabela tr.nossa td {
+  background: rgba(224, 158, 89, 0.1);
+}
+
+.par-vazia {
+  text-align: center;
+}
+
+@media (max-width: 40rem) {
+  .par-marca b {
+    font-size: 1.8rem;
+  }
+
+  .par-equipa strong {
+    font-size: 0.9rem;
+  }
+
+  .par-stats li {
+    grid-template-columns: 2.8rem 1fr 2.8rem;
+  }
+
+  .par-confrontos li {
+    grid-template-columns: 1fr;
+  }
+
+  .par-confrontos small {
+    grid-column: 1;
+  }
+}

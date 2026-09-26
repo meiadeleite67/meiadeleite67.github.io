@@ -211,3 +211,109 @@ export function lerEventos(cru) {
     .filter((e) => e.minuto !== null)
     .sort((a, b) => a.minuto - b.minuto || (a.extra || 0) - (b.extra || 0));
 }
+
+/* ==================== a classificação e os confrontos ====================
+
+   Duas coisas que a página da partida mostra em separadores próprios, e que
+   por isso só custam um pedido quando alguém abre esse separador. A
+   classificação de uma liga é a mesma para todos os jogos dela, e dois
+   adversários têm sempre o mesmo histórico: as duas guardam-se bem, e é isso
+   que as torna possíveis com cem pedidos por dia. */
+
+/** Onde cada desporto tem a classificação. A mesma ideia dos caminhos das
+ *  estatísticas: tenta-se, e o que não existir fica apontado. */
+export const CAMINHOS_CLASSIFICACAO = {
+  Futebol: ['/standings'],
+  Basquetebol: ['/standings'],
+  NBA: ['/standings'],
+  'Futebol americano': ['/standings'],
+  Basebol: ['/standings'],
+  'Hóquei no gelo': ['/standings'],
+  Andebol: ['/standings'],
+  Voleibol: ['/standings'],
+  Rugby: ['/standings'],
+  AFL: ['/standings']
+};
+
+/** E onde cada um tem o histórico entre duas equipas. */
+export const CAMINHOS_CONFRONTOS = {
+  Futebol: ['/fixtures/headtohead'],
+  Basquetebol: ['/games/h2h'],
+  NBA: ['/games/h2h'],
+  'Futebol americano': ['/games/h2h'],
+  Basebol: ['/games/h2h'],
+  'Hóquei no gelo': ['/games/h2h'],
+  Andebol: ['/games/h2h'],
+  Voleibol: ['/games/h2h'],
+  Rugby: ['/games/h2h'],
+  AFL: ['/games/h2h']
+};
+
+const soN = (n) => (Number.isFinite(+n) ? +n : null);
+
+/**
+ * A classificação, numa forma só.
+ *
+ * O futebol manda grupos dentro da liga (uma fase de grupos são oito tabelas),
+ * e os outros mandam uma lista simples. Sai sempre uma lista de grupos, ainda
+ * que seja um grupo só, para a página não ter de saber a diferença.
+ */
+export function lerClassificacao(cru) {
+  const primeiro = Array.isArray(cru) ? cru[0] : cru;
+  const tabelas = primeiro?.league?.standings ?? primeiro?.standings ?? cru;
+  if (!Array.isArray(tabelas)) return [];
+
+  /* Uma lista de listas são grupos; uma lista de objectos é um grupo só. */
+  const grupos = Array.isArray(tabelas[0]) ? tabelas : [tabelas];
+
+  return grupos
+    .map((linhas) => ({
+      nome: String(linhas?.[0]?.group || linhas?.[0]?.stage || ''),
+      linhas: (Array.isArray(linhas) ? linhas : [])
+        .map((l, i) => {
+          const jogados = l?.all ?? l?.games ?? {};
+          return {
+            lugar: soN(l?.rank ?? l?.position) ?? i + 1,
+            equipa: String(l?.team?.name || ''),
+            brasao: String(l?.team?.logo || ''),
+            jogos: soN(jogados?.played ?? jogados?.played?.all ?? l?.games?.played),
+            vitorias: soN(jogados?.win ?? jogados?.win?.total ?? l?.games?.win?.total),
+            empates: soN(jogados?.draw ?? jogados?.draw?.total),
+            derrotas: soN(jogados?.lose ?? jogados?.lose?.total ?? l?.games?.lose?.total),
+            pontos: soN(l?.points),
+            diferenca: soN(l?.goalsDiff ?? l?.goals_diff),
+            forma: String(l?.form || '')
+          };
+        })
+        .filter((l) => l.equipa)
+    }))
+    .filter((g) => g.linhas.length > 0);
+}
+
+/**
+ * Os confrontos entre duas equipas, do mais recente para trás.
+ *
+ * Só os que já se jogaram: um jogo por jogar não é histórico, é a agenda.
+ */
+export function lerConfrontos(cru) {
+  if (!Array.isArray(cru)) return [];
+  return cru
+    .map((x) => {
+      const f = x?.fixture || x;
+      const quando = Date.parse(f?.date || x?.date || '');
+      const casa = String(x?.teams?.home?.name || '');
+      const fora = String(x?.teams?.away?.name || '');
+      if (!Number.isFinite(quando) || !casa || !fora) return null;
+      return {
+        quando: new Date(quando).toISOString(),
+        liga: String(x?.league?.name || ''),
+        casa,
+        fora,
+        marcaCasa: soN(x?.goals?.home ?? x?.scores?.home?.total),
+        marcaFora: soN(x?.goals?.away ?? x?.scores?.away?.total)
+      };
+    })
+    .filter((x) => x && x.marcaCasa !== null && x.marcaFora !== null)
+    .sort((a, b) => Date.parse(b.quando) - Date.parse(a.quando))
+    .slice(0, 10);
+}

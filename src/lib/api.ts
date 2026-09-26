@@ -5,7 +5,9 @@ import type {
   Escolha,
   Estado,
   Evento,
+  AClassificacao,
   ComoVaiOJogo,
+  OsConfrontos,
   ItemDaGaleria,
   JogoDeApostas,
   Membro,
@@ -211,6 +213,15 @@ export const api = {
    *  jogo, por isso muita gente a abrir o mesmo jogo custa o mesmo que uma. */
   comoVaiOJogo: (id: string) =>
     pedir<ComoVaiOJogo>(`/desporto/stats/${encodeURIComponent(id)}`),
+
+  /** A classificacao da liga do jogo. Guardada por liga e nao por jogo: os onze
+   *  jogos de uma jornada fazem a mesma pergunta e pagam-na uma vez. */
+  classificacaoDoJogo: (id: string) =>
+    pedir<AClassificacao>(`/desporto/classificacao/${encodeURIComponent(id)}`),
+
+  /** O historico entre as duas equipas, guardado pelo par e nao pelo jogo. */
+  confrontosDoJogo: (id: string) =>
+    pedir<OsConfrontos>(`/desporto/confrontos/${encodeURIComponent(id)}`),
 
   /* ---- os avisos de coisas partidas ----
 

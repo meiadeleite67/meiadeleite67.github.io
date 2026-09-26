@@ -107,7 +107,21 @@ const PREFERIDAS = {
 
 /* ============================ os pedidos ============================ */
 
-export async function pedir(env, casa, caminho, procura = {}) {
+/** Quanto se espera antes de insistir, quando o travão do minuto bate. */
+const ESPERA_DEPOIS_DO_TRAVAO = 20000;
+
+/**
+ * Um pedido à feed nova.
+ *
+ * Com `insiste`, um "too many requests" não deita a perder o desporto: espera-
+ * se vinte segundos e tenta-se outra vez, uma só vez. O travão dela é por
+ * minuto, e uma volta que caia nos últimos segundos de um minuto cheio
+ * perdia-se inteira por causa disso, com noventa e oito pedidos do dia por
+ * gastar. Quem insiste é a volta, nunca a página: quem está à espera de ver
+ * como vai o jogo não pode ficar vinte segundos a olhar para um ecrã parado, e
+ * para esse caso já se diz que está ocupado e tenta-se outra vez do lado dele.
+ */
+export async function pedir(env, casa, caminho, procura = {}, insiste = false) {
   if (!temChaveNova(env)) return { erro: 'sem chave nova' };
 
   const url = new URL(casa + caminho);
@@ -153,11 +167,17 @@ export async function pedir(env, casa, caminho, procura = {}) {
   const erros = corpo && corpo.errors;
   const temErros =
     erros && (Array.isArray(erros) ? erros.length > 0 : Object.keys(erros).length > 0);
-  if (temErros)
-    return {
-      erro: 'a feed nova recusou: ' + JSON.stringify(erros).slice(0, 160),
-      limites
-    };
+  if (temErros) {
+    const queixa = 'a feed nova recusou: ' + JSON.stringify(erros).slice(0, 160);
+    /* Uma só insistência, e só quando foi o travão do minuto. Insistir contra
+       uma conta esgotada não traz nada e gasta a do dia seguinte quando ela
+       virar. */
+    if (insiste && eDoTravao(queixa)) {
+      await esperar(ESPERA_DEPOIS_DO_TRAVAO);
+      return pedir(env, casa, caminho, procura, false);
+    }
+    return { erro: queixa, limites };
+  }
 
   return {
     lista: Array.isArray(corpo?.response) ? corpo.response : [],
@@ -177,6 +197,9 @@ const NAO_SE_FEZ = new Set(['PST', 'POST', 'CANC', 'CANCL', 'ABD', 'SUSP', 'INT'
 const POR_COMECAR = new Set(['NS', 'TBD']);
 
 const soNumero = (n) => (Number.isFinite(+n) ? +n : null);
+
+/** Se a recusa foi do travão do minuto e não de outra coisa qualquer. */
+export const eDoTravao = (erro) => /too many requests|ratelimit/i.test(String(erro || ''));
 
 /**
  * Um jogo, na forma que o resto da casa já conhece.
@@ -200,6 +223,10 @@ export function jogoDaFeedNova(cru, desporto) {
     chave: String(cru?.league?.id ?? ''),
     liga: String(cru?.league?.name || ''),
     pais: String(cru?.league?.country || ''),
+    /* A temporada, que a classificação precisa: pedir uma tabela sem dizer de
+       que ano é dá o ano corrente da feed, que em agosto não é o mesmo que o
+       nosso. Vem no próprio jogo, por isso não custa nada. */
+    temporada: String(cru?.league?.season ?? ''),
     desporto,
     casa,
     fora,
@@ -319,7 +346,7 @@ export async function jogosDaFeedNova(env, desporto, dias = SO_ATE_DIAS) {
 
   for (let d = 0; d < dias; d += 1) {
     if (d > 0) await esperar(ESPERA_ENTRE_PEDIDOS);
-    const r = await pedir(env, casa, caminhoDosJogos, { date: diaDe(d) });
+    const r = await pedir(env, casa, caminhoDosJogos, { date: diaDe(d) }, true);
     pedidos += 1;
     if (r.erro) {
       /* Um dia que falhe nao deita fora os dias que ja vieram, mas o que ja
@@ -365,7 +392,7 @@ export async function cotacoesDoDia(env, desporto, quantasPaginas = 3) {
   let pedidos = 0;
   for (let p = 1; p <= quantasPaginas; p += 1) {
     if (p > 1) await esperar(ESPERA_ENTRE_PEDIDOS);
-    const r = await pedir(env, casa, '/odds', { date: diaDe(0), bet: 1, page: p });
+    const r = await pedir(env, casa, '/odds', { date: diaDe(0), bet: 1, page: p }, true);
     pedidos += 1;
     if (r.erro) return { erro: r.erro, cotacoes: porJogo, pedidos };
 

@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, temServidor } from '../lib/api';
 import { passeDe } from '../lib/nick';
+import { comEsta, guardarBoletim, lerBoletim } from '../lib/boletim';
+import { enderecoDaPartida, guardarJogoDeUmaAposta } from './Partida';
 import { quandoEmPalavras } from '../lib/dados';
 import type {
   ApostaDesportiva,
-  ComoVaiOJogo,
   Escolha,
   Escolhida,
   JogoDeApostas,
-  PernaDeAposta,
   Pontuacao,
   QuadroDeJogos
 } from '../lib/tipos';
@@ -43,9 +43,6 @@ import type {
 const FICHAS = [10, 25, 50, 100];
 const APOSTA_MINIMA = 5;
 const APOSTA_MAXIMA = 500;
-/** O mesmo número que está no servidor. Aqui serve só para não deixar juntar
- *  mais do que ele vai aceitar. */
-const PERNAS_NO_MAXIMO = 8;
 
 const DE_LADO: { escolha: Escolha; curto: string }[] = [
   { escolha: 'casa', curto: '1' },
@@ -83,7 +80,6 @@ const quemE = (escolha: Escolha, jogo: { casa: string; fora: string }) =>
   escolha === 'casa' ? jogo.casa : escolha === 'fora' ? jogo.fora : 'Empate';
 
 /** O número do jogo que está no endereço, se estiver algum. */
-const jogoNoEndereco = () => new URLSearchParams(window.location.search).get('jogo') || '';
 
 export function Apostas({
   nome,
@@ -101,7 +97,10 @@ export function Apostas({
   const [aCarregar, setACarregar] = useState(true);
 
   /** O boletim: o que está escolhido e ainda não foi apostado. */
-  const [boletim, setBoletim] = useState<Escolhida[]>([]);
+  /* O boletim vem do armazenamento e volta para lá a cada mudança. Uma escolha
+     feita na página de uma partida tem de sobreviver à viagem de volta, e quem
+     recarrega a página sem querer não perde o que já escolheu. */
+  const [boletim, setBoletim] = useState<Escolhida[]>(lerBoletim);
   const [aberto, setAberto] = useState(false);
   const [quanto, setQuanto] = useState(FICHAS[0]);
   const [aPor, setAPor] = useState(false);
@@ -115,10 +114,18 @@ export function Apostas({
     desporto: '',
     liga: ''
   });
-  const [aVerJogo, setAVerJogo] = useState(jogoNoEndereco);
 
   const passe = nome ? passeDe(nome) : '';
   const saldo = linha ? linha.torroes : 0;
+
+  /* Os links de /apostas?jogo=<numero> sao de quando o detalhe era um popup
+     desta pagina. Continuam a funcionar: levam a pagina da partida, que e onde
+     essa coisa vive agora. Um link partilhado no grupo nao pode morrer por
+     causa de uma arrumacao nossa. */
+  useEffect(() => {
+    const velho = new URLSearchParams(window.location.search).get('jogo');
+    if (velho) window.location.replace(enderecoDaPartida(velho));
+  }, []);
 
   const buscarJogos = useCallback(async () => {
     try {
@@ -149,21 +156,41 @@ export function Apostas({
     void buscarMinhas();
   }, [buscarMinhas]);
 
-  /* O jogo aberto em detalhe vive no endereço, para se poder mandar a alguém e
-     para o botão de voltar do browser fazer o que se espera dele. */
-  useEffect(() => {
-    const aoVoltar = () => setAVerJogo(jogoNoEndereco());
-    window.addEventListener('popstate', aoVoltar);
-    return () => window.removeEventListener('popstate', aoVoltar);
-  }, []);
+  /* Abrir um jogo é ir para a página dele, e não abrir um popup por cima
+     desta. Uma partida tem tabela, histórico e o que aconteceu ao minuto: é
+     uma página, com endereço que se manda a alguém e botão de voltar que faz o
+     que se espera dele.
 
-  const abrirJogo = useCallback((id: string) => {
-    setAVerJogo(id);
-    const url = new URL(window.location.href);
-    if (id) url.searchParams.set('jogo', id);
-    else url.searchParams.delete('jogo');
-    window.history.pushState({}, '', url);
-  }, []);
+     Vai-se pelo endereço e não pelo irPara da casa, porque isto é uma página
+     inteira a mudar e não um separador: assim o browser trata do resto. */
+  const abrirJogo = useCallback(
+    (id: string) => {
+      if (!id) return;
+      /* Uma perna de uma aposta pode apontar para um jogo que já saiu da
+         prateleira. O que a aposta guardou dele vai à frente, para a página
+         ter o que mostrar quando o servidor já não o conhecer. */
+      const daLista = (quadro?.jogos || []).some((j) => j.id === id);
+      if (!daLista) {
+        for (const a of minhas) {
+          const perna = (a.pernas || []).find((x) => x.jogo === id);
+          if (!perna) continue;
+          guardarJogoDeUmaAposta({
+            id: perna.jogo,
+            chave: perna.chave,
+            liga: perna.liga,
+            desporto: perna.desporto,
+            casa: perna.casa,
+            fora: perna.fora,
+            comeca: perna.comeca,
+            cotacoes: null
+          });
+          break;
+        }
+      }
+      window.location.href = enderecoDaPartida(id);
+    },
+    [quadro, minhas]
+  );
 
   /* Os jogos por desporto e por liga, para a coluna da esquerda. Sai da lista
      que veio e não de uma lista à parte: se a feed um dia trouxer outro
@@ -200,38 +227,6 @@ export function Apostas({
     [quadro, aVer, aVerLiga]
   );
 
-  /* O jogo que esta aberto em detalhe. Pode vir da lista, e nesse caso ainda
-     da para apostar nele; ou pode vir de uma perna de uma aposta, quando o jogo
-     ja saiu da lista por ter comecado. Nesse segundo caso mostra-se o que a
-     propria aposta guardou, que e tudo o que se sabe dele. */
-  const oJogoAberto = useMemo(() => {
-    if (!aVerJogo) return null;
-
-    const daLista = (quadro?.jogos || []).find((j) => j.id === aVerJogo);
-    if (daLista) return { jogo: daLista, daLista: true };
-
-    for (const a of minhas) {
-      const perna = (a.pernas || []).find((x) => x.jogo === aVerJogo);
-      if (!perna) continue;
-      return {
-        daLista: false,
-        jogo: {
-          id: perna.jogo,
-          chave: perna.chave,
-          liga: perna.liga,
-          desporto: perna.desporto,
-          casa: perna.casa,
-          fora: perna.fora,
-          comeca: perna.comeca,
-          /* Da aposta so se sabe a cotacao do lado em que se apostou. As outras
-             nao se inventam: mostra-se a que ficou guardada e mais nada. */
-          cotacoes: { casa: 0, fora: 0 }
-        } as JogoDeApostas
-      };
-    }
-    return null;
-  }, [quadro, aVerJogo, minhas]);
-
   const abertas = minhas.filter((a) => a.estado === 'aberta');
   const fechadas = minhas.filter((a) => a.estado !== 'aberta');
   const presos = abertas.reduce((s, a) => s + a.quanto, 0);
@@ -263,13 +258,13 @@ export function Apostas({
          fechá-lo outra vez para se ir buscar a seguinte. */
       if (antes.length === 0) setAberto(true);
 
-      const igual = antes.find((e) => e.jogo.id === jogo.id && e.escolha === escolha);
-      if (igual) return antes.filter((e) => e !== igual);
-      const semEste = antes.filter((e) => e.jogo.id !== jogo.id);
-      if (semEste.length >= PERNAS_NO_MAXIMO) return antes;
-      return [...semEste, { jogo, escolha }];
+      return comEsta(antes, jogo, escolha).boletim;
     });
   }, []);
+
+  useEffect(() => {
+    guardarBoletim(boletim);
+  }, [boletim]);
 
   async function apostar() {
     if (boletim.length === 0 || aPor) return;
@@ -530,17 +525,6 @@ export function Apostas({
         são atualizados de seis em seis horas.
       </p>
 
-      {oJogoAberto && (
-        <DetalheDoJogo
-          jogo={oJogoAberto.jogo}
-          daLista={oJogoAberto.daLista}
-          minhas={minhas}
-          noBoletim={noBoletim}
-          escolher={escolher}
-          fechar={() => abrirJogo('')}
-        />
-      )}
-
       {boletim.length > 0 && (
         <Boletim
           boletim={boletim}
@@ -739,320 +723,6 @@ function Bilhete({
  * joga, quando, a cotação de cada lado com a casa de apostas de onde ela veio,
  * a margem que essa casa está a levar, e o que a pessoa já apostou neste jogo.
  */
-function DetalheDoJogo({
-  jogo,
-  daLista,
-  minhas,
-  noBoletim,
-  escolher,
-  fechar
-}: {
-  jogo: JogoDeApostas;
-  /** Se o jogo ainda esta na lista de quem da cotacoes. Quando nao esta, ele
-   *  vem de uma aposta e nao ha cotacoes para mostrar. */
-  daLista: boolean;
-  minhas: ApostaDesportiva[];
-  noBoletim: (jogo: string, escolha?: Escolha) => boolean;
-  escolher: (jogo: JogoDeApostas, escolha: Escolha) => void;
-  fechar: () => void;
-}) {
-  useEffect(() => {
-    const tecla = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') fechar();
-    };
-    window.addEventListener('keydown', tecla);
-    return () => window.removeEventListener('keydown', tecla);
-  }, [fechar]);
-
-  /** As pernas que a pessoa já tem neste jogo, de qualquer bilhete. */
-  const pernasAqui: { aposta: ApostaDesportiva; perna: PernaDeAposta }[] = [];
-  minhas.forEach((a) =>
-    (a.pernas || []).forEach((p) => {
-      if (p.jogo === jogo.id) pernasAqui.push({ aposta: a, perna: p });
-    })
-  );
-
-  /* A margem da casa. Somadas as probabilidades que cada cotação implica, o que
-     passa dos cem por cento é o que a casa de apostas está a levar. Não muda
-     nada no jogo, mas é o número que explica porque é que as cotações não são
-     justas, e não custa nada mostrá-lo. */
-  const implicita = (c?: number) => (c ? 1 / c : 0);
-  const soma =
-    implicita(jogo.cotacoes?.casa) +
-    implicita(jogo.cotacoes?.fora) +
-    implicita(jogo.cotacoes?.empate);
-  const margem = soma > 1 ? (soma - 1) * 100 : 0;
-
-  return (
-    <div className="modal-fundo apo-detalhe" role="dialog" aria-modal="true" onClick={fechar}>
-      <div className="apo-detalhe-caixa" onClick={(e) => e.stopPropagation()}>
-        <button className="apo-fechar" type="button" onClick={fechar} aria-label="Fechar">
-          ×
-        </button>
-
-        <p className="eyebrow">{jogo.liga || jogo.desporto}</p>
-        <h2 className="apo-detalhe-titulo">
-          {jogo.casa} <span>vs</span> {jogo.fora}
-        </h2>
-        <p className="apo-detalhe-quando">
-          {jaComecou(jogo) ? (
-            <span className="apo-aovivo">
-              {temMarca(jogo)
-                ? `${jogo.casa} ${jogo.marcaCasa} - ${jogo.marcaFora} ${jogo.fora}${
-                    jogo.acabou ? ', acabou' : jogo.minuto ? `, ${jogo.minuto} minutos` : ''
-                  }`
-                : jogo.acabou
-                  ? 'Este jogo já acabou'
-                  : 'Este jogo está a decorrer'}
-            </span>
-          ) : (
-            <time dateTime={jogo.comeca}>{aQueHoras(jogo.comeca)}</time>
-          )}
-        </p>
-
-        {daLista && jogo.cotacoes && <h3>Quem ganha</h3>}
-        {daLista && jogo.cotacoes && (
-        <div className="apo-cotacoes grandes">
-          {DE_LADO.map(({ escolha, curto }) => {
-            const cotacao = jogo.cotacoes?.[escolha];
-            if (!cotacao) return null;
-            return (
-              <button
-                key={escolha}
-                type="button"
-                className={`apo-cotacao${noBoletim(jogo.id, escolha) ? ' escolhido' : ''}`}
-                onClick={() => escolher(jogo, escolha)}
-                disabled={jaComecou(jogo)}
-              >
-                <span className="apo-quem">{quemE(escolha, jogo)}</span>
-                <span className="apo-curto">{curto}</span>
-                <span className="apo-preco">{cotacao.toFixed(2)}</span>
-              </button>
-            );
-          })}
-        </div>
-        )}
-
-        {daLista && jaComecou(jogo) && (
-          <p className="notas">
-            As cotações ficam trancadas a partir da hora de começo, aqui e em qualquer casa de
-            apostas: quem está a ver o jogo saberia sempre mais do que quem não está.
-          </p>
-        )}
-
-        {/* As estatisticas so fazem sentido depois de a bola rolar. */}
-        {jaComecou(jogo) && <ComoVai jogo={jogo} />}
-
-        <h3>A ficha do jogo</h3>
-        <dl className="apo-ficha">
-          <div>
-            <dt>Desporto</dt>
-            <dd>{jogo.desporto || 'não diz'}</dd>
-          </div>
-          <div>
-            <dt>Competição</dt>
-            <dd>{jogo.liga || 'não diz'}</dd>
-          </div>
-          <div>
-            <dt>Em casa</dt>
-            <dd>{jogo.casa}</dd>
-          </div>
-          <div>
-            <dt>Visitante</dt>
-            <dd>{jogo.fora}</dd>
-          </div>
-          {jogo.cotacoes?.fonte && (
-            <div>
-              <dt>Cotações de</dt>
-              <dd>{jogo.cotacoes.fonte}</dd>
-            </div>
-          )}
-          {!!jogo.casasDeApostas && (
-            <div>
-              <dt>Casas com preço</dt>
-              <dd>{jogo.casasDeApostas}</dd>
-            </div>
-          )}
-          {margem > 0 && (
-            <div>
-              <dt>Margem da casa</dt>
-              <dd>{margem.toFixed(1)} por cento</dd>
-            </div>
-          )}
-          <div>
-            <dt>Empate</dt>
-            <dd>{jogo.cotacoes?.empate ? 'dá para apostar' : 'não há neste desporto'}</dd>
-          </div>
-        </dl>
-
-        {pernasAqui.length > 0 && (
-          <>
-            <h3>O que já apostaste aqui</h3>
-            <ul className="apo-detalhe-minhas">
-              {pernasAqui.map(({ aposta, perna }) => (
-                <li key={aposta.id} className={perna.estado}>
-                  <b>{quemE(perna.escolha, perna)}</b>
-                  <span>
-                    {aposta.quanto} torrões a {perna.cotacao.toFixed(2)}
-                    {aposta.pernas.length > 1 ? `, numa múltipla de ${aposta.pernas.length}` : ''}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-
-      </div>
-    </div>
-  );
-}
-
-/* ========================= como vai o jogo =========================
-
-   As estatisticas e os eventos de um jogo. Nao ha aqui campo com a bola a
-   andar, e nao ha de propósito: a posicao da bola e recolhida no estadio por
-   quem tem camaras la montadas, e nao vem de nenhuma feed que se consiga sem
-   contrato. O que se pode mostrar com verdade e o que aconteceu e quando, que
-   e a parte que se conta depois no cafe.
-
-   O servidor guarda uma copia por jogo, e e isso que faz isto caber no
-   orcamento: vinte pessoas a abrir o mesmo jogo custam o mesmo que uma. */
-
-function ComoVai({ jogo }: { jogo: JogoDeApostas }) {
-  const [dados, setDados] = useState<ComoVaiOJogo | null>(null);
-  const [aCarregar, setACarregar] = useState(true);
-
-  useEffect(() => {
-    let vivo = true;
-    let relogio = 0;
-    setACarregar(true);
-
-    /* Quando a feed diz que o minuto está cheio, isso não é um jogo sem
-       estatísticas: é meia dúzia de pessoas a abrir jogos ao mesmo tempo. Dá-se
-       um tempo e tenta-se outra vez, uma só vez, que insistir em roda livre
-       seria ser parte do problema. */
-    const ir = (aindaPodeTentar: boolean) =>
-      api
-        .comoVaiOJogo(jogo.id)
-        .then((r) => {
-          if (!vivo) return;
-          if (r.ocupado && aindaPodeTentar && (r.estatisticas || []).length === 0) {
-            relogio = window.setTimeout(() => ir(false), 7000);
-            return;
-          }
-          setDados(r);
-          setACarregar(false);
-        })
-        .catch(() => {
-          /* Sem estatisticas a pagina do jogo vale na mesma: tem as cotacoes, a
-             ficha e as apostas de quem la esta. */
-          if (vivo) setACarregar(false);
-        });
-
-    ir(true);
-    return () => {
-      vivo = false;
-      window.clearTimeout(relogio);
-    };
-  }, [jogo.id]);
-
-  if (aCarregar) return <p className="notas">A ver como vai o jogo...</p>;
-  if (!dados) return null;
-
-  const linhas = dados.estatisticas || [];
-  const eventos = dados.eventos || [];
-  if (linhas.length === 0 && eventos.length === 0)
-    return (
-      <p className="notas">
-        {dados.ocupado
-          ? 'Muita gente a ver jogos ao mesmo tempo. Volta a abrir daqui a pouco.'
-          : dados.semOrcamento
-            ? 'Hoje já não dá para ir buscar estatísticas novas. Voltam amanhã.'
-            : dados.semFonte
-              ? 'Este desporto não dá estatísticas, e não há volta a dar-lhe.'
-              : dados.semEstatisticas
-                ? 'Esta competição não dá estatísticas. As grandes ligas dão, as pequenas quase nunca.'
-                : (jogo.minuto || 0) > 0 && (jogo.minuto || 0) < 15
-                  ? 'O jogo começou agora. As estatísticas aparecem quando houver alguma coisa para contar.'
-                  : 'Ainda não há estatísticas deste jogo.'}
-      </p>
-    );
-
-  return (
-    <>
-      {linhas.length > 0 && (
-        <>
-          <h3>Como vai o jogo</h3>
-          <ul className="jogo-stats">
-            {linhas.map((l) => {
-              /* A barra so se desenha quando os dois lados dao numero. Uma
-                 estatistica de texto mostra-se so com os valores. */
-              const a = l.casa.numero;
-              const b = l.fora.numero;
-              const total = (a || 0) + (b || 0);
-              const parte = a !== null && b !== null && total > 0 ? ((a || 0) / total) * 100 : null;
-              return (
-                <li key={l.nome}>
-                  <span className="jogo-stat-valor">{l.casa.mostra}</span>
-                  <span className="jogo-stat-nome">{l.nome}</span>
-                  <span className="jogo-stat-valor direita">{l.fora.mostra}</span>
-                  {parte !== null && (
-                    <span className="jogo-stat-barra" aria-hidden="true">
-                      <i style={{ width: `${parte}%` }} />
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </>
-      )}
-
-      {eventos.length > 0 && (
-        <>
-          <h3>O que aconteceu</h3>
-          <ul className="jogo-eventos">
-            {eventos.map((e, i) => (
-              <li key={`${e.minuto}-${i}`} className={e.tipo}>
-                <b>
-                  {e.minuto}'{e.extra ? `+${e.extra}` : ''}
-                </b>
-                <span className="jogo-evento-que">
-                  {e.tipo === 'golo'
-                    ? 'Golo'
-                    : e.tipo === 'cartao'
-                      ? e.detalhe.toLowerCase().includes('red')
-                        ? 'Cartão vermelho'
-                        : 'Cartão amarelo'
-                      : e.tipo === 'troca'
-                        ? 'Substituição'
-                        : e.detalhe}
-                </span>
-                <span className="jogo-evento-quem">
-                  {e.quem}
-                  {e.tipo === 'troca' && e.outro ? ` sai, ${e.outro} entra` : ''}
-                  {e.equipa ? ` · ${e.equipa}` : ''}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      {dados.quando && (
-        <p className="notas jogo-stats-quando">
-          Atualizado a{' '}
-          {new Date(dados.quando).toLocaleTimeString('pt-PT', {
-            hour: '2-digit',
-            minute: '2-digit'
-          })}
-          {dados.daCopia ? ', da última vez que se foi buscar' : ''}.
-        </p>
-      )}
-    </>
-  );
-}
-
 /* ============================== o boletim ============================== */
 
 /**

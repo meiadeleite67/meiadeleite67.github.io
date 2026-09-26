@@ -9,7 +9,12 @@
  *
  *   node scripts/testes-estatisticas.mjs
  */
-import { lerEstatisticas, lerEventos } from '../worker/estatisticas.js';
+import {
+  lerClassificacao,
+  lerConfrontos,
+  lerEstatisticas,
+  lerEventos
+} from '../worker/estatisticas.js';
 
 let feitos = 0;
 let falhas = 0;
@@ -129,6 +134,105 @@ prova('a substituicao diz quem sai e quem entra', eventos[2].quem === 'Mabululu'
 prova('e o tempo de compensacao fica apontado', eventos[1].extra === 2);
 prova('eventos sem minuto nao entram', lerEventos([{ type: 'Goal' }]).length === 0);
 prova('lixo nao rebenta', lerEventos(null).length === 0 && lerEventos({}).length === 0);
+
+/* ---------------- a classificacao ---------------- */
+
+console.log('\n a classificacao');
+
+/** O futebol manda grupos dentro da liga. */
+const tabelaDoFutebol = lerClassificacao([
+  {
+    league: {
+      standings: [
+        [
+          {
+            rank: 1,
+            group: 'Grupo A',
+            team: { name: 'Benfica', logo: 'b.png' },
+            points: 30,
+            goalsDiff: 12,
+            all: { played: 12, win: 10, draw: 0, lose: 2 },
+            form: 'WWLWW'
+          },
+          {
+            rank: 2,
+            group: 'Grupo A',
+            team: { name: 'Porto', logo: 'p.png' },
+            points: 28,
+            goalsDiff: 9,
+            all: { played: 12, win: 9, draw: 1, lose: 2 }
+          }
+        ],
+        [
+          {
+            rank: 1,
+            group: 'Grupo B',
+            team: { name: 'Sporting', logo: 's.png' },
+            points: 26,
+            all: { played: 12, win: 8, draw: 2, lose: 2 }
+          }
+        ]
+      ]
+    }
+  }
+]);
+
+prova('os grupos leem-se todos', tabelaDoFutebol.length === 2);
+prova('com o nome do grupo', tabelaDoFutebol[0].nome === 'Grupo A');
+prova('e as equipas por lugar', tabelaDoFutebol[0].linhas.map((l) => l.equipa).join() === 'Benfica,Porto');
+prova('com os pontos', tabelaDoFutebol[0].linhas[0].pontos === 30);
+prova('e as contas dos jogos', tabelaDoFutebol[0].linhas[0].vitorias === 10);
+prova('a forma quando vem', tabelaDoFutebol[0].linhas[0].forma === 'WWLWW');
+prova('e vazia quando nao vem', tabelaDoFutebol[0].linhas[1].forma === '');
+
+/** Uma lista simples e um grupo so. */
+const tabelaSimples = lerClassificacao([
+  { standings: [{ position: 1, team: { name: 'Lakers' }, points: 44, games: { played: 30 } }] }
+]);
+prova('uma lista simples da um grupo so', tabelaSimples.length === 1);
+prova('e le a equipa', tabelaSimples[0].linhas[0].equipa === 'Lakers');
+
+prova('sem lugar, conta-se pela ordem', lerClassificacao([{ standings: [{ team: { name: 'A' } }] }])[0].linhas[0].lugar === 1);
+prova('lixo nao rebenta', lerClassificacao(null).length === 0 && lerClassificacao('nada').length === 0);
+prova('uma tabela sem equipas nao aparece', lerClassificacao([{ standings: [[{ rank: 1 }]] }]).length === 0);
+
+/* ---------------- os confrontos ---------------- */
+
+console.log('\n os confrontos');
+
+const confrontos = lerConfrontos([
+  {
+    fixture: { date: '2024-03-02T20:00:00+00:00' },
+    league: { name: 'Liga Portugal' },
+    teams: { home: { name: 'Porto' }, away: { name: 'Benfica' } },
+    goals: { home: 5, away: 0 }
+  },
+  {
+    fixture: { date: '2026-01-05T20:00:00+00:00' },
+    league: { name: 'Taça' },
+    teams: { home: { name: 'Benfica' }, away: { name: 'Porto' } },
+    goals: { home: 2, away: 1 }
+  },
+  {
+    /* Um jogo por jogar nao e historico, e a agenda. */
+    fixture: { date: '2027-01-05T20:00:00+00:00' },
+    teams: { home: { name: 'Benfica' }, away: { name: 'Porto' } },
+    goals: { home: null, away: null }
+  }
+]);
+
+prova('so entram os que se jogaram', confrontos.length === 2);
+prova('e vem do mais recente para tras', confrontos[0].quando.startsWith('2026'));
+prova('com o resultado', confrontos[0].marcaCasa === 2 && confrontos[0].marcaFora === 1);
+prova('e a competicao', confrontos[1].liga === 'Liga Portugal');
+prova('um zero a zero conta', lerConfrontos([
+  {
+    fixture: { date: '2024-03-02T20:00:00+00:00' },
+    teams: { home: { name: 'A' }, away: { name: 'B' } },
+    goals: { home: 0, away: 0 }
+  }
+]).length === 1);
+prova('lixo nao rebenta', lerConfrontos(null).length === 0 && lerConfrontos({}).length === 0);
 
 /* ---------------- a conta do fim ---------------- */
 

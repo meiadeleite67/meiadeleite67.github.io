@@ -394,7 +394,16 @@ import {
   temChaveDaFeed
 } from './desporto.js';
 import { quemGanhou } from './apostas.js';
-import { CAMINHOS, NAO_EXISTE, lerEstatisticas, lerEventos } from './estatisticas.js';
+import {
+  CAMINHOS,
+  CAMINHOS_CLASSIFICACAO,
+  CAMINHOS_CONFRONTOS,
+  NAO_EXISTE,
+  lerClassificacao,
+  lerConfrontos,
+  lerEstatisticas,
+  lerEventos
+} from './estatisticas.js';
 import {
   CASAS as DESPORTOS_NOVOS,
   aindaServe,
@@ -686,6 +695,100 @@ async function comoVaiOJogo(env, jogo) {
      KV nao ficar a guardar fotografias de jogos do ano passado. */
   await env.QUADRO.put(`desporto:stats:${jogo.id}`, JSON.stringify(novo), {
     expirationTtl: acabou ? 60 * 60 * 24 * 30 : 60 * 60 * 6
+  });
+  return novo;
+}
+
+/**
+ * A classificação de uma liga, ou o histórico entre duas equipas.
+ *
+ * As duas seguem a mesma ideia e por isso partilham a casa: pede-se uma vez,
+ * guarda-se com a chave do que se pediu e não do jogo, e a partir daí serve
+ * todos os jogos que fizerem a mesma pergunta. A classificação da Segunda
+ * Divisão é a mesma para os onze jogos dela nessa jornada, e dois adversários
+ * têm sempre o mesmo histórico: é isto que faz caber num orçamento de cem.
+ *
+ * Só se pede quando alguém abre o separador, e não ao abrir a partida: quem
+ * quer ver como vai o jogo não paga pela tabela que não pediu.
+ */
+async function maisDoJogo(env, jogo, que) {
+  const casa = DESPORTOS_NOVOS[jogo.desporto];
+  const caminhos =
+    que === 'classificacao'
+      ? CAMINHOS_CLASSIFICACAO[jogo.desporto]
+      : CAMINHOS_CONFRONTOS[jogo.desporto];
+
+  /* A chave de quem guarda: a liga e a temporada para a tabela, o par de
+     equipas para o histórico. Nunca o número do jogo. */
+  const marca =
+    que === 'classificacao'
+      ? `liga:${jogo.desporto}:${jogo.chave}:${jogo.temporada || ''}`
+      : `par:${jogo.desporto}:${[jogo.casa, jogo.fora].sort().join('-')}`;
+  const onde = `desporto:${que}:${marca}`;
+
+  const guardado = await ler(env, onde, null);
+  if (guardado) return { ...guardado, daCopia: true };
+
+  if (!casa || !caminhos || jogo.fonte !== 'api-sports' || !temChaveNova(env))
+    return { linhas: [], grupos: [], semFonte: true };
+
+  if ((await jaSeGastou(env)) + caminhos.length > PEDIDOS_DE_FORA_POR_DIA)
+    return { grupos: [], confrontos: [], semOrcamento: true };
+
+  /* O histórico pede-se pelos números das equipas, que a feed não nos dá no
+     jogo: dá os nomes e os emblemas. O caminho dela aceita o par de números,
+     por isso tira-se do endereço do emblema, que é onde ele está. */
+  const numeroDe = (brasao) => {
+    const m = String(brasao || '').match(/\/(\d+)\.png/);
+    return m ? m[1] : '';
+  };
+
+  let procura = {};
+  if (que === 'classificacao') {
+    procura = { league: jogo.chave, season: jogo.temporada };
+  } else {
+    const a = numeroDe(jogo.brasaoCasa);
+    const b = numeroDe(jogo.brasaoFora);
+    if (!a || !b) return { confrontos: [], semFonte: true };
+    /* Sem o "last": o plano gratuito nao lhe da acesso, e a resposta dele e uma
+       recusa seca que deixava o separador vazio. Vem tudo o que houve entre as
+       duas equipas e e o leitor que corta nos dez mais recentes, que e trabalho
+       nosso e nao custa pedido nenhum. */
+    procura = { h2h: `${a}-${b}` };
+  }
+
+  let resposta = null;
+  let ultimoErro = '';
+  for (const caminho of caminhos) {
+    const morto = `desporto:caminho-morto:${jogo.desporto}:${caminho}`;
+    if (await env.QUADRO.get(morto)) continue;
+    const r = await pedirANova(env, casa.casa, caminho, procura);
+    await apontarGasto(env, 1);
+    if (!r.erro) {
+      resposta = r.lista;
+      break;
+    }
+    ultimoErro = r.erro;
+    if (String(r.erro).includes(NAO_EXISTE))
+      await env.QUADRO.put(morto, '1', { expirationTtl: 60 * 60 * 24 * 30 });
+    else break;
+  }
+
+  if (resposta === null) {
+    const ocupado = /too many requests|rate/i.test(String(ultimoErro));
+    return que === 'classificacao'
+      ? { grupos: [], erro: ultimoErro, ocupado }
+      : { confrontos: [], erro: ultimoErro, ocupado };
+  }
+
+  const novo =
+    que === 'classificacao'
+      ? { grupos: lerClassificacao(resposta), quando: new Date().toISOString() }
+      : { confrontos: lerConfrontos(resposta), quando: new Date().toISOString() };
+
+  /* A tabela muda a cada jornada, o histórico não muda quase nunca. */
+  await env.QUADRO.put(onde, JSON.stringify(novo), {
+    expirationTtl: que === 'classificacao' ? 60 * 60 * 6 : 60 * 60 * 24 * 7
   });
   return novo;
 }
@@ -1257,6 +1360,22 @@ export default {
       const jogo = (await todosOsJogos(env)).find((j) => j.id === qual);
       if (!jogo) return responder({ erro: 'Esse jogo já não está à vista.' }, request, 404);
       return responder(await comoVaiOJogo(env, jogo), request);
+    }
+
+    /* A classificacao da liga e o historico entre as duas equipas, cada um
+       no seu separador da pagina da partida. */
+    if (caminho.startsWith('/desporto/classificacao/') && metodo === 'GET') {
+      const qual = texto(caminho.slice(24), 64);
+      const jogo = (await todosOsJogos(env)).find((j) => j.id === qual);
+      if (!jogo) return responder({ erro: 'Esse jogo já não está à vista.' }, request, 404);
+      return responder(await maisDoJogo(env, jogo, 'classificacao'), request);
+    }
+
+    if (caminho.startsWith('/desporto/confrontos/') && metodo === 'GET') {
+      const qual = texto(caminho.slice(21), 64);
+      const jogo = (await todosOsJogos(env)).find((j) => j.id === qual);
+      if (!jogo) return responder({ erro: 'Esse jogo já não está à vista.' }, request, 404);
+      return responder(await maisDoJogo(env, jogo, 'confrontos'), request);
     }
 
     /* Um jogo só, para a página de detalhe. Sai do que já está guardado, por

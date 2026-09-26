@@ -19,6 +19,7 @@ const PAGINAS = [
   'poker',
   'roleta',
   'apostas',
+  'partida',
   'instagram',
   'agenda',
   'admin',

@@ -37,6 +37,9 @@ export const eJogo = (p: Pagina) => JOGOS.some((j) => j.id === p);
 export const TODAS_AS_PAGINAS: Pagina[] = [
   ...PAGINAS.map((p) => p.id),
   ...JOGOS.map((j) => j.id),
+  /* A da partida nao esta no menu porque nao se chega la por passeio: chega-se
+     la de um jogo da lista das apostas, e o endereco leva o numero do jogo. */
+  'partida',
   'admin',
   'termos',
   'privacidade'
