@@ -188,7 +188,9 @@ export const api = {
   /** Um jogo so, para a pagina de detalhe. Sai do que o servidor ja tem
    *  guardado, por isso nao gasta creditos da feed. */
   jogoDeApostas: (id: string) =>
-    pedir<{ jogo: JogoDeApostas }>(`/desporto/jogo/${encodeURIComponent(id)}`),
+    pedir<{ jogo: JogoDeApostas; daoTabela?: boolean; daoConfrontos?: boolean }>(
+      `/desporto/jogo/${encodeURIComponent(id)}`
+    ),
 
   /** Poe um bilhete: uma perna e uma simples, varias sao uma multipla. Daqui
    *  vai so em que jogo e em quem; as cotacoes sao as do servidor. */

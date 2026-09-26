@@ -93,6 +93,8 @@ export type ComoVaiOJogo = {
   semEstatisticas?: boolean;
   /** A feed bateu no travao do minuto: vale a pena tentar outra vez. */
   ocupado?: boolean;
+  /** O plano que temos na API nao chega a isto. Nao muda por se insistir. */
+  semPlano?: boolean;
   erro?: string;
 };
 
@@ -119,6 +121,8 @@ export type AClassificacao = {
   semFonte?: boolean;
   semOrcamento?: boolean;
   ocupado?: boolean;
+  /** O plano que temos na API nao chega a isto. */
+  semPlano?: boolean;
   erro?: string;
 };
 
@@ -138,6 +142,8 @@ export type OsConfrontos = {
   semFonte?: boolean;
   semOrcamento?: boolean;
   ocupado?: boolean;
+  /** O plano que temos na API nao chega a isto. */
+  semPlano?: boolean;
   erro?: string;
 };
 

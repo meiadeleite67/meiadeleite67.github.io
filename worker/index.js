@@ -407,6 +407,7 @@ import {
 import {
   CASAS as DESPORTOS_NOVOS,
   aindaServe,
+  eDoPlano,
   pedir as pedirANova,
   cotacoesDoDia,
   jogosDaFeedNova,
@@ -615,7 +616,12 @@ async function pedirEstatisticas(env, jogo, onde, casa) {
     else break;
   }
 
-  return { lista: null, pedidos, erro: ultimoErro || 'este desporto não dá estatísticas' };
+  /* Sem caminho nenhum vivo, o que se sabe e que este desporto nao tem
+     estatisticas nesta feed, e nao que este jogo nao as tem. Sao coisas
+     diferentes e a pagina tem de as dizer de maneira diferente: uma passa, a
+     outra nao passa nunca. */
+  if (!ultimoErro) return { lista: null, pedidos, semCaminho: true };
+  return { lista: null, pedidos, erro: ultimoErro, semPlano: eDoPlano(ultimoErro) };
 }
 
 /** Onde fica apontado que uma competição não dá estatísticas. */
@@ -658,6 +664,9 @@ async function comoVaiOJogo(env, jogo) {
 
   const st = await pedirEstatisticas(env, jogo, onde, casa);
   await apontarGasto(env, st.pedidos);
+  if (st.semCaminho)
+    return { estatisticas: [], eventos: [], quando: null, semFonte: true };
+
   if (st.erro) {
     /* O travao da feed e de dez pedidos por minuto, e e partilhado com a volta.
        Numa noite de jogos com meia dúzia de pessoas a abrir jogos ao mesmo
@@ -665,8 +674,8 @@ async function comoVaiOJogo(env, jogo) {
        pagina tem de dizer isso e tentar outra vez em vez de mentir. */
     const ocupado = /too many requests|rate/i.test(String(st.erro));
     return guardado
-      ? { ...guardado, daCopia: true, ocupado }
-      : { estatisticas: [], eventos: [], erro: st.erro, ocupado };
+      ? { ...guardado, daCopia: true, ocupado, semPlano: st.semPlano }
+      : { estatisticas: [], eventos: [], erro: st.erro, ocupado, semPlano: st.semPlano };
   }
 
   let eventos = [];
@@ -729,6 +738,17 @@ async function maisDoJogo(env, jogo, que) {
   const guardado = await ler(env, onde, null);
   if (guardado) return { ...guardado, daCopia: true };
 
+  /* O plano gratuito so da algumas epocas, e a recusa dele e a mesma em todas
+     as ligas do desporto: "try from 2022 to 2024". Por isso a marca e por
+     desporto e epoca e nao por liga, que senao pagava-se uma descoberta por
+     cada liga para ouvir vinte vezes o mesmo nao. Uma vez por desporto chega,
+     e dura um mes. */
+  const semPlano = `desporto:sem-plano:${que}:${jogo.desporto}:${jogo.temporada || ''}`;
+  if (await env.QUADRO.get(semPlano))
+    return que === 'classificacao'
+      ? { grupos: [], semPlano: true }
+      : { confrontos: [], semPlano: true };
+
   if (!casa || !caminhos || jogo.fonte !== 'api-sports' || !temChaveNova(env))
     return { linhas: [], grupos: [], semFonte: true };
 
@@ -776,9 +796,11 @@ async function maisDoJogo(env, jogo, que) {
 
   if (resposta === null) {
     const ocupado = /too many requests|rate/i.test(String(ultimoErro));
+    const foiOPlano = eDoPlano(ultimoErro);
+    if (foiOPlano) await env.QUADRO.put(semPlano, '1', { expirationTtl: 60 * 60 * 24 * 30 });
     return que === 'classificacao'
-      ? { grupos: [], erro: ultimoErro, ocupado }
-      : { confrontos: [], erro: ultimoErro, ocupado };
+      ? { grupos: [], erro: ultimoErro, ocupado, semPlano: foiOPlano }
+      : { confrontos: [], erro: ultimoErro, ocupado, semPlano: foiOPlano };
   }
 
   const novo =
@@ -1384,7 +1406,23 @@ export default {
       const qual = texto(caminho.slice(15), 64);
       const jogo = (await todosOsJogos(env)).find((j) => j.id === qual);
       if (!jogo) return responder({ erro: 'Esse jogo já não está aberto a apostas.' }, request, 404);
-      return responder({ jogo }, request);
+
+      /* O que já se sabe que o plano não dá, dito antes de a pessoa lá clicar.
+         Um separador que nunca vai ter nada não é honesto: mais vale não
+         estar. Isto sai do que já está apontado, por isso não custa nada. */
+      const semPlanoDe = async (que) =>
+        !!(await env.QUADRO.get(
+          `desporto:sem-plano:${que}:${jogo.desporto}:${jogo.temporada || ''}`
+        ));
+
+      return responder(
+        {
+          jogo,
+          daoTabela: !(await semPlanoDe('classificacao')),
+          daoConfrontos: !(await semPlanoDe('confrontos'))
+        },
+        request
+      );
     }
 
     /* As apostas de quem prova ser dono do nome. */

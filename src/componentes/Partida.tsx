@@ -33,6 +33,43 @@ const jaComecou = (jogo: { comeca: string }) => Date.parse(jogo.comeca) <= Date.
 const temMarca = (jogo: JogoDeApostas) =>
   typeof jogo.marcaCasa === 'number' && typeof jogo.marcaFora === 'number';
 
+/** Se o jogo vem da fonte que sabe contar: resultado, minuto e fim. A outra
+ *  traz cotações e mais nada, e por isso não se lhe pode perguntar como vai. */
+const daFonteQueConta = (jogo: JogoDeApostas) => jogo.fonte === 'api-sports';
+
+/**
+ * Em que pé está o jogo, e sobretudo: o que é que se sabe mesmo.
+ *
+ * Isto estava a mentir. Qualquer jogo com a hora de começo passada aparecia
+ * como "a decorrer", com o pontinho vermelho a piscar e tudo, mesmo quando
+ * vinha da fonte antiga, que não traz resultado nem minuto nem fim. Um jogo de
+ * basebol acabado há uma hora ficava ali a dizer que estava a dar, sem número
+ * nenhum ao lado, que é a pior das duas hipóteses: nem informa nem cala.
+ *
+ * Agora só se diz "a decorrer" quando há de onde o saber. Da outra fonte
+ * diz-se a hora a que começou, que é a única coisa que se sabe de verdade.
+ */
+type Pe = 'por-comecar' | 'a-decorrer' | 'acabou' | 'sem-noticias';
+
+function emQuePe(jogo: JogoDeApostas): Pe {
+  if (!jaComecou(jogo)) return 'por-comecar';
+  if (jogo.acabou) return 'acabou';
+  /* A fonte nova diz o minuto e o resultado enquanto a bola anda: com isso à
+     vista, está mesmo a decorrer. */
+  if (daFonteQueConta(jogo) && (temMarca(jogo) || typeof jogo.minuto === 'number'))
+    return 'a-decorrer';
+  return 'sem-noticias';
+}
+
+/** Há quanto tempo começou, dito como se diz. */
+function desdeQue(quando: string): string {
+  const minutos = Math.floor((Date.now() - Date.parse(quando)) / 60000);
+  if (minutos < 1) return 'agora mesmo';
+  if (minutos < 60) return `há ${minutos} minutos`;
+  const horas = Math.floor(minutos / 60);
+  return horas === 1 ? 'há uma hora' : `há ${horas} horas`;
+}
+
 /** O número do jogo, tirado do endereço. */
 export function jogoDoEndereco(): string {
   return new URLSearchParams(window.location.search).get('jogo') || '';
@@ -199,6 +236,11 @@ type Aba = 'direto' | 'confrontos' | 'tabela';
 
 export function Partida({ voltar }: { voltar: () => void }) {
   const [jogo, setJogo] = useState<JogoDeApostas | null>(null);
+  /* O que o servidor já sabe que o plano não dá neste desporto. Um separador
+     que nunca vai ter nada lá dentro não se mostra: melhor uma aba a menos do
+     que três cliques até um "não dá". */
+  const [daoTabela, setDaoTabela] = useState(true);
+  const [daoConfrontos, setDaoConfrontos] = useState(true);
   const [aCarregar, setACarregar] = useState(true);
   const [queixa, setQueixa] = useState('');
   const [aba, setAba] = useState<Aba>('direto');
@@ -217,6 +259,8 @@ export function Partida({ voltar }: { voltar: () => void }) {
       .then((r) => {
         if (!vivo) return;
         setJogo(r.jogo);
+        setDaoTabela(r.daoTabela !== false);
+        setDaoConfrontos(r.daoConfrontos !== false);
         setACarregar(false);
       })
       .catch((e) => {
@@ -271,7 +315,7 @@ export function Partida({ voltar }: { voltar: () => void }) {
     );
 
   const fatias = probabilidades(jogo);
-  const comecou = jaComecou(jogo);
+  const pe = emQuePe(jogo);
 
   return (
     <section className="secao par">
@@ -299,17 +343,21 @@ export function Partida({ voltar }: { voltar: () => void }) {
                   {jogo.marcaCasa} <span>-</span> {jogo.marcaFora}
                 </b>
                 <small>
-                  {jogo.acabou
-                    ? 'terminado'
-                    : jogo.minuto
-                      ? `${jogo.minuto} minutos`
-                      : 'a decorrer'}
+                  {pe === 'acabou' ? 'terminado' : jogo.minuto ? `${jogo.minuto} minutos` : 'a decorrer'}
                 </small>
               </>
             ) : (
               <>
                 <b className="par-vs">vs</b>
-                <small>{comecou ? 'a decorrer' : aQueHoras(jogo.comeca)}</small>
+                <small>
+                  {pe === 'por-comecar'
+                    ? aQueHoras(jogo.comeca)
+                    : pe === 'acabou'
+                      ? 'terminado'
+                      : pe === 'a-decorrer'
+                        ? 'a decorrer'
+                        : `começou ${desdeQue(jogo.comeca)}`}
+                </small>
               </>
             )}
           </div>
@@ -351,9 +399,9 @@ export function Partida({ voltar }: { voltar: () => void }) {
       <nav className="par-abas" role="tablist">
         {(
           [
-            ['direto', comecou ? 'Em direto' : 'O jogo'],
-            ['confrontos', 'Confrontos'],
-            ['tabela', 'Classificação']
+            ['direto', pe === 'a-decorrer' ? 'Em direto' : 'O jogo'],
+            ...(daoConfrontos ? ([['confrontos', 'Confrontos']] as [Aba, string][]) : []),
+            ...(daoTabela ? ([['tabela', 'Classificação']] as [Aba, string][]) : [])
           ] as [Aba, string][]
         ).map(([qual, nome]) => (
           <button
@@ -364,16 +412,18 @@ export function Partida({ voltar }: { voltar: () => void }) {
             className={aba === qual ? 'ativa' : ''}
             onClick={() => setAba(qual)}
           >
-            {qual === 'direto' && comecou && !jogo.acabou ? <i className="par-ponto" /> : null}
+            {qual === 'direto' && pe === 'a-decorrer' ? <i className="par-ponto" /> : null}
             {nome}
           </button>
         ))}
       </nav>
 
       <div className="par-corpo" role="tabpanel">
-        {aba === 'direto' && <EmDireto jogo={jogo} />}
-        {aba === 'confrontos' && <Confrontos jogo={jogo} />}
-        {aba === 'tabela' && <Tabela jogo={jogo} />}
+        {(aba === 'direto' ||
+          (aba === 'confrontos' && !daoConfrontos) ||
+          (aba === 'tabela' && !daoTabela)) && <EmDireto jogo={jogo} />}
+        {aba === 'confrontos' && daoConfrontos && <Confrontos jogo={jogo} />}
+        {aba === 'tabela' && daoTabela && <Tabela jogo={jogo} />}
       </div>
     </section>
   );
@@ -386,6 +436,17 @@ function EmDireto({ jogo }: { jogo: JogoDeApostas }) {
   const [aCarregar, setACarregar] = useState(true);
 
   useEffect(() => {
+    /* A fonte antiga traz cotações e mais nada: não sabe o resultado, não sabe
+       o minuto e não conhece este jogo por um número que a outra entenda.
+       Perguntar-lhe como vai o jogo é gastar uma viagem para ouvir um não, e
+       era isso que punha "não se chegou ao servidor" no ecrã, que além de
+       inútil era falso: chegou-se muito bem. */
+    if (!daFonteQueConta(jogo)) {
+      setDados(null);
+      setACarregar(false);
+      return;
+    }
+
     let vivo = true;
     let relogio = 0;
     setACarregar(true);
@@ -424,6 +485,14 @@ function EmDireto({ jogo }: { jogo: JogoDeApostas }) {
       </p>
     );
 
+  if (!daFonteQueConta(jogo))
+    return (
+      <p className="notas par-nada">
+        Este jogo veio da fonte que só dá cotações. Dela não vem resultado, nem minuto, nem
+        estatísticas: o que está aqui em cima é tudo o que se sabe dele.
+      </p>
+    );
+
   if (aCarregar) return <p className="notas par-nada">A ver como vai o jogo...</p>;
   if (!dados) return <p className="notas par-nada">Não se chegou ao servidor.</p>;
 
@@ -437,13 +506,15 @@ function EmDireto({ jogo }: { jogo: JogoDeApostas }) {
           ? 'Muita gente a ver jogos ao mesmo tempo. Volta a abrir daqui a pouco.'
           : dados.semOrcamento
             ? 'Hoje já não dá para ir buscar estatísticas novas. Voltam amanhã.'
-            : dados.semFonte
-              ? 'Este desporto não dá estatísticas, e não há volta a dar-lhe.'
-              : dados.semEstatisticas
-                ? 'Esta competição não dá estatísticas. As grandes ligas dão, as pequenas quase nunca.'
-                : (jogo.minuto || 0) > 0 && (jogo.minuto || 0) < 15
-                  ? 'O jogo começou agora. As estatísticas aparecem quando houver alguma coisa para contar.'
-                  : 'Ainda não há estatísticas deste jogo.'}
+            : dados.semPlano
+              ? 'O plano que temos na API não chega a estas estatísticas. É uma conta gratuita, e ela não dá tudo em todos os desportos.'
+              : dados.semFonte
+                ? 'Este desporto não dá estatísticas nesta fonte, e não há volta a dar-lhe.'
+                : dados.semEstatisticas
+                  ? 'Esta competição não dá estatísticas. As grandes ligas dão, as pequenas quase nunca.'
+                  : (jogo.minuto || 0) > 0 && (jogo.minuto || 0) < 15
+                    ? 'O jogo começou agora. As estatísticas aparecem quando houver alguma coisa para contar.'
+                    : 'Ainda não há estatísticas deste jogo.'}
       </p>
     );
 
@@ -543,19 +614,31 @@ function Confrontos({ jogo }: { jogo: JogoDeApostas }) {
 
   useEffect(() => {
     let vivo = true;
+    let relogio = 0;
     setACarregar(true);
-    api
-      .confrontosDoJogo(jogo.id)
-      .then((r) => {
-        if (!vivo) return;
-        setDados(r);
-        setACarregar(false);
-      })
-      .catch(() => {
-        if (vivo) setACarregar(false);
-      });
+
+    /* O travão da feed é por minuto e é partilhado com a volta. Vale o mesmo
+       que no separador do jogo: espera-se e tenta-se uma vez, e não mais. */
+    const ir = (aindaPodeTentar: boolean) =>
+      api
+        .confrontosDoJogo(jogo.id)
+        .then((r) => {
+          if (!vivo) return;
+          if (r.ocupado && aindaPodeTentar && (r.confrontos || []).length === 0) {
+            relogio = window.setTimeout(() => ir(false), 7000);
+            return;
+          }
+          setDados(r);
+          setACarregar(false);
+        })
+        .catch(() => {
+          if (vivo) setACarregar(false);
+        });
+
+    ir(true);
     return () => {
       vivo = false;
+      window.clearTimeout(relogio);
     };
   }, [jogo.id]);
 
@@ -569,9 +652,11 @@ function Confrontos({ jogo }: { jogo: JogoDeApostas }) {
           ? 'Muita gente a ver jogos ao mesmo tempo. Volta a abrir daqui a pouco.'
           : dados?.semOrcamento
             ? 'Hoje já não dá para ir buscar isto. Volta amanhã.'
-            : dados?.semFonte
-              ? 'Este jogo não tem histórico nesta fonte.'
-              : 'Estas duas equipas não têm histórico à vista. Pode ser que nunca se tenham encontrado.'}
+            : dados?.semPlano
+              ? 'O plano que temos na API não chega ao histórico deste desporto nesta época.'
+              : dados?.semFonte
+                ? 'Este jogo não tem histórico nesta fonte.'
+                : 'Estas duas equipas não têm histórico à vista. Pode ser que nunca se tenham encontrado.'}
       </p>
     );
 
@@ -642,19 +727,29 @@ function Tabela({ jogo }: { jogo: JogoDeApostas }) {
 
   useEffect(() => {
     let vivo = true;
+    let relogio = 0;
     setACarregar(true);
-    api
-      .classificacaoDoJogo(jogo.id)
-      .then((r) => {
-        if (!vivo) return;
-        setDados(r);
-        setACarregar(false);
-      })
-      .catch(() => {
-        if (vivo) setACarregar(false);
-      });
+
+    const ir = (aindaPodeTentar: boolean) =>
+      api
+        .classificacaoDoJogo(jogo.id)
+        .then((r) => {
+          if (!vivo) return;
+          if (r.ocupado && aindaPodeTentar && (r.grupos || []).length === 0) {
+            relogio = window.setTimeout(() => ir(false), 7000);
+            return;
+          }
+          setDados(r);
+          setACarregar(false);
+        })
+        .catch(() => {
+          if (vivo) setACarregar(false);
+        });
+
+    ir(true);
     return () => {
       vivo = false;
+      window.clearTimeout(relogio);
     };
   }, [jogo.id]);
 
@@ -668,7 +763,9 @@ function Tabela({ jogo }: { jogo: JogoDeApostas }) {
           ? 'Muita gente a ver jogos ao mesmo tempo. Volta a abrir daqui a pouco.'
           : dados?.semOrcamento
             ? 'Hoje já não dá para ir buscar isto. Volta amanhã.'
-            : 'Esta competição não dá classificação. Uma taça a eliminar não tem tabela, e as competições pequenas muitas vezes também não.'}
+            : dados?.semPlano
+              ? 'O plano que temos na API só dá as épocas antigas deste desporto, e a tabela que interessa é a desta. É uma conta gratuita e isto é o que ela dá.'
+              : 'Esta competição não dá classificação. Uma taça a eliminar não tem tabela, e as competições pequenas muitas vezes também não.'}
       </p>
     );
 

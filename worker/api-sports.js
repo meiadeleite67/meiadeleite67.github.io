@@ -201,6 +201,11 @@ const soNumero = (n) => (Number.isFinite(+n) ? +n : null);
 /** Se a recusa foi do travão do minuto e não de outra coisa qualquer. */
 export const eDoTravao = (erro) => /too many requests|ratelimit/i.test(String(erro || ''));
 
+/** Se a recusa foi do plano e não do momento. O plano gratuito não dá tudo em
+ *  todos os desportos: há janelas de dias e há épocas fora de alcance, e cada
+ *  desporto tem as suas. Uma recusa destas não muda por se esperar. */
+export const eDoPlano = (erro) => /"plan"|free plans?/i.test(String(erro || ''));
+
 /**
  * Um jogo, na forma que o resto da casa já conhece.
  *
@@ -354,6 +359,12 @@ export async function jogosDaFeedNova(env, desporto, dias = SO_ATE_DIAS) {
          Antes devolvia-se aqui a lista em bruto, e por isso um jogo adiado
          chegou a aparecer na pagina: o filtro estava depois deste return. */
       falhou = r.erro;
+      /* Se o plano nao da aquele dia, os outros dias podem estar bons e
+         seguem-se. O MMA perdeu-se inteiro por causa disto: a janela dele sao
+         tres dias a contar de ontem, pedia-se ate depois de amanha, e o dia de
+         fora matava os dois que estavam dentro. Uma recusa do travao do minuto
+         e outra coisa: ai insistir nos dias seguintes so gasta a conta. */
+      if (eDoPlano(r.erro)) continue;
       break;
     }
     r.lista.forEach((cru) => {
