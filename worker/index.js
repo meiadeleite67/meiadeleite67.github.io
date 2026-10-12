@@ -42,6 +42,7 @@
  */
 
 import { Banco } from './banco.js';
+import { PAGINA_API } from './pagina-api.js';
 import { assinarVisita, verificarDesafio, visitaValida, limitarCorpo } from './seguranca.js';
 import { MesaDePoker } from './mesa-de-poker.js';
 const CASAS = [
@@ -1020,7 +1021,18 @@ export default {
 
     /* ---- quadro de honra ---- */
 
-    if ((caminho === '/quadro' || caminho === '/') && metodo === 'GET')
+    if (caminho === '/' && ['GET', 'HEAD'].includes(metodo)) {
+      return new Response(metodo === 'HEAD' ? null : PAGINA_API, {
+        headers: {
+          ...cabecalhos(request),
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'public, max-age=3600',
+          'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+          'X-Robots-Tag': 'noindex, nofollow'
+        }
+      });
+    }
+    if (caminho === '/quadro' && metodo === 'GET')
       return responder(await doBanco(env, '/todos'), request);
 
     /* A porta de entrada: o nome e o PIN.
