@@ -969,7 +969,7 @@ export default {
       return responder(await assinarVisita(request, env), request);
     }
     const socket = request.headers.get('Upgrade')?.toLowerCase() === 'websocket';
-    if (altera || socket || caminho.startsWith('/apostas')) {
+    if (altera || socket || caminho.startsWith('/apostas') || caminho.startsWith('/desporto')) {
       const token = socket ? url.searchParams.get('visita') : request.headers.get('X-MDL-Visita');
       if (!origem || !(await visitaValida(request, env, token))) return responder({ erro: 'Confirma a verificação de segurança.', codigo: 'SEGURANCA' }, request, 403);
       if (caminho === '/quadro/entrar' || caminho === '/admin/entrar') {
@@ -984,7 +984,7 @@ export default {
     }
 
     // Recusa rajadas antes de ler o KV, confirmar passes ou chamar o Banco.
-    const jogo = /^\/(mesa|quadro|roleta|poker|apostas)(\/|$)/.test(caminho);
+    const jogo = /^\/(mesa|quadro|roleta|poker|apostas|desporto)(\/|$)/.test(caminho);
     if (jogo) {
       const ip = request.headers.get('CF-Connecting-IP') || 'local';
       const { success } = await env.PEDIDOS_JOGOS.limit({ key: ip });
@@ -1211,13 +1211,8 @@ export default {
       }
       const nome = texto(veio?.nome, 24);
       const feito = await aoBanco(env, '/emprestimo', { nome, passe: texto(veio?.passe, 40) });
-      if (feito.erro) return responder({ erro: feito.erro }, request, feito.estado || 400);
-      const mesa = await ler(env, `mesa:${nome}`, null);
-      return responder(
-        { linha: feito.linha, mesa: sentada.mesa,
-          esperarAte: sentada.esperarAte },
-        request
-      );
+      if (feito.erro) return responder(feito, request, feito.estado || 400);
+      return responder(feito, request);
     }
 
     /* O recorde de um jogo de um so jogador. Vem do browser e nao ha como o

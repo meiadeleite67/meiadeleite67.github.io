@@ -15,7 +15,8 @@ async function pedir(rota, corpo, token = visita) {
   });
   return { estado: r.status, corpo: await r.json(), retry: r.headers.get('Retry-After') };
 }
-for (const rota of ['/quadro/entrar', '/mesa/apostar', '/roleta', '/quadro/recorde', '/admin/entrar', '/tickets']) assert.equal((await pedir(rota, {}, '')).estado, 403);
+for (const rota of ['/quadro/entrar', '/mesa/apostar', '/roleta', '/quadro/recorde', '/quadro/emprestimo', '/admin/entrar', '/tickets']) assert.equal((await pedir(rota, {}, '')).estado, 403);
+for (const rota of ['/desporto', '/desporto/stats/prova', '/desporto/classificacao/prova', '/desporto/confrontos/prova']) assert.equal((await pedir(rota, undefined, '')).estado, 403);
 const nome = 'Ritmo' + Date.now().toString(36);
 const entrada = await pedir('/quadro/entrar', { nome, pin: '7777' });
 assert.equal(entrada.estado, 200);

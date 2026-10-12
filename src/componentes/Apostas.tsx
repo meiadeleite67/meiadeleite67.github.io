@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, temServidor } from '../lib/api';
+import { PedirTorroes } from './PedirTorroes';
 import { passeDe } from '../lib/nick';
 import { comEsta, guardarBoletim, lerBoletim } from '../lib/boletim';
 import { enderecoDaPartida, guardarJogoDeUmaAposta } from './Partida';
@@ -333,6 +334,8 @@ export function Apostas({
           </p>
         )}
       </header>
+
+      <PedirTorroes nome={nome} saldo={linha ? saldo : null} aoReceber={(nova) => { setLinha(nova); recarregar(); }} />
 
       {aCarregar && <p className="notas">A ver o que há hoje...</p>}
 

@@ -112,7 +112,7 @@ const TABELAS: Tabela[] = [
   }
 ];
 
-export function Quadro({ estado }: { estado: Estado }) {
+export function Quadro({ estado, aoVerPerfil }: { estado: Estado; aoVerPerfil: (nome: string) => void }) {
   const [qual, setQual] = useState(TABELAS[0].id);
   const [pagina, setPagina] = useState(0);
   const eu = nomeGuardado();
@@ -190,7 +190,7 @@ export function Quadro({ estado }: { estado: Estado }) {
                 >
                   <td>{primeiro + i + 1}</td>
                   <td>
-                    {r.nome}
+                    <a href={`/perfil/?nome=${encodeURIComponent(r.nome)}`} className="como-link" onClick={e => { if (!e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && e.button === 0) { e.preventDefault(); aoVerPerfil(r.nome); } }}>{r.nome}</a>
                     {r.nome === eu ? ' (tu)' : ''}
                   </td>
                   {tabela.colunas.map((c) => (

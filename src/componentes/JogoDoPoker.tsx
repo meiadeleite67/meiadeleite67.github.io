@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MesaEm3D, useSegundos } from './MesaDePoker';
+import { PedirTorroes } from './PedirTorroes';
 import { api, fotoDoMembro, quantosNasMesas, temServidor } from '../lib/api';
 import { passeDe } from '../lib/nick';
 import { restam, useMesaViva } from '../lib/poker';
@@ -46,6 +47,7 @@ export function JogoDoPoker({
   const [subida, setSubida] = useState(0);
   /** Os torrões que estão na carteira, fora da mesa. */
   const [carteira, setCarteira] = useState<number | null>(null);
+  const pedirTorroes = <PedirTorroes nome={nome} saldo={carteira} aoReceber={(linha) => { setCarteira(linha.torroes); recarregar(); }} />;
   const [compra, setCompra] = useState(COMPRAS[1]);
 
   /* As mesas são os primeiros cinco membros, por ordem, e cada um dá as cartas
@@ -164,6 +166,8 @@ export function JogoDoPoker({
       <section className="pk">
         <p className="eyebrow">Texas Hold'em a torrões</p>
         <h1>Escolhe uma mesa</h1>
+        {carteira !== null && <p className="notas">Tens <b>{carteira}</b> torrões na carteira.</p>}
+        {pedirTorroes}
         <p className="lead">
           Cinco lugares por mesa, e a mão começa assim que houver dois. Cada mesa tem o seu croupier,
           e as fichas são torrões a sério, comprados à tua carteira. O que sobrar volta para lá
@@ -252,6 +256,7 @@ export function JogoDoPoker({
         )}
         <span className={`pk-luz ${ligacao}`} aria-label={`Ligação: ${ligacao}`} />
       </header>
+      {pedirTorroes}
 
       {viva ? (
         <MesaEm3D

@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "tipos": "tsc --noEmit",
     "provas-seguranca": "node scripts/testes-seguranca.mjs && node scripts/testes-ritmo.mjs",
+    "provas-trofeus": "node --experimental-strip-types scripts/testes-trofeus.mjs",
     "provas": "node scripts/testes-poker.mjs && node scripts/testes-roleta.mjs && node scripts/testes-apostas.mjs && node scripts/testes-tickets.mjs && node scripts/testes-estatisticas.mjs",
     "provas-ao-vivo": "node scripts/testes-pin.mjs && node scripts/testes-banco.mjs && node scripts/testes-mesa.mjs && node scripts/testes-lugares.mjs && node scripts/testes-desporto.mjs",
     "admin": "node scripts/admin.mjs"

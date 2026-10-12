@@ -556,7 +556,8 @@ export class Banco extends DurableObject {
     const travao = await this.ritmo(nome, 'emprestimo');
     if (travao) return travao;
     linha.torroes += EMPRESTIMO;
-    return { linha: semSegredos(await this.pousar(nome, linha)) };
+    await this.pousar(nome, linha);
+    return this.blackjack({ nome, passe: veio.passe, operacao: 'ver' });
   }
 
   /**
@@ -772,7 +773,7 @@ export class Banco extends DurableObject {
     if (achado.erro) return achado;
     const linha = achado.linha;
     let mesa = await this.lerMesa(nome);
-    if (veio.operacao === 'ver') return { linha: semSegredos(linha), mesa: mesa ? vista(mesa, linha.torroes) : null, esperarAte: this.ritmos[nome]?.['proxima:rodada'] || 0 };
+    if (veio.operacao === 'ver') return { linha: semSegredos(linha), mesa: mesa ? vista(mesa, linha.torroes) : null, esperarAte: mesa?.fase === 'jogo' ? Math.max(this.ritmos[nome]?.['proxima:acao'] || 0, this.ritmos[nome]?.cartasEm || 0) : this.ritmos[nome]?.['proxima:rodada'] || 0 };
     const travao = await this.ritmo(nome, veio.operacao === 'apostar' ? 'rodada' : 'acao');
     if (travao) return travao;
     if (veio.operacao === 'apostar') {

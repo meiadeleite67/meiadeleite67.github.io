@@ -153,6 +153,30 @@ Correm todos dentro do browser e o servidor não tem como saber se alguém fez m
 pagá-los reabria o buraco que se fechou no blackjack. Entram no quadro com o recorde, e o quadro
 diz de onde é que esse número vem.
 
+### Perfis e troféus
+
+Em `/perfil/?nome=<nickname>` vê-se a carteira, o saldo máximo, as estatísticas
+de cada jogo e 42 marcos com progresso. Os perfis abrem pelo menu de jogos e
+pelo nickname na Leader Board. Os troféus são calculados a partir das contas
+que o servidor já guarda: os marcos anteriores contam logo e perder saldo não
+retira os troféus do máximo atingido. São visuais e não pagam torrões.
+
+O pedido de 100 torrões está disponível no blackjack, na roleta, no poker e
+nas apostas desportivas, quando a carteira tem menos de cinco torrões. O Banco
+confirma sempre esse saldo. O browser consulta-o antes de pedir, para não
+mostrar zero quando outra aba ou uma resposta perdida já tiver creditado o
+empréstimo. Os jogos sem carteira não precisam de empréstimos para jogar.
+
+As regras dos troféus provam-se com `npm run provas-trofeus`. A regressão do
+empréstimo está em `scripts/testes-emprestimo.mjs`: usa apenas um Worker local
+na porta 8792, com a assinatura `segredo-local-testes` e duas contas no KV
+inicial `quadro`, `CreditoTeste` e `CreditoConcorrente`, com `torroes: 0` e
+`maos: 8`. Arrancar com uma pasta de persistência nova antes de cada prova.
+
+Na Cloudflare, **Always Use HTTPS** está ligado. A regra **MEIadeLEIte - www
+para o site principal** redireciona o `www` para `https://meiadeleite.pt`,
+mantendo o caminho e os parâmetros. Estas definições vivem no painel do domínio.
+
 ### A Leader Board
 
 Está em [meiadeleite.pt/quadro](https://meiadeleite.pt/quadro), a primeira da lista dos Jogos, e é

@@ -8,6 +8,7 @@ import { Roleta } from './componentes/Roleta';
 import { Apostas } from './componentes/Apostas';
 import { Partida } from './componentes/Partida';
 import { Quadro } from './componentes/Quadro';
+import { Perfil } from './componentes/Perfil';
 import { Mural } from './componentes/Mural';
 import { Agenda } from './componentes/Agenda';
 import { Admin } from './componentes/Admin';
@@ -41,6 +42,7 @@ const enderecoDe = (p: Pagina, procura = '') =>
 
 export default function App() {
   const [pagina, setPagina] = useState<Pagina>(paginaDoEndereco);
+  const [parametros, setParametros] = useState(() => window.location.search);
   const [estado, setEstado] = useState<Estado>(VAZIO);
   const [menuAberto, setMenuAberto] = useState(false);
   const [semRede, setSemRede] = useState(() => navigator.onLine === false);
@@ -115,6 +117,7 @@ export default function App() {
       entornar(() => {
         setPagina(p);
         window.history.pushState({}, '', enderecoDe(p, procura));
+        setParametros(window.location.search);
         window.scrollTo(0, 0);
       });
     },
@@ -180,6 +183,7 @@ export default function App() {
   useEffect(() => {
     const aoMudar = () => {
       const nova = paginaDoEndereco();
+      setParametros(window.location.search);
       if (nova !== pagina) entornar(() => setPagina(nova));
     };
     window.addEventListener('popstate', aoMudar);
@@ -321,7 +325,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="troca" key={pagina}>
+      <main className="troca" key={`${pagina}:${parametros}`}>
         {/* Quem disse que ainda não tem 18 encontra as mesas de apostas
             fechadas. O resto da casa fica como estava. */}
         {pagina === 'inicio' && <Inicio estado={estado} irPara={irPara} />}
@@ -349,7 +353,8 @@ export default function App() {
         {!mesaFechada && pagina === 'apostas' && (
           <Apostas nome={nome} pedirNome={() => setAPedirNome(true)} recarregar={recarregar} />
         )}
-        {pagina === 'quadro' && <Quadro estado={estado} />}
+        {pagina === 'quadro' && <Quadro estado={estado} aoVerPerfil={(quem) => irPara('perfil', `nome=${encodeURIComponent(quem)}`)} />}
+        {pagina === 'perfil' && <Perfil estado={estado} nome={nome} jogador={new URLSearchParams(parametros).get('nome') || ''} irPara={irPara} recarregar={recarregar} />}
         {pagina === 'instagram' && <Mural estado={estado} />}
         {pagina === 'agenda' && <Agenda estado={estado} />}
         {pagina === 'admin' && <Admin estado={estado} recarregar={recarregar} />}

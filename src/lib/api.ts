@@ -81,7 +81,7 @@ async function pedir<T>(rota: string, opcoes?: RequestInit, repetido = false): P
   const cabecalhos = new Headers(opcoes?.headers);
   if (opcoes?.body && !cabecalhos.has('Content-Type')) cabecalhos.set('Content-Type', 'application/json');
   if (chave) cabecalhos.set('Authorization', `Bearer ${chave}`);
-  if (!['GET', 'HEAD'].includes(opcoes?.method || 'GET') || rota.startsWith('/apostas')) cabecalhos.set('X-MDL-Visita', await confirmarVisita(base, sitekey));
+  if (!['GET', 'HEAD'].includes(opcoes?.method || 'GET') || rota.startsWith('/apostas') || rota.startsWith('/desporto')) cabecalhos.set('X-MDL-Visita', await confirmarVisita(base, sitekey));
 
   let r: Response;
   try { r = await fetch(base + rota, { ...opcoes, headers: cabecalhos }); }
@@ -174,7 +174,16 @@ export const api = {
     naMesa('/mesa/apostar', { nome, passe, aposta }),
   jogar: (nome: string, passe: string, acao: string, passo: number) =>
     naMesa('/mesa/jogar', { nome, passe, acao, passo }),
-  emprestimo: (nome: string, passe: string) => naMesa('/quadro/emprestimo', { nome, passe }),
+  async emprestimo(nome: string, passe: string) {
+    // Confirma o saldo: outra aba ou uma resposta perdida podem já ter creditado o pedido.
+    const atual = await naMesa('/mesa', { nome, passe });
+    if (atual.linha.torroes >= 5) return atual;
+    try { return await naMesa('/quadro/emprestimo', { nome, passe }); }
+    catch (e) {
+      if (e instanceof Error && e.message === 'Ainda tens torrões.') return naMesa('/mesa', { nome, passe });
+      throw e;
+    }
+  },
 
   /* ---- a roleta ----
      As fichas saem da carteira e o numero sai la, tudo no mesmo pedido: o site

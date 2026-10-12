@@ -436,6 +436,7 @@ export type Estado = {
 };
 
 export type Pagina =
+  | 'perfil'
   | 'inicio'
   /** A pagina de um jogo de apostas, que se abre com ?jogo=<numero>. */
   | 'partida'

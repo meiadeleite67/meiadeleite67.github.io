@@ -11,6 +11,7 @@ export const PAGINAS: { id: Pagina; nome: string }[] = [
  *  Leader Board vai à frente deles: é o que se quer ver primeiro. */
 export const JOGOS: { id: Pagina; nome: string; nota: string }[] = [
   { id: 'quadro', nome: 'Leader Board', nota: 'Quem manda no balcão, jogo a jogo' },
+  { id: 'perfil', nome: 'Perfis e troféus', nota: 'Os números e as conquistas de cada jogador' },
   { id: 'blackjack', nome: 'Blackjack', nota: 'Cartas a torrões de açúcar' },
   { id: 'poker', nome: 'Poker', nota: 'Cinco lugares e um de nós a dar as cartas' },
   { id: 'roleta', nome: 'Roleta', nota: 'Trinta e sete casas e um zero só' },

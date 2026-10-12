@@ -72,16 +72,20 @@ export function Blackjack({
     }));
   }
 
-  async function aoServidor(trabalho: () => Promise<RespostaDaMesa>, consultar = false) {
+  async function aoServidor(trabalho: () => Promise<RespostaDaMesa>, consultar = false, soSaldo = false) {
     if (ocupado.current || (!consultar && esperarAte > Date.now())) return;
     ocupado.current = true;
     setAEsperar(true);
     setRecado('');
     try {
-      mostrar(await trabalho());
+      const r = await trabalho();
+      if (soSaldo) setMesa(m => ({ ...m, saldo: r.linha.torroes, pico: r.linha.pico }));
+      else mostrar(r);
       // O quadro geral atualiza-se no seu ritmo, sem um pedido por carta.
     } catch (e) {
       setRecado(e instanceof Error ? e.message : 'O servidor nao respondeu como devia.');
+      // Um empréstimo pode ter sido creditado mesmo que a resposta se perca.
+      try { mostrar(await api.sentar(nome, passeDe(nome))); } catch { /* mantém o último estado conhecido */ }
     } finally {
       ocupado.current = false;
       setAEsperar(false);
@@ -108,7 +112,7 @@ export function Blackjack({
     aoServidor(() => api.jogar(nome.trim(), passeDe(nome.trim()), acao, passo));
 
   const pedirEmprestado = () =>
-    aoServidor(() => api.emprestimo(nome.trim(), passeDe(nome.trim())));
+    aoServidor(() => api.emprestimo(nome.trim(), passeDe(nome.trim())), false, true);
 
   /** Limpar a mesa para a proxima aposta. So muda o que se ve: a mao anterior
    *  ja esta fechada e paga do lado de la. */
