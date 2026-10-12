@@ -195,7 +195,9 @@ async function comOJogador(request, env, trabalho) {
   const nome = texto(veio?.nome, 24);
   const passe = texto(veio?.passe, 40);
 
-  const visto = await aoBanco(env, '/ver', { nome, passe });
+  const rota = new URL(request.url).pathname.replace(/^\/api\b/, '').replace(/\/+$/, '');
+  const ritmo = rota === '/mesa/apostar' ? 'blackjack' : rota === '/mesa/jogar' ? 'carta' : undefined;
+  const visto = await aoBanco(env, '/ver', { nome, passe, ritmo });
   if (visto.erro) return responder({ erro: visto.erro }, request, visto.estado || 400);
 
   const linha = { ...visto.linha };
@@ -998,6 +1000,18 @@ export default {
     const caminho = url.pathname.replace(/^\/api/, '').replace(/\/+$/, '') || '/';
     const metodo = request.method;
 
+    // Recusa rajadas antes de ler o KV, confirmar passes ou chamar o Banco.
+    const jogo = /^\/(mesa|quadro|roleta|poker|apostas)(\/|$)/.test(caminho);
+    if (jogo) {
+      const ip = request.headers.get('CF-Connecting-IP') || 'local';
+      const { success } = await env.PEDIDOS_JOGOS.limit({ key: ip });
+      if (!success) {
+        const resposta = responder({ erro: 'Demasiados pedidos. Espera um minuto antes de voltar a tentar.' }, request, 429);
+        resposta.headers.set('Retry-After', '60');
+        return resposta;
+      }
+    }
+
     /* Tudo o que o site precisa de saber, num pedido so.
 
        Antes eram quatro pedidos de cinco em cinco segundos por cada separador
@@ -1274,7 +1288,7 @@ export default {
       const nome = texto(veio?.nome, 24);
       const passe = texto(veio?.passe, 40);
 
-      const visto = await aoBanco(env, '/ver', { nome, passe });
+      const visto = await aoBanco(env, '/ver', { nome, passe, ritmo: 'roleta' });
       if (visto.erro) return responder({ erro: visto.erro }, request, visto.estado || 400);
 
       const postas = limparApostas(veio?.apostas, visto.linha.torroes);

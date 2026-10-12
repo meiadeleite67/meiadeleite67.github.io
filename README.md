@@ -204,7 +204,30 @@ sai da mesa, e quem está oito minutos sentado sem fazer nada também; a segunda
 passar já só dá dez segundos em vez de trinta, para a mesa não ficar meio minuto parada de cada
 vez. Quem está a ver sem jogar tem um botão para dizer que ainda ali está.
 
-### As provas
+### Limites dos jogos
+
+O servidor impõe 5,6 segundos entre rodadas de roleta, 3 segundos entre novas
+mãos de blackjack e meio segundo entre ações de blackjack. Os intervalos são
+por nome autenticado e ficam no Banco, mesmo mudando de aparelho ou reiniciando
+o servidor. Saltar as animações no browser não permite saltar estes intervalos.
+
+Há também um limite de 240 pedidos por minuto e por IP nas rotas dos jogos,
+recusado antes de consultar o KV ou o Banco. Este limite da Cloudflare é por
+localização e aproximado; vários jogadores no mesmo Wi-Fi partilham-no.
+Uma recusa devolve HTTP 429. Os pedidos recusados ainda chegam ao Worker:
+esta proteção reduz o trabalho interno, não elimina a contagem desses pedidos.
+
+Para testar os limites, arranca uma instância local isolada:
+
+```bash
+npx wrangler dev --config worker/wrangler.toml --local --port 8791 --persist-to .wrangler/anti-bot-test
+node scripts/testes-ritmo.mjs
+```
+
+O teste esgota de propósito o limite local por IP. Estas alterações precisam
+de publicação do Worker com `npx wrangler deploy --config worker/wrangler.toml`.
+
+### As provas dos jogos
 
 As regras do Hold'em estão em [`worker/poker.js`](worker/poker.js), sem saberem nada de rede, e
 provam-se sozinhas:

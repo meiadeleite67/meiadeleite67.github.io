@@ -143,6 +143,7 @@ export class Banco extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
     ctx.blockConcurrencyWhile(async () => {
+      this.ritmos = (await ctx.storage.get('ritmos')) || {};
       this.nomes = await ctx.storage.get('nomes');
       if (!this.nomes) {
         /* Primeira vez: traz o quadro de onde ele vivia. O que está no
@@ -709,6 +710,21 @@ export class Banco extends DurableObject {
   /** A linha de quem prova ser dono do nome, sem lhe mexer. */
   async ver(veio) {
     const achado = await this.daPessoa(texto(veio.nome, 24), veio.passe);
-    return achado.erro ? achado : { linha: semSegredos(achado.linha) };
+    if (achado.erro) return achado;
+    const intervalo = { roleta: 5600, blackjack: 3000, carta: 500 }[veio.ritmo];
+    if (intervalo) {
+      const nome = achado.linha.nome;
+      const agora = Date.now();
+      const tempos = this.ritmos[nome] || {};
+      const falta = (tempos[veio.ritmo] || 0) - agora;
+      if (falta > 0) return {
+        erro: `Espera ${Math.ceil(falta / 1000)} segundo(s) antes da próxima jogada.`,
+        estado: 429
+      };
+      // Reserva antes de esperar pela escrita: pedidos simultâneos também esperam.
+      this.ritmos[nome] = { ...tempos, [veio.ritmo]: agora + intervalo };
+      await this.ctx.storage.put('ritmos', this.ritmos);
+    }
+    return { linha: semSegredos(achado.linha) };
   }
 }

@@ -6,6 +6,12 @@ compatibility_date = "2026-09-01"
 # tiver acesso a mais do que uma.
 account_id = "281d601cbcde851304121a32ea476202"
 
+# Folgado para vários jogadores no mesmo Wi-Fi; não faz leituras de KV.
+[[ratelimits]]
+name = "PEDIDOS_JOGOS"
+namespace_id = "10671012"
+simple = { limit = 240, period = 60 }
+
 # O Worker atende no endereco workers.dev da conta.
 #
 # Se algum dia quiseres que ele atenda tambem no proprio dominio, em
