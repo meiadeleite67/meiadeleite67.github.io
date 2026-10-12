@@ -73,7 +73,8 @@ export function Termos({
       <h2>O que não se faz</h2>
       <ul>
         <li>Andar a experimentar PINs de nomes que não são teus.</li>
-        <li>Tentar arrancar torrões ao servidor por fora dos jogos.</li>
+          <li>Tentar arrancar torrões ao servidor por fora dos jogos.</li>
+          <li>Usar bots, automatizar jogadas ou tentar contornar as pausas e os limites dos jogos.</li>
         <li>Pôr no site, num nickname ou numa foto, coisas que não podias pôr em voz alta.</li>
       </ul>
       <p>

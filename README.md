@@ -204,28 +204,63 @@ sai da mesa, e quem está oito minutos sentado sem fazer nada também; a segunda
 passar já só dá dez segundos em vez de trinta, para a mesa não ficar meio minuto parada de cada
 vez. Quem está a ver sem jogar tem um botão para dizer que ainda ali está.
 
-### Limites dos jogos
+### Proteção dos jogos e dos pedidos
 
-O servidor impõe 5,6 segundos entre rodadas de roleta, 3 segundos entre novas
-mãos de blackjack e meio segundo entre ações de blackjack. Os intervalos são
-por nome autenticado e ficam no Banco, mesmo mudando de aparelho ou reiniciando
-o servidor. Saltar as animações no browser não permite saltar estes intervalos.
+A API vive em `https://api.meiadeleite.pt`. O endereço `workers.dev` e os URLs
+de pré-visualização ficam desligados para não contornar o firewall do domínio.
 
-Há também um limite de 240 pedidos por minuto e por IP nas rotas dos jogos,
-recusado antes de consultar o KV ou o Banco. Este limite da Cloudflare é por
-localização e aproximado; vários jogadores no mesmo Wi-Fi partilham-no.
-Uma recusa devolve HTTP 429. Os pedidos recusados ainda chegam ao Worker:
-esta proteção reduz o trabalho interno, não elimina a contagem desses pedidos.
+Na Cloudflare há duas regras ativas: bloqueio de operações sem origem e passe
+de verificação, e limite por IP de 60 pedidos à API em 10 segundos (bloqueio
+por 10 segundos). Estas regras são geridas no painel de segurança do domínio.
+Não são criadas pelo Wrangler: preservá-las numa mudança de conta ou domínio.
 
-Para testar os limites, arranca uma instância local isolada:
+Antes das operações, do poker e das consultas desportivas, o Turnstile verifica
+o browser. O Worker valida o código uma única vez na Cloudflare, confirma a
+origem e a ação e emite uma visita assinada que dura cinco minutos, ligada ao
+IP e à origem. As chaves privadas `TURNSTILE_SEGREDO` e `SEGURANCA_SEGREDO`
+ficam nos segredos do Worker; apenas a chave pública está em `config.json`.
+Se faltarem as chaves ou a verificação falhar, as operações são recusadas.
+
+No Banco, blackjack e roleta partilham um mínimo de 12 segundos entre novas
+rodadas, com oito segundos de pausa depois de fechar uma mão de blackjack.
+Cada ação de cartas ou de poker espera pelo menos 1,5 segundos. São permitidas
+120 rodadas por hora e 600 por dia, somadas entre os dois jogos. Dez pedidos
+fora de tempo num minuto suspendem as operações do jogador por 15 minutos.
+Mudar de separador, aparelho, passe ou reiniciar o Worker não reinicia isto.
+
+As cartas, o pagamento e as contas do blackjack mudam juntos no Banco,
+serializados pelo Durable Object. As mãos antigas são trazidas do KV uma vez;
+assim, uma leitura atrasada do KV ou pedidos simultâneos não repetem pagamentos.
+As mensagens de poker são limitadas a 30 por minuto por ligação, com contagens
+preservadas na hibernação e fecho das ligações abusivas. Só se abrem as cinco
+mesas dos membros existentes, evitando criar objetos para nomes inventados.
+
+O Worker limita também todo o tráfego, escritas, entradas e verificações antes
+de aceder aos dados. Estes limites são aproximados por localização Cloudflare
+e partilhados por IP. O browser respeita `Retry-After`, pausa as tentativas e
+não pede o quadro geral depois de cada carta. Saltar animações não salta as
+pausas do servidor. Turnstile é uma camada de defesa, não uma garantia de que
+um bot no browser nunca passe; as quotas continuam a valer depois da verificação.
+
+Para testar o servidor, usa dados locais isolados e as chaves oficiais de teste:
 
 ```bash
-npx wrangler dev --config worker/wrangler.toml --local --port 8791 --persist-to .wrangler/anti-bot-test
+npx wrangler dev --config worker/wrangler.toml --local --port 8791 --persist-to .wrangler/security-test --var AMBIENTE:local --var SEGURANCA_SEGREDO:segredo-local-testes --var TURNSTILE_SEGREDO:1x0000000000000000000000000000000AA
+```
+
+As provas de rede precisam de um membro de teste com id `prova` na chave
+`membros` desse KV local (não no KV de produção):
+
+```bash
+npx wrangler kv key put membros --path membros-teste.json --binding QUADRO --local --persist-to .wrangler/security-test --config worker/wrangler.toml
+node scripts/testes-seguranca.mjs
 node scripts/testes-ritmo.mjs
 ```
 
-O teste esgota de propósito o limite local por IP. Estas alterações precisam
-de publicação do Worker com `npx wrangler deploy --config worker/wrangler.toml`.
+O ficheiro de teste contém `[{"id":"prova","nome":"Prova","ordem":0,"mascote":false}]`.
+As provas de rede esgotam o limite local por IP de propósito. As chaves de teste
+só são aceites com `AMBIENTE=local` e origem localhost; nunca definir esse modo
+na produção. Para publicar: `npx wrangler deploy --config worker/wrangler.toml`.
 
 ### As provas dos jogos
 

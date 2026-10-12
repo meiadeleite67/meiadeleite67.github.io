@@ -1,16 +1,47 @@
 name = "meiadeleite-quadro"
 main = "index.js"
 compatibility_date = "2026-09-01"
+workers_dev = false
+preview_urls = false
 
 # A conta do grupo, fixada para o wrangler nao perguntar qual usar a quem
 # tiver acesso a mais do que uma.
 account_id = "281d601cbcde851304121a32ea476202"
+
+[[routes]]
+pattern = "api.meiadeleite.pt"
+custom_domain = true
 
 # Folgado para vários jogadores no mesmo Wi-Fi; não faz leituras de KV.
 [[ratelimits]]
 name = "PEDIDOS_JOGOS"
 namespace_id = "10671012"
 simple = { limit = 240, period = 60 }
+
+[[ratelimits]]
+name = "PEDIDOS_SITE"
+namespace_id = "10671013"
+simple = { limit = 600, period = 60 }
+
+[[ratelimits]]
+name = "ESCRITAS_SITE"
+namespace_id = "10671014"
+simple = { limit = 120, period = 60 }
+
+[[ratelimits]]
+name = "VERIFICACOES"
+namespace_id = "10671015"
+simple = { limit = 10, period = 60 }
+
+[[ratelimits]]
+name = "ENTRADAS"
+namespace_id = "10671016"
+simple = { limit = 10, period = 60 }
+
+[[ratelimits]]
+name = "LIGACOES_POKER"
+namespace_id = "10671017"
+simple = { limit = 10, period = 60 }
 
 # O Worker atende no endereco workers.dev da conta.
 #

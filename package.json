@@ -9,6 +9,7 @@
     "build": "vite build && node scripts/pos-build.mjs",
     "preview": "vite preview",
     "tipos": "tsc --noEmit",
+    "provas-seguranca": "node scripts/testes-seguranca.mjs && node scripts/testes-ritmo.mjs",
     "provas": "node scripts/testes-poker.mjs && node scripts/testes-roleta.mjs && node scripts/testes-apostas.mjs && node scripts/testes-tickets.mjs && node scripts/testes-estatisticas.mjs",
     "provas-ao-vivo": "node scripts/testes-pin.mjs && node scripts/testes-banco.mjs && node scripts/testes-mesa.mjs && node scripts/testes-lugares.mjs && node scripts/testes-desporto.mjs",
     "admin": "node scripts/admin.mjs"
@@ -24,6 +25,7 @@
     "qrcode": "^1.5.4",
     "typescript": "^5.7.2",
     "vite": "^6.0.5",
-    "wrangler": "^4.136.3"
+    "wrangler": "^4.136.3",
+    "ws": "8.21.0"
   }
 }

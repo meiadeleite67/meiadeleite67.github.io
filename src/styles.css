@@ -7620,3 +7620,8 @@ footer {
     grid-column: 1;
   }
 }
+/* A verificação fica visível quando a Cloudflare pede interação. */
+.seguranca-dialogo { max-width: min(420px, 92vw); border: 1px solid #ad8b5c; border-radius: 16px; padding: 24px; background: #211c18; color: #fff3db; }
+.seguranca-dialogo::backdrop { background: rgb(0 0 0 / 65%); }
+.seguranca-dialogo h2 { font-size: 1.3rem; margin-top: 0; }
+.seguranca-dialogo .btn { margin-top: 16px; }

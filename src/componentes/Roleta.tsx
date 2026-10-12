@@ -163,6 +163,13 @@ export function Roleta({
   const [postas, setPostas] = useState<Posta[]>([]);
   const [comSom, setComSom] = useState(somLigado);
   const [aRodar, setARodar] = useState(false);
+  const [esperarAte, setEsperarAte] = useState(0);
+  const emPausa = esperarAte > Date.now();
+  useEffect(() => {
+    if (!esperarAte) return;
+    const t = window.setTimeout(() => setEsperarAte(0), Math.max(0, esperarAte - Date.now()));
+    return () => clearTimeout(t);
+  }, [esperarAte]);
   const [aPedir, setAPedir] = useState(false);
   const [saiu, setSaiu] = useState<Rodada | null>(null);
   /** A casa onde a bola tem de assentar, e a conta das rodadas. */
@@ -285,7 +292,7 @@ export function Roleta({
   }
 
   async function rodar() {
-    if (aRodar || ocupado.current || naMesa <= 0) return;
+    if (aRodar || emPausa || ocupado.current || naMesa <= 0) return;
     ocupado.current = true;
     mostrarARoleta();
     setARodar(true);
@@ -295,6 +302,7 @@ export function Roleta({
     try {
       const apostas = Object.entries(mesa).map(([chave, fichas]) => apostaDa(chave, fichas));
       const r = await api.roleta(nome, passe, apostas);
+      setEsperarAte(r.esperarAte || 0);
 
       // a casa já está decidida; o que se segue é só a bola a lá chegar
       setAlvo((antes) => ({ casa: r.rodada.casa, n: (antes?.n ?? 0) + 1 }));
@@ -468,8 +476,8 @@ export function Roleta({
           >
             Tirar todas
           </button>
-          <button type="button" className="btn azul" onClick={rodar} disabled={aRodar || naMesa === 0}>
-            {aRodar ? 'A rodar...' : 'Rodar'}
+          <button type="button" className="btn azul" onClick={rodar} disabled={aRodar || emPausa || naMesa === 0}>
+            {aRodar ? 'A rodar...' : emPausa ? 'Aguarda a próxima rodada' : 'Rodar'}
           </button>
         </div>
       </div>

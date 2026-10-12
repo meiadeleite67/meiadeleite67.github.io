@@ -17,7 +17,7 @@ import type { MesaViva } from './tipos';
 /** De quanto em quanto se diz olá, para a ligação não ser dada por morta. */
 const OLA = 25_000;
 /** Quando cai, tenta outra vez, cada vez com mais calma. */
-const ESPERAS = [600, 1200, 2500, 5000, 10000, 20000];
+const ESPERAS = [5000, 10000, 20000, 60000];
 
 export type Ligacao = 'parada' | 'a-ligar' | 'ligada' | 'caiu' | 'sem-servidor';
 
@@ -53,7 +53,12 @@ export function useMesaViva(mesa: string | null, nome: string, passe: string) {
 
     const abrir = async () => {
       if (parado) return;
-      const endereco = await enderecoDaMesa(mesa);
+      let endereco: string;
+      try { endereco = await enderecoDaMesa(mesa); }
+      catch (e) {
+        if (!parado) { setLigacao('caiu'); setRecado(e instanceof Error ? e.message : 'A verificação falhou.'); }
+        return;
+      }
       if (parado) return;
       if (!endereco) return setLigacao('sem-servidor');
 
@@ -86,10 +91,11 @@ export function useMesaViva(mesa: string | null, nome: string, passe: string) {
         if (veio.t === 'recado') setRecado(String(veio.texto || ''));
       };
 
-      c.onclose = () => {
+      c.onclose = (e) => {
         window.clearInterval(bate);
         if (parado) return;
         setLigacao('caiu');
+        if (e.code === 1008) { setRecado('A ligação foi suspensa por demasiados pedidos. Volta mais tarde.'); return; }
         volta = window.setTimeout(abrir, ESPERAS[Math.min(tentativas++, ESPERAS.length - 1)]);
       };
     };

@@ -57,7 +57,7 @@ const MAX_LIGACOES = 30;
 /* Ninguem a jogar manda mais do que isto num minuto. Quem manda e um cliente
    estragado a responder aos proprios recados em ciclo, e ficava a gastar tempo
    de servidor sem dar por isso. */
-const MAX_POR_MINUTO = 120;
+const MAX_POR_MINUTO = 30;
 const MAX_NARRACAO = 7;
 
 const nomeLimpo = (v) => (typeof v === 'string' ? v.trim().slice(0, 24) : '');
@@ -103,6 +103,10 @@ export class MesaDePoker extends DurableObject {
   /* ========================= a porta de entrada ========================= */
 
   async fetch(request) {
+    return this.ctx.blockConcurrencyWhile(() => this.abrirPedido(request));
+  }
+
+  async abrirPedido(request) {
     const url = new URL(request.url);
 
     if (url.pathname.endsWith('/quantos')) {
@@ -118,6 +122,9 @@ export class MesaDePoker extends DurableObject {
 
     if (this.ctx.getWebSockets().length >= MAX_LIGACOES)
       return new Response('A mesa está cheia de gente a ver.', { status: 503 });
+    const ip = request.headers.get('CF-Connecting-IP') || 'local';
+    if (this.ctx.getWebSockets().filter(ws => ws.deserializeAttachment()?.ip === ip).length >= 6)
+      return new Response('Demasiadas ligações deste endereço.', { status: 429 });
 
     /* Rede de seguranca: quem chega arruma a mesa. O alarme e que trata disto
        de costume, mas se algum dia se perder um, basta alguem abrir a pagina
@@ -130,7 +137,8 @@ export class MesaDePoker extends DurableObject {
 
     const par = new WebSocketPair();
     this.ctx.acceptWebSocket(par[1]);
-    par[1].serializeAttachment({ nome: '' });
+    par[1].serializeAttachment({ nome: '', ip, visitaAte: Number(request.headers.get('X-MDL-Visita-Ate')), desde: Date.now(), quantas: 0 });
+    await this.agendar();
     // a primeira mesa vai já, para quem chega não ficar a olhar para o vazio
     this.mandar(par[1]);
     return new Response(null, { status: 101, webSocket: par[0] });
@@ -139,8 +147,13 @@ export class MesaDePoker extends DurableObject {
   /* ====================== o que chega de cada um ====================== */
 
   async webSocketMessage(ws, cru) {
-    if (typeof cru !== 'string' || cru.length > 400) return;
-    if (this.demasiadas(ws)) return;
+    return this.ctx.blockConcurrencyWhile(() => this.receberMensagem(ws, cru));
+  }
+
+  async receberMensagem(ws, cru) {
+    if (typeof cru !== 'string' || cru.length > 400) { ws.close(1008, 'Mensagem inválida.'); return; }
+    if (this.demasiadas(ws)) { ws.close(1008, 'Demasiadas mensagens.'); return; }
+    if (!(ws.deserializeAttachment()?.visitaAte > Date.now())) { ws.close(1012, 'Renova a verificação.'); return; }
     let veio;
     try {
       veio = JSON.parse(cru);
@@ -154,7 +167,10 @@ export class MesaDePoker extends DurableObject {
       const nome = nomeLimpo(veio.nome);
       if (!(await this.eMesmoEle(nome, veio.passe)))
         return this.recado(ws, 'Escreve outra vez o teu PIN no blackjack.');
-      ws.serializeAttachment({ nome });
+      if (this.ctx.getWebSockets().filter(outro => outro !== ws && outro.deserializeAttachment()?.nome === nome).length >= 2) {
+        ws.close(1008, 'Demasiadas ligações para este jogador.'); return;
+      }
+      ws.serializeAttachment({ ...quem, nome });
       const lugar = this.lugarDe(nome);
       if (lugar) {
         lugar.ligado = true;
@@ -164,6 +180,10 @@ export class MesaDePoker extends DurableObject {
     }
 
     if (!quem.nome) return this.recado(ws, 'Diz primeiro quem és.');
+    if (['sentar', 'levantar', 'comprar', 'jogada'].includes(veio.a)) {
+      const visto = await aoBanco(this.env, '/ritmo', { nome: quem.nome, tipo: 'poker' });
+      if (visto.erro) return this.recado(ws, visto.erro);
+    }
 
     /* Quem esta a ver a mesa sem jogar pode dizer que ainda ali esta, e o
        relogio de quem esta parado volta ao principio. Um separador esquecido
@@ -180,24 +200,24 @@ export class MesaDePoker extends DurableObject {
 
   demasiadas(ws) {
     const agora = Date.now();
-    const c = this.contagens.get(ws) || { desde: agora, quantas: 0 };
+    const c = ws.deserializeAttachment() || { desde: agora, quantas: 0 };
     if (agora - c.desde > 60_000) {
       c.desde = agora;
       c.quantas = 0;
     }
     c.quantas++;
-    this.contagens.set(ws, c);
+    ws.serializeAttachment(c);
     return c.quantas > MAX_POR_MINUTO;
   }
 
   /* O fecho tem de ser esperado: uma gravacao deixada a meio quando o
      atendimento acaba pode nunca chegar a acontecer. */
   async webSocketClose(ws) {
-    return this.aoSair(ws);
+    return this.ctx.blockConcurrencyWhile(() => this.aoSair(ws));
   }
 
   async webSocketError(ws) {
-    return this.aoSair(ws);
+    return this.ctx.blockConcurrencyWhile(() => this.aoSair(ws));
   }
 
   async aoSair(ws) {
@@ -482,6 +502,13 @@ export class MesaDePoker extends DurableObject {
   }
 
   async alarm() {
+    return this.ctx.blockConcurrencyWhile(() => this.passarTempo());
+  }
+
+  async passarTempo() {
+    for (const ws of this.ctx.getWebSockets()) {
+      if (!(ws.deserializeAttachment()?.visitaAte > Date.now())) ws.close(1012, 'Renova a verificação.');
+    }
     const agora = Date.now();
     const m = this.dados.mao;
 
@@ -541,6 +568,10 @@ export class MesaDePoker extends DurableObject {
       const cedo = Math.min(...arrumacao);
       quando = quando ? Math.min(quando, cedo) : cedo;
     }
+
+    // Mesmo espectadores sem lugar libertam a ligação quando a visita expira.
+    const visitas = this.ctx.getWebSockets().map(ws => ws.deserializeAttachment()?.visitaAte).filter(ate => ate > agora);
+    if (visitas.length) quando = quando ? Math.min(quando, ...visitas) : Math.min(...visitas);
 
     if (quando) await this.ctx.storage.setAlarm(Math.max(quando, agora + 300));
     else await this.ctx.storage.deleteAlarm();

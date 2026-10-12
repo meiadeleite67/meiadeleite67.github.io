@@ -97,17 +97,26 @@ export function Privacidade({
 
       <h2>O endereço de IP</h2>
       <p>
-        Há um sítio onde ele entra. Quando alguém erra o PIN vezes demais, fica um travão ligado ao
+        Usamos o endereço de IP para limitar rajadas de pedidos e ligações automáticas. Quando alguém erra o PIN vezes demais, fica um travão ligado ao
         endereço de onde vieram as tentativas, para que ninguém possa ficar a experimentar PINs até
         acertar. Essa marca guarda o endereço, apaga-se sozinha ao fim de uma hora e desaparece
         logo que se acerte no PIN. O mesmo se faz na entrada da administração, com quinze minutos.
       </p>
       <p>
-        Fora disso não registamos endereços de IP nem guardamos histórico de visitas.
+        A verificação de segurança gera um passe temporário, ligado a um resumo do IP e da origem
+        da visita. Fica apenas na memória do browser, expira ao fim de cinco minutos e não contém
+        o teu IP escrito. Guardamos também contagens e intervalos por nickname para impedir jogos
+        automáticos contínuos; estas contagens não entram na Leader Board.
       </p>
 
       <h2>Os de fora que veem alguma coisa</h2>
       <ul>
+        <li>
+          <b>Cloudflare Turnstile</b>. Antes de aceitar operações ou ligações ao poker, a Cloudflare
+          verifica sinais do browser para detetar bots. A validação recebe o teu IP e um código
+          temporário; pode pedir uma confirmação visível. A proteção do domínio e da API também
+          passa pela Cloudflare.
+        </li>
         <li>
           <b>Google Fonts</b>. Os tipos de letra do site vêm de servidores do Google, e por isso o
           Google vê o endereço de IP de quem abre qualquer página daqui.
@@ -119,7 +128,7 @@ export function Privacidade({
           onde isso acontece: quem não quiser, não a abre.
         </li>
       </ul>
-      <p>Não há mais ninguém. Sem análise de tráfego, sem publicidade, sem redes de anúncios.</p>
+      <p>Não usamos publicidade nem redes de anúncios.</p>
 
       <h2>Quando avisas de um erro</h2>
       <p>

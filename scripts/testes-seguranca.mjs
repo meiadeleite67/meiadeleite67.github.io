@@ -1,0 +1,51 @@
+import assert from 'node:assert/strict';
+import { assinarVisita, visitaValida, verificarDesafio, limitarCorpo } from '../worker/seguranca.js';
+import { HORA, DIA, limitarJogador, terminarRodada } from '../worker/ritmo.js';
+const env = { SEGURANCA_SEGREDO: 'só-para-testes', TURNSTILE_SEGREDO: 'teste' };
+const request = new Request('https://api.meiadeleite.pt', { headers: { Origin: 'https://meiadeleite.pt', 'CF-Connecting-IP': '192.0.2.1' } });
+const tempo = Date.now();
+const pequeno = new Request(request.url, { method: 'POST', body: '{"ok":true}' });
+assert.deepEqual(await (await limitarCorpo(pequeno, 20)).json(), { ok: true });
+await assert.rejects(limitarCorpo(new Request(request.url, { method: 'POST', body: 'x'.repeat(100) }), 20));
+const { visita } = await assinarVisita(request, env, tempo);
+assert.equal(await visitaValida(request, env, visita, tempo), true);
+assert.equal(await visitaValida(request, env, visita, tempo + 300001), false);
+assert.equal(await visitaValida(request, env, visita + 'f', tempo), false);
+assert.equal(await visitaValida(request, {}, visita, tempo), false);
+assert.equal(await visitaValida(new Request(request.url, { headers: { Origin: 'https://meiadeleite.pt', 'CF-Connecting-IP': '192.0.2.2' } }), env, visita, tempo), false);
+assert.equal(await visitaValida(new Request(request.url, { headers: { Origin: 'https://www.meiadeleite.pt', 'CF-Connecting-IP': '192.0.2.1' } }), env, visita, tempo), false);
+const originalFetch = globalThis.fetch;
+try {
+  let resultado = { success: true, hostname: 'meiadeleite.pt', action: 'site' };
+  globalThis.fetch = async () => Response.json(resultado);
+  assert.equal(await verificarDesafio(request, env, 'valido'), true);
+  resultado = { ...resultado, action: 'outro' };
+  assert.equal(await verificarDesafio(request, env, 'valido'), false);
+  resultado = { success: true, hostname: 'outro.pt', action: 'site' };
+  assert.equal(await verificarDesafio(request, env, 'valido'), false);
+  resultado = { success: false, hostname: 'meiadeleite.pt', action: 'site' };
+  assert.equal(await verificarDesafio(request, env, 'repetido'), false);
+  globalThis.fetch = async () => { throw new Error('Sem rede'); };
+  assert.equal(await verificarDesafio(request, env, 'valido'), false);
+} finally { globalThis.fetch = originalFetch; }
+const ritmo = {};
+assert.equal(limitarJogador(ritmo, 'rodada', tempo), null);
+assert.equal(limitarJogador(ritmo, 'acao', tempo)?.estado, 429);
+assert.equal(limitarJogador(ritmo, 'acao', tempo + 1500), null);
+assert.equal(limitarJogador(ritmo, 'rodada', tempo + 11000)?.estado, 429);
+terminarRodada(ritmo, tempo + 10000);
+assert.equal(limitarJogador(ritmo, 'rodada', tempo + 13000)?.estado, 429);
+assert.equal(limitarJogador(ritmo, 'rodada', tempo + 18000), null);
+const abuso = {};
+limitarJogador(abuso, 'rodada', tempo);
+for (let i = 0; i < 10; i++) limitarJogador(abuso, 'rodada', tempo + 1);
+assert.equal(limitarJogador(abuso, 'poker', tempo + 30000)?.repetirEm > 800, true);
+assert.equal(limitarJogador(abuso, 'poker', tempo + 16 * 60000), null);
+const quotas = {};
+for (let hora = 0; hora < 5; hora++) {
+  for (let i = 0; i < 120; i++) assert.equal(limitarJogador(quotas, 'rodada', tempo + hora * HORA + i * 13000), null);
+  assert.equal(limitarJogador(quotas, 'rodada', tempo + hora * HORA + 120 * 13000)?.estado, 429);
+}
+assert.equal(limitarJogador(quotas, 'rodada', tempo + 5 * HORA)?.estado, 429);
+assert.equal(limitarJogador(quotas, 'rodada', tempo + DIA), null);
+console.log('OK: assinatura, expiração, IP/origem, Turnstile, pausas, suspensão e quotas acumuladas.');

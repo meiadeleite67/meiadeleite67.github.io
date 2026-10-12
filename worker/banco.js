@@ -30,6 +30,9 @@ import {
   pinServe
 } from './chaves.js';
 import { fecharBilhete, limparBilhete } from './apostas.js';
+import { APOSTA_MAXIMA, dividir, dobrar, ficar, maoAtual, mesaNova, paga, pedir, podeDividir, podeDobrar, vista } from './blackjack.js';
+import { limparApostas, rodada } from './roleta.js';
+import { limitarJogador, terminarRodada } from './ritmo.js';
 
 export const SALDO_INICIAL = 250;
 export const EMPRESTIMO = 100;
@@ -220,7 +223,7 @@ export class Banco extends DurableObject {
 
   /** A linha de um nome, já completa e já confirmada como sendo de quem pede. */
   async daPessoa(nome, passe) {
-    const linha = this.nomes[nome];
+    const linha = Object.hasOwn(this.nomes, nome) ? this.nomes[nome] : null;
     if (!linha) return { erro: 'Senta-te à mesa primeiro.', estado: 401 };
     if (!(await passeBate(passe, linha))) return { erro: 'Escreve outra vez o teu PIN.', estado: 403 };
     return { linha: completa(linha, nome) };
@@ -268,6 +271,9 @@ export class Banco extends DurableObject {
     const jogos = new Map((veio.jogos || []).map((j) => [j.id, j]));
     const limpo = limparBilhete(veio, jogos, linha.torroes, this.abertasDe(nome).length);
     if (limpo.erro) return { erro: limpo.erro, estado: 400 };
+
+    const travao = await this.ritmo(nome, 'aposta');
+    if (travao) return travao;
 
     linha.torroes -= limpo.quanto;
     linha.desporto.apostas += 1;
@@ -463,10 +469,11 @@ export class Banco extends DurableObject {
     const nome = texto(veio.nome, 24);
     const pin = pinLimpo(veio.pin);
     if (nome.length < 2) return { erro: 'Falta o nome.', estado: 400 };
+    if (['__proto__', 'constructor', 'prototype'].includes(nome)) return { erro: 'Escolhe outro nome.', estado: 400 };
     if (!pinServe(pin))
       return { erro: `O PIN são ${PIN_MINIMO} a ${PIN_MAXIMO} algarismos.`, estado: 400 };
 
-    const havia = this.nomes[nome];
+    const havia = Object.hasOwn(this.nomes, nome) ? this.nomes[nome] : null;
     if (!havia && Object.keys(this.nomes).length >= MAX_NOMES)
       return { erro: 'O quadro está cheio.', estado: 409 };
 
@@ -546,6 +553,8 @@ export class Banco extends DurableObject {
     if (achado.erro) return achado;
     const linha = achado.linha;
     if (linha.torroes >= SALDO_PARA_EMPRESTAR) return { erro: 'Ainda tens torrões.', estado: 400 };
+    const travao = await this.ritmo(nome, 'emprestimo');
+    if (travao) return travao;
     linha.torroes += EMPRESTIMO;
     return { linha: semSegredos(await this.pousar(nome, linha)) };
   }
@@ -614,6 +623,9 @@ export class Banco extends DurableObject {
     const achado = await this.daPessoa(nome, veio.passe);
     if (achado.erro) return achado;
 
+    const travao = await this.ritmo(nome, 'recorde');
+    if (travao) return travao;
+
     const linha = achado.linha;
     const pontos = naoNegativo(veio.pontos);
     if (pontos <= linha.recordes[jogo]) return { linha: semSegredos(linha), mudou: false };
@@ -633,13 +645,19 @@ export class Banco extends DurableObject {
     const nome = texto(veio.nome, 24);
     if (!nome || !this.nomes[nome]) return { erro: 'Esse nome não está lá.', estado: 404 };
     delete this.nomes[nome];
+    delete this.ritmos[nome];
+    await this.ctx.storage.put('ritmos', this.ritmos);
+    // A marca vazia evita trazer de volta uma mão antiga do KV.
+    await this.ctx.storage.put(`blackjack:${nome}`, null);
     await this.gravar();
     return { ok: true, nome };
   }
 
   async limpar() {
     const quantos = Object.keys(this.nomes).length;
-    this.nomes = {};
+    for (const nome of Object.keys(this.nomes)) await this.ctx.storage.put(`blackjack:${nome}`, null);
+    this.nomes = {}; this.ritmos = {};
+    await this.ctx.storage.put('ritmos', this.ritmos);
     await this.gravar();
     return { ok: true, quantos };
   }
@@ -657,6 +675,11 @@ export class Banco extends DurableObject {
   /* ========================= quem chama ========================= */
 
   async fetch(request) {
+    // As contas e a mesa mudam juntas, incluindo pedidos de aparelhos distintos.
+    return this.ctx.blockConcurrencyWhile(() => this.atender(request));
+  }
+
+  async atender(request) {
     const caminho = new URL(request.url).pathname;
     if (caminho === '/todos') return Response.json(this.todos());
 
@@ -668,7 +691,13 @@ export class Banco extends DurableObject {
     }
 
     const feito =
-      caminho === '/entrar'
+      caminho === '/ritmo'
+        ? (Object.hasOwn(this.nomes, texto(veio.nome, 24)) ? (await this.ritmo(texto(veio.nome, 24), veio.tipo)) || { ok: true } : { erro: 'Nome desconhecido.', estado: 401 })
+        : caminho === '/blackjack'
+        ? await this.blackjack(veio)
+        : caminho === '/roleta'
+          ? await this.roleta(veio)
+        : caminho === '/entrar'
         ? await this.entrar(veio)
         : caminho === '/ver'
           ? await this.ver(veio)
@@ -711,20 +740,90 @@ export class Banco extends DurableObject {
   async ver(veio) {
     const achado = await this.daPessoa(texto(veio.nome, 24), veio.passe);
     if (achado.erro) return achado;
-    const intervalo = { roleta: 5600, blackjack: 3000, carta: 500 }[veio.ritmo];
-    if (intervalo) {
-      const nome = achado.linha.nome;
-      const agora = Date.now();
-      const tempos = this.ritmos[nome] || {};
-      const falta = (tempos[veio.ritmo] || 0) - agora;
-      if (falta > 0) return {
-        erro: `Espera ${Math.ceil(falta / 1000)} segundo(s) antes da próxima jogada.`,
-        estado: 429
-      };
-      // Reserva antes de esperar pela escrita: pedidos simultâneos também esperam.
-      this.ritmos[nome] = { ...tempos, [veio.ritmo]: agora + intervalo };
-      await this.ctx.storage.put('ritmos', this.ritmos);
+    if (veio.ritmo) {
+      const travao = await this.ritmo(achado.linha.nome, veio.ritmo);
+      if (travao) return travao;
     }
     return { linha: semSegredos(achado.linha) };
+  }
+
+  async ritmo(nome, tipo) {
+    const estado = Object.hasOwn(this.ritmos, nome) ? this.ritmos[nome] : {};
+    const antes = JSON.stringify(estado);
+    const erro = limitarJogador(estado, tipo);
+    this.ritmos[nome] = estado;
+    if (JSON.stringify(estado) !== antes) await this.ctx.storage.put('ritmos', this.ritmos);
+    return erro;
+  }
+
+  async lerMesa(nome) {
+    const chave = `blackjack:${nome}`;
+    const guardada = await this.ctx.storage.get(chave);
+    if (guardada !== undefined) return guardada;
+    const antiga = await this.env.QUADRO.get(`mesa:${nome}`);
+    const mesa = antiga ? JSON.parse(antiga) : null;
+    await this.ctx.storage.put(chave, mesa);
+    return mesa;
+  }
+
+  async blackjack(veio) {
+    const nome = texto(veio.nome, 24);
+    const achado = await this.daPessoa(nome, veio.passe);
+    if (achado.erro) return achado;
+    const linha = achado.linha;
+    let mesa = await this.lerMesa(nome);
+    if (veio.operacao === 'ver') return { linha: semSegredos(linha), mesa: mesa ? vista(mesa, linha.torroes) : null, esperarAte: this.ritmos[nome]?.['proxima:rodada'] || 0 };
+    const travao = await this.ritmo(nome, veio.operacao === 'apostar' ? 'rodada' : 'acao');
+    if (travao) return travao;
+    if (veio.operacao === 'apostar') {
+      if (mesa?.fase === 'jogo') return { erro: 'Ainda tens uma mão a meio.', estado: 400 };
+      const aposta = Number(veio.aposta);
+      if (!Number.isSafeInteger(aposta) || aposta < 1 || aposta > APOSTA_MAXIMA) return { erro: 'Aposta inválida.', estado: 400 };
+      if (aposta > linha.torroes) return { erro: 'Não tens torrões que cheguem.', estado: 400 };
+      linha.torroes -= aposta;
+      mesa = mesaNova(aposta, mesa?.sapato || null);
+    } else if (veio.operacao === 'jogar') {
+      if (!mesa || mesa.fase !== 'jogo') return { erro: 'Não há nenhuma mão a decorrer.', estado: 400 };
+      if (veio.passo !== mesa.passo) return { erro: 'Essa jogada já foi feita.', estado: 409 };
+      if (veio.acao === 'dobrar') {
+        if (!podeDobrar(mesa, linha.torroes)) return { erro: 'Agora não dá para dobrar.', estado: 400 };
+        linha.torroes -= maoAtual(mesa).aposta; mesa = dobrar(mesa);
+      } else if (veio.acao === 'dividir') {
+        if (!podeDividir(mesa, linha.torroes)) return { erro: 'Agora não dá para dividir.', estado: 400 };
+        linha.torroes -= maoAtual(mesa).aposta; mesa = dividir(mesa);
+      } else if (veio.acao === 'pedir') mesa = pedir(mesa);
+      else if (veio.acao === 'ficar') mesa = ficar(mesa);
+      else return { erro: 'Jogada que não existe.', estado: 400 };
+      mesa.passo++;
+    } else return { erro: 'Operação inválida.', estado: 400 };
+    if (mesa.fase === 'fim' && !mesa.pago) {
+      for (const mao of mesa.maos) {
+        linha.torroes += paga(mao); linha.maos++;
+        if (mao.resultado === 'blackjack') { linha.vitorias++; linha.bjs++; }
+        else if (mao.resultado === 'ganhou') linha.vitorias++;
+      }
+      mesa.pago = true;
+      terminarRodada(this.ritmos[nome]);
+    }
+    linha.pico = Math.max(linha.pico, linha.torroes);
+    linha.atualizado = new Date().toISOString();
+    this.nomes[nome] = linha;
+    await this.ctx.storage.put({ nomes: this.nomes, [`blackjack:${nome}`]: mesa, ritmos: this.ritmos });
+    return { linha: semSegredos(linha), mesa: vista(mesa, linha.torroes), esperarAte: mesa.fase === 'fim' ? this.ritmos[nome]['proxima:rodada'] : this.ritmos[nome]['proxima:acao'] || this.ritmos[nome].cartasEm };
+  }
+
+  async roleta(veio) {
+    const nome = texto(veio.nome, 24);
+    const achado = await this.daPessoa(nome, veio.passe);
+    if (achado.erro) return achado;
+    const linha = achado.linha;
+    const postas = limparApostas(veio.apostas, linha.torroes);
+    if (postas.erro) return { erro: postas.erro, estado: 400 };
+    const travao = await this.ritmo(nome, 'rodada');
+    if (travao) return travao;
+    const resultado = rodada(postas.apostas);
+    linha.torroes += resultado.volta - postas.total;
+    this.somarContas(linha, { roleta: { rodadas: 1, ganhas: resultado.volta > 0 ? 1 : 0, maior: resultado.volta } });
+    return { linha: semSegredos(await this.pousar(nome, linha)), rodada: resultado, esperarAte: this.ritmos[nome]['proxima:rodada'] };
   }
 }

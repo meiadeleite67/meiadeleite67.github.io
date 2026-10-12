@@ -295,7 +295,7 @@ export type Rodada = {
   lucro: number;
 };
 
-export type RespostaDaRoleta = { linha: Pontuacao; rodada: Rodada };
+export type RespostaDaRoleta = { linha: Pontuacao; rodada: Rodada; esperarAte?: number };
 
 /* O que o servidor deixa o site ver da mao que esta a decorrer. As cartas da
    casa vem cortadas: enquanto a tapada estiver tapada, ela nem sai de la. */
@@ -325,6 +325,7 @@ export type MesaVista = {
 };
 
 export type RespostaDaMesa = {
+  esperarAte?: number;
   linha: Pontuacao;
   /** So vem de /quadro/entrar: o passe deste aparelho, que fica guardado. */
   passe?: string;

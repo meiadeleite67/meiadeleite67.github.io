@@ -42,22 +42,8 @@
  */
 
 import { Banco } from './banco.js';
+import { assinarVisita, verificarDesafio, visitaValida, limitarCorpo } from './seguranca.js';
 import { MesaDePoker } from './mesa-de-poker.js';
-import { limparApostas, rodada } from './roleta.js';
-import {
-  APOSTA_MAXIMA,
-  dividir,
-  dobrar,
-  ficar,
-  maoAtual,
-  mesaNova,
-  paga,
-  pedir,
-  podeDividir,
-  podeDobrar,
-  vista
-} from './blackjack.js';
-
 const CASAS = [
   'https://meiadeleite.pt',
   'https://www.meiadeleite.pt',
@@ -92,8 +78,6 @@ const CASTIGO_PIN = 15 * 60 * 1000;
    sai tudo pelo mesmo endereco, e um numero curto aqui trancava-os uns aos
    outros. Quem defende mesmo cada PIN e o limite por nome, ali em cima. */
 const MAX_PIN_ERRADO_DAQUI = 40;
-const MAX_MAOS_POR_JOGADA = 4;
-const RESULTADOS = ['blackjack', 'ganhou', 'empate', 'perdeu', 'rebentou'];
 
 /* ============================ utilidades ============================ */
 
@@ -102,17 +86,23 @@ function cabecalhos(request) {
   return {
     'Access-Control-Allow-Origin': CASAS.includes(origem) ? origem : CASAS[0],
     'Access-Control-Allow-Methods': 'GET, PUT, POST, PATCH, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-MDL-Visita',
+    'Access-Control-Expose-Headers': 'Retry-After',
     'Access-Control-Max-Age': '86400',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
     Vary: 'Origin'
   };
 }
 
-const responder = (corpo, request, estado = 200) =>
-  new Response(JSON.stringify(corpo), {
+const responder = (corpo, request, estado = 200) => {
+  const resposta = new Response(JSON.stringify(corpo), {
     status: estado,
-    headers: { 'Content-Type': 'application/json; charset=utf-8', ...cabecalhos(request) }
+    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...cabecalhos(request) }
   });
+  if (estado === 429) resposta.headers.set('Retry-After', String(corpo.repetirEm || 60));
+  return resposta;
+};
 
 const texto = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 const numero = (v) => {
@@ -153,6 +143,11 @@ async function aoBanco(env, rota, corpo) {
 
 const doBanco = async (env, rota) => (await oBanco(env).fetch(`https://banco${rota}`)).json();
 
+async function mesasPermitidas(env) {
+  const membros = await ler(env, 'membros', []);
+  return new Set(membros.filter(m => !m.mascote).sort((a, b) => a.ordem - b.ordem).slice(0, 5).map(m => `m-${m.id}`));
+}
+
 const minutosAte = (quando) => {
   const m = Math.max(1, Math.ceil((quando - Date.now()) / 60000));
   return `${m} minuto${m === 1 ? '' : 's'}`;
@@ -185,57 +180,11 @@ async function castigarQuemPergunta(env, daqui, castigo) {
  * quem decide e o banco: se entretanto o dinheiro foi gasto noutro jogo, e ele
  * que recusa, e a mesa nao chega a ser gravada.
  */
-async function comOJogador(request, env, trabalho) {
+async function comOJogador(request, env, operacao) {
   let veio;
-  try {
-    veio = await request.json();
-  } catch {
-    return responder({ erro: 'Corpo inválido.' }, request, 400);
-  }
-  const nome = texto(veio?.nome, 24);
-  const passe = texto(veio?.passe, 40);
-
-  const rota = new URL(request.url).pathname.replace(/^\/api\b/, '').replace(/\/+$/, '');
-  const ritmo = rota === '/mesa/apostar' ? 'blackjack' : rota === '/mesa/jogar' ? 'carta' : undefined;
-  const visto = await aoBanco(env, '/ver', { nome, passe, ritmo });
-  if (visto.erro) return responder({ erro: visto.erro }, request, visto.estado || 400);
-
-  const linha = { ...visto.linha };
-  const antes = linha.torroes;
-  const contas = { bj: { maos: 0, vitorias: 0, bjs: 0 } };
-
-  const mesa = await ler(env, `mesa:${nome}`, null);
-  const feito = trabalho({ linha, mesa, veio });
-  if (typeof feito === 'string') return responder({ erro: feito }, request, 400);
-
-  /* O pagamento acontece uma unica vez por mao, marcado na propria mesa: se o
-     mesmo pedido chegar duas vezes, a segunda ja nao paga nada. */
-  if (feito && feito.fase === 'fim' && !feito.pago) {
-    for (const mao of feito.maos) {
-      linha.torroes += paga(mao);
-      contas.bj.maos++;
-      if (mao.resultado === 'blackjack') {
-        contas.bj.vitorias++;
-        contas.bj.bjs++;
-      } else if (mao.resultado === 'ganhou') {
-        contas.bj.vitorias++;
-      }
-    }
-    feito.pago = true;
-  }
-
-  const delta = Math.round(linha.torroes) - antes;
-  const mexeu = delta !== 0 || contas.bj.maos > 0;
-
-  const fim = mexeu ? await aoBanco(env, '/mexer', { nome, passe, delta, contas }) : visto;
-  if (fim.erro) return responder({ erro: fim.erro }, request, fim.estado || 400);
-
-  if (feito) await env.QUADRO.put(`mesa:${nome}`, JSON.stringify(feito));
-
-  return responder(
-    { linha: fim.linha, mesa: feito ? vista(feito, fim.linha.torroes) : null },
-    request
-  );
+  try { veio = await request.json(); } catch { return responder({ erro: 'Corpo inválido.' }, request, 400); }
+  const feito = await aoBanco(env, '/blackjack', { ...veio, operacao });
+  return responder(feito, request, feito.estado || 200);
 }
 
 /* ====================== o código do autenticador ====================== */
@@ -993,12 +942,45 @@ async function aVoltaDoDia(env) {
 
 export default {
   async fetch(request, env, ctx) {
-    if (request.method === 'OPTIONS') return new Response(null, { headers: cabecalhos(request) });
-
     const url = new URL(request.url);
     // o Worker atende em meiadeleite.pt/api/..., por isso tira-se o /api
     const caminho = url.pathname.replace(/^\/api/, '').replace(/\/+$/, '') || '/';
     const metodo = request.method;
+
+    const ip = request.headers.get('CF-Connecting-IP') || 'local';
+    const origem = request.headers.get('Origin') || '';
+    if (origem && !CASAS.includes(origem)) return responder({ erro: 'Origem não permitida.' }, request, 403);
+    if (!(await env.PEDIDOS_SITE.limit({ key: ip })).success) return responder({ erro: 'Demasiados pedidos. Espera um minuto.', repetirEm: 60 }, request, 429);
+    if (metodo === 'OPTIONS') return new Response(null, { headers: cabecalhos(request) });
+
+    const altera = !['GET', 'HEAD'].includes(metodo);
+    if (altera) {
+      const tamanho = Number(request.headers.get('Content-Length') || 0);
+      const media = /^\/(galeria\/[^/]+|mural)$/.test(caminho);
+      if (tamanho > (media ? MAX_MEDIA : 512_000)) return responder({ erro: 'Pedido demasiado grande.' }, request, 413);
+      if (!(await env.ESCRITAS_SITE.limit({ key: ip })).success) return responder({ erro: 'Demasiadas operações. Espera um minuto.', repetirEm: 60 }, request, 429);
+    }
+    if (caminho === '/seguranca/verificar' && metodo === 'POST') {
+      if (!(await env.VERIFICACOES.limit({ key: ip })).success) return responder({ erro: 'Demasiadas verificações. Espera um minuto.', repetirEm: 60 }, request, 429);
+      let veio;
+      try { request = await limitarCorpo(request, 4096); veio = await request.json(); } catch { return responder({ erro: 'Corpo inválido ou demasiado grande.' }, request, 400); }
+      if (!(await verificarDesafio(request, env, veio?.token))) return responder({ erro: 'A verificação de segurança falhou.', codigo: 'SEGURANCA' }, request, 403);
+      return responder(await assinarVisita(request, env), request);
+    }
+    const socket = request.headers.get('Upgrade')?.toLowerCase() === 'websocket';
+    if (altera || socket || caminho.startsWith('/apostas')) {
+      const token = socket ? url.searchParams.get('visita') : request.headers.get('X-MDL-Visita');
+      if (!origem || !(await visitaValida(request, env, token))) return responder({ erro: 'Confirma a verificação de segurança.', codigo: 'SEGURANCA' }, request, 403);
+      if (caminho === '/quadro/entrar' || caminho === '/admin/entrar') {
+        if (!(await env.ENTRADAS.limit({ key: ip })).success) return responder({ erro: 'Demasiadas tentativas de entrada.', repetirEm: 60 }, request, 429);
+      }
+      if (socket && !(await env.LIGACOES_POKER.limit({ key: ip })).success) return responder({ erro: 'Demasiadas ligações de poker.', repetirEm: 60 }, request, 429);
+    }
+    if (altera) {
+      const media = /^\/(galeria\/[^/]+|mural)$/.test(caminho);
+      try { request = await limitarCorpo(request, media ? MAX_MEDIA : 512_000); }
+      catch { return responder({ erro: 'Corpo inválido ou demasiado grande.' }, request, 413); }
+    }
 
     // Recusa rajadas antes de ler o KV, confirmar passes ou chamar o Banco.
     const jogo = /^\/(mesa|quadro|roleta|poker|apostas)(\/|$)/.test(caminho);
@@ -1084,13 +1066,14 @@ export default {
 
       if (feito.erro) return responder({ erro: feito.erro }, request, feito.estado || 400);
 
-      const mesa = await ler(env, `mesa:${feito.linha.nome}`, null);
+      const sentada = await aoBanco(env, '/blackjack', { nome: feito.linha.nome, passe: feito.passe, operacao: 'ver' });
       return responder(
         {
           linha: feito.linha,
           passe: feito.passe,
           estreou: feito.estreou,
-          mesa: mesa ? vista(mesa, feito.linha.torroes) : null
+          mesa: sentada.mesa,
+          esperarAte: sentada.esperarAte
         },
         request
       );
@@ -1098,7 +1081,7 @@ export default {
 
     /* Voltar a mesa com o passe que este aparelho ja tem. */
     if (caminho === '/quadro/sentar' && metodo === 'POST') {
-      return comOJogador(request, env, ({ mesa }) => mesa);
+      return comOJogador(request, env, 'ver');
     }
 
     /* ---- a mesa: e aqui que as cartas saem ----
@@ -1109,48 +1092,11 @@ export default {
        decide isso e este lado. */
 
     if (caminho === '/mesa' && metodo === 'POST') {
-      return comOJogador(request, env, ({ mesa }) => mesa);
+      return comOJogador(request, env, 'ver');
     }
 
-    if (caminho === '/mesa/apostar' && metodo === 'POST') {
-      return comOJogador(request, env, ({ linha, mesa, veio }) => {
-        /* Com uma mao a meio nao se aposta outra vez: senao bastava pedir
-           cartas novas para fugir a uma mao que corria mal. */
-        if (mesa && mesa.fase === 'jogo') return 'Ainda tens uma mão a meio.';
-        const aposta = numero(veio?.aposta);
-        if (aposta < 1 || aposta > APOSTA_MAXIMA) return 'Aposta inválida.';
-        if (aposta > linha.torroes) return 'Não tens torrões que cheguem.';
-        linha.torroes -= aposta;
-        // o sapato da mao anterior continua, como numa mesa a serio
-        return mesaNova(aposta, mesa ? mesa.sapato : null);
-      });
-    }
-
-    if (caminho === '/mesa/jogar' && metodo === 'POST') {
-      return comOJogador(request, env, ({ linha, mesa, veio }) => {
-        if (!mesa || mesa.fase !== 'jogo') return 'Não há nenhuma mão a decorrer.';
-        /* O passo e o numero da jogada. Se nao bater certo e porque o pedido
-           vem repetido ou fora de horas, e uma carta a mais era uma carta a
-           mais. */
-        if (numero(veio?.passo) !== mesa.passo) return 'Essa jogada já foi feita.';
-        const acao = texto(veio?.acao, 10);
-        mesa.passo++;
-
-        if (acao === 'pedir') return pedir(mesa);
-        if (acao === 'ficar') return ficar(mesa);
-        if (acao === 'dobrar') {
-          if (!podeDobrar(mesa, linha.torroes)) return 'Agora não dá para dobrar.';
-          linha.torroes -= maoAtual(mesa).aposta;
-          return dobrar(mesa);
-        }
-        if (acao === 'dividir') {
-          if (!podeDividir(mesa, linha.torroes)) return 'Agora não dá para dividir.';
-          linha.torroes -= maoAtual(mesa).aposta;
-          return dividir(mesa);
-        }
-        return 'Jogada que não existe.';
-      });
-    }
+    if (caminho === '/mesa/apostar' && metodo === 'POST') return comOJogador(request, env, 'apostar');
+    if (caminho === '/mesa/jogar' && metodo === 'POST') return comOJogador(request, env, 'jogar');
 
     /* Apagar um nome do quadro. Vai no corpo e nao no caminho porque ha
        nomes com barras la dentro, e uma barra num caminho e outra coisa. */
@@ -1188,10 +1134,11 @@ export default {
        mesma chave do quadro de honra. */
 
     if (caminho === '/poker' && metodo === 'GET') {
+      const permitidas = await mesasPermitidas(env);
       const quais = (url.searchParams.get('mesas') || '')
         .split(',')
         .map((x) => x.trim())
-        .filter((x) => /^[A-Za-z0-9_-]{1,40}$/.test(x))
+        .filter((x) => /^[A-Za-z0-9_-]{1,40}$/.test(x) && permitidas.has(x))
         .slice(0, 8);
       const todas = await Promise.all(
         quais.map(async (mesa) => {
@@ -1210,12 +1157,19 @@ export default {
 
     const daMesa = /^\/poker\/([A-Za-z0-9_-]{1,40})$/.exec(caminho);
     if (daMesa) {
+      if (!socket) return responder({ erro: 'A mesa precisa de uma ligação WebSocket.' }, request, 426);
+      if (!(await mesasPermitidas(env)).has(daMesa[1])) return responder({ erro: 'Essa mesa não existe.' }, request, 404);
       /* So do nosso site. A chave e que manda, mas nao ha razao nenhuma para
          deixar outra pagina qualquer abrir uma ligacao a uma mesa nossa. */
       const origem = request.headers.get('Origin') || '';
       if (origem && !CASAS.includes(origem))
         return responder({ erro: 'Essa mesa nao e para aqui.' }, request, 403);
-      return env.MESAS.get(env.MESAS.idFromName(daMesa[1])).fetch(request);
+      const headers = new Headers(request.headers);
+      const payload = JSON.parse(atob(url.searchParams.get('visita').split('.')[0].replace(/-/g, '+').replace(/_/g, '/')));
+      headers.set('X-MDL-Visita-Ate', String(payload.ate));
+      // O URL enviado à mesa não guarda a credencial de segurança.
+      const interno = new URL(request.url); interno.searchParams.delete('visita');
+      return env.MESAS.get(env.MESAS.idFromName(daMesa[1])).fetch(new Request(interno, { headers, method: 'GET' }));
     }
 
     /* Tirar o PIN a um nome. E a unica saida quando alguem se mete no nome de
@@ -1248,7 +1202,8 @@ export default {
       if (feito.erro) return responder({ erro: feito.erro }, request, feito.estado || 400);
       const mesa = await ler(env, `mesa:${nome}`, null);
       return responder(
-        { linha: feito.linha, mesa: mesa ? vista(mesa, feito.linha.torroes) : null },
+        { linha: feito.linha, mesa: sentada.mesa,
+          esperarAte: sentada.esperarAte },
         request
       );
     }
@@ -1280,33 +1235,9 @@ export default {
        estarem postas, e o site nao tem como o saber antes. */
     if (caminho === '/roleta' && metodo === 'POST') {
       let veio;
-      try {
-        veio = await request.json();
-      } catch {
-        return responder({ erro: 'Corpo inválido.' }, request, 400);
-      }
-      const nome = texto(veio?.nome, 24);
-      const passe = texto(veio?.passe, 40);
-
-      const visto = await aoBanco(env, '/ver', { nome, passe, ritmo: 'roleta' });
-      if (visto.erro) return responder({ erro: visto.erro }, request, visto.estado || 400);
-
-      const postas = limparApostas(veio?.apostas, visto.linha.torroes);
-      if (postas.erro) return responder({ erro: postas.erro }, request, 400);
-
-      const r = rodada(postas.apostas);
-      const feito = await aoBanco(env, '/mexer', {
-        nome,
-        passe,
-        custo: postas.total,
-        delta: r.volta - postas.total,
-        contas: {
-          roleta: { rodadas: 1, ganhas: r.volta > 0 ? 1 : 0, maior: r.volta }
-        }
-      });
-      if (feito.erro) return responder({ erro: feito.erro }, request, feito.estado || 400);
-
-      return responder({ linha: feito.linha, rodada: r }, request);
+      try { veio = await request.json(); } catch { return responder({ erro: 'Corpo inválido.' }, request, 400); }
+      const feito = await aoBanco(env, '/roleta', veio);
+      return responder(feito, request, feito.estado || 200);
     }
 
     /* ==================== as apostas desportivas ====================

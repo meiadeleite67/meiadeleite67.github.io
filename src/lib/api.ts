@@ -1,4 +1,5 @@
 import { nomeGuardado, passeDe } from './nick';
+import { adiarPedidos, confirmarEspera, confirmarVisita, esquecerVisita } from './seguranca';
 import type {
   Aposta,
   ApostaDesportiva,
@@ -37,6 +38,7 @@ import type {
 const VAZIO: Estado = { agenda: [], insta: [], ranking: [], membros: [] };
 
 let servidor: string | null = null;
+let sitekey = '';
 /** O que veio do ficheiro do site, lido uma vez so. */
 let doFicheiroGuardado: { insta?: Post[]; agenda?: Evento[] } | null = null;
 let chave = '';
@@ -55,6 +57,7 @@ async function endereco(): Promise<string> {
     const r = await fetch('/conteudo/config.json', { cache: 'no-cache' });
     const c = await r.json();
     if (typeof c?.quadro === 'string') encontrado = c.quadro.replace(/\/+$/, '');
+    if (typeof c?.turnstile === 'string') sitekey = c.turnstile;
   } catch {
     /* sem config, o site vive só do ficheiro */
   }
@@ -70,17 +73,26 @@ const naMesa = (rota: string, corpo: unknown) =>
   pedir<RespostaDaMesa>(rota, { method: 'POST', body: JSON.stringify(corpo) });
 
 
-async function pedir<T>(rota: string, opcoes?: RequestInit): Promise<T> {
+async function pedir<T>(rota: string, opcoes?: RequestInit, repetido = false): Promise<T> {
+  confirmarEspera();
   const base = await endereco();
   if (!base) throw new Error('O site ainda não está ligado ao servidor do grupo.');
 
-  const cabecalhos: Record<string, string> = {};
-  if (opcoes?.body) cabecalhos['Content-Type'] = 'application/json';
-  if (chave) cabecalhos.Authorization = `Bearer ${chave}`;
+  const cabecalhos = new Headers(opcoes?.headers);
+  if (opcoes?.body && !cabecalhos.has('Content-Type')) cabecalhos.set('Content-Type', 'application/json');
+  if (chave) cabecalhos.set('Authorization', `Bearer ${chave}`);
+  if (!['GET', 'HEAD'].includes(opcoes?.method || 'GET') || rota.startsWith('/apostas')) cabecalhos.set('X-MDL-Visita', await confirmarVisita(base, sitekey));
 
-  const r = await fetch(base + rota, { ...opcoes, headers: cabecalhos });
+  let r: Response;
+  try { r = await fetch(base + rota, { ...opcoes, headers: cabecalhos }); }
+  catch { adiarPedidos(10); throw new Error('A ligação foi interrompida. Aguarda 10 segundos antes de voltar a tentar.'); }
   const corpo = await r.json().catch(() => null);
   if (!r.ok) {
+    if (r.status === 429) adiarPedidos(Number(r.headers.get('Retry-After')) || 60);
+    // Só repete quando a porta de segurança recusou antes da operação.
+    if (r.status === 403 && corpo?.codigo === 'SEGURANCA' && !repetido) {
+      esquecerVisita(); return pedir<T>(rota, opcoes, true);
+    }
     if (r.status === 401) chave = '';
     throw new Error((corpo && corpo.erro) || 'O servidor não respondeu como devia.');
   }
@@ -267,17 +279,11 @@ export const api = {
     const base = await endereco();
     if (!base) throw new Error('O site ainda nao esta ligado ao servidor do grupo.');
     const p = new URLSearchParams(dados).toString();
-    const r = await fetch(`${base}/mural?${p}`, {
+    return pedir<Post>(`/mural?${p}`, {
       method: 'POST',
       headers: { 'Content-Type': capa.type, Authorization: `Bearer ${chave}` },
       body: capa
     });
-    const corpo = await r.json().catch(() => null);
-    if (!r.ok) {
-      if (r.status === 401) chave = '';
-      throw new Error((corpo && corpo.erro) || 'Nao deu para por a publicacao no mural.');
-    }
-    return corpo as Post;
   },
 
   /* ---- a galeria da mascote ---- */
@@ -292,17 +298,11 @@ export const api = {
   async porNaGaleria(dono: string, ficheiro: File, legenda: string): Promise<ItemDaGaleria> {
     const base = await endereco();
     if (!base) throw new Error('O site ainda nao esta ligado ao servidor do grupo.');
-    const r = await fetch(`${base}/galeria/${dono}?legenda=${encodeURIComponent(legenda)}`, {
+    return pedir<ItemDaGaleria>(`/galeria/${dono}?legenda=${encodeURIComponent(legenda)}`, {
       method: 'POST',
       headers: { 'Content-Type': ficheiro.type, Authorization: `Bearer ${chave}` },
       body: ficheiro
     });
-    const corpo = await r.json().catch(() => null);
-    if (!r.ok) {
-      if (r.status === 401) chave = '';
-      throw new Error((corpo && corpo.erro) || 'Nao deu para por isso la.');
-    }
-    return corpo as ItemDaGaleria;
   },
 
   /** Tira um nome do quadro. Precisa da chave de admin. */
@@ -404,7 +404,8 @@ export function mandarRecorde(jogo: string, pontos: number) {
 export async function enderecoDaMesa(mesa: string): Promise<string> {
   const base = await endereco();
   if (!base) return '';
-  return `${base.replace(/^http/, 'ws')}/poker/${encodeURIComponent(mesa)}`;
+  const visita = await confirmarVisita(base, sitekey);
+  return `${base.replace(/^http/, 'ws')}/poker/${encodeURIComponent(mesa)}?visita=${encodeURIComponent(visita)}`;
 }
 
 /** Quanta gente esta em cada mesa, para a entrada do poker. */

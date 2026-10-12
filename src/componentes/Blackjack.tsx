@@ -35,7 +35,14 @@ export function Blackjack({
   const [mesa, setMesa] = useState<Mesa>(() => mesaNova(0));
   const [podem, setPodem] = useState({ dobrar: false, dividir: false });
   const [passo, setPasso] = useState(0);
-  const [aEsperar, setAEsperar] = useState(false);
+  const [aPedir, setAEsperar] = useState(false);
+  const [esperarAte, setEsperarAte] = useState(0);
+  const aEsperar = aPedir || esperarAte > Date.now();
+  useEffect(() => {
+    if (!esperarAte) return;
+    const t = window.setTimeout(() => setEsperarAte(0), Math.max(0, esperarAte - Date.now()));
+    return () => clearTimeout(t);
+  }, [esperarAte]);
   const [recado, setRecado] = useState('');
 
   /* Um pedido de cada vez: dois a andar juntos davam uma carta a mais. */
@@ -43,6 +50,7 @@ export function Blackjack({
 
   /** Poe no ecra o que o servidor mandou, e mais nada. */
   function mostrar(r: RespostaDaMesa) {
+    setEsperarAte(r.esperarAte || 0);
     const v = r.mesa;
     setPodem({ dobrar: v?.podeDobrar ?? false, dividir: v?.podeDividir ?? false });
     setPasso(v?.passo ?? 0);
@@ -64,14 +72,14 @@ export function Blackjack({
     }));
   }
 
-  async function aoServidor(trabalho: () => Promise<RespostaDaMesa>) {
-    if (ocupado.current) return;
+  async function aoServidor(trabalho: () => Promise<RespostaDaMesa>, consultar = false) {
+    if (ocupado.current || (!consultar && esperarAte > Date.now())) return;
     ocupado.current = true;
     setAEsperar(true);
     setRecado('');
     try {
       mostrar(await trabalho());
-      recarregar();
+      // O quadro geral atualiza-se no seu ritmo, sem um pedido por carta.
     } catch (e) {
       setRecado(e instanceof Error ? e.message : 'O servidor nao respondeu como devia.');
     } finally {
@@ -84,8 +92,8 @@ export function Blackjack({
      a mao que estivesse a meio e as fichas sao de quem la estava. */
   useEffect(() => {
     if (!nome || !passeDe(nome)) return;
-    setMesa(mesaNova(0));
-    aoServidor(() => api.sentar(nome, passeDe(nome)));
+    setMesa(mesaNova(0)); setEsperarAte(0);
+    aoServidor(() => api.sentar(nome, passeDe(nome)), true);
     // so depende do nome; o aoServidor muda a cada render e nao deve reativar isto
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nome]);
@@ -334,6 +342,7 @@ export function Blackjack({
           </div>
 
           {recado && <p className="recado mal">{recado}</p>}
+          {!aPedir && esperarAte > Date.now() && <p className="recado">Aguarda antes da próxima jogada.</p>}
 
           {nome.trim() && (
             <p className="a-jogar-como">
