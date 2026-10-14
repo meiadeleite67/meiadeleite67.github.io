@@ -773,8 +773,8 @@ export class Banco extends DurableObject {
     if (achado.erro) return achado;
     const linha = achado.linha;
     let mesa = await this.lerMesa(nome);
-    if (veio.operacao === 'ver') return { linha: semSegredos(linha), mesa: mesa ? vista(mesa, linha.torroes) : null, esperarAte: mesa?.fase === 'jogo' ? Math.max(this.ritmos[nome]?.['proxima:acao'] || 0, this.ritmos[nome]?.cartasEm || 0) : this.ritmos[nome]?.['proxima:rodada'] || 0 };
-    const travao = await this.ritmo(nome, veio.operacao === 'apostar' ? 'rodada' : 'acao');
+    if (veio.operacao === 'ver') return { linha: semSegredos(linha), mesa: mesa ? vista(mesa, linha.torroes) : null, esperarAte: mesa?.fase === 'jogo' ? Math.max(this.ritmos[nome]?.['proxima:acao'] || 0, this.ritmos[nome]?.cartasEm || 0) : this.ritmos[nome]?.['proxima:blackjack'] || 0 };
+    const travao = await this.ritmo(nome, veio.operacao === 'apostar' ? 'blackjack' : 'acao');
     if (travao) return travao;
     if (veio.operacao === 'apostar') {
       if (mesa?.fase === 'jogo') return { erro: 'Ainda tens uma mão a meio.', estado: 400 };
@@ -810,7 +810,7 @@ export class Banco extends DurableObject {
     linha.atualizado = new Date().toISOString();
     this.nomes[nome] = linha;
     await this.ctx.storage.put({ nomes: this.nomes, [`blackjack:${nome}`]: mesa, ritmos: this.ritmos });
-    return { linha: semSegredos(linha), mesa: vista(mesa, linha.torroes), esperarAte: mesa.fase === 'fim' ? this.ritmos[nome]['proxima:rodada'] : this.ritmos[nome]['proxima:acao'] || this.ritmos[nome].cartasEm };
+    return { linha: semSegredos(linha), mesa: vista(mesa, linha.torroes), esperarAte: mesa.fase === 'fim' ? this.ritmos[nome]['proxima:blackjack'] : this.ritmos[nome]['proxima:acao'] || this.ritmos[nome].cartasEm };
   }
 
   async roleta(veio) {

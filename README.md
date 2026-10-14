@@ -245,9 +245,9 @@ IP e à origem. As chaves privadas `TURNSTILE_SEGREDO` e `SEGURANCA_SEGREDO`
 ficam nos segredos do Worker; apenas a chave pública está em `config.json`.
 Se faltarem as chaves ou a verificação falhar, as operações são recusadas.
 
-No Banco, blackjack e roleta partilham um mínimo de 12 segundos entre novas
-rodadas, com oito segundos de pausa depois de fechar uma mão de blackjack.
-Cada ação de cartas ou de poker espera pelo menos 1,5 segundos. São permitidas
+No Banco, a roleta espera 12 segundos e o blackjack três segundos entre novas
+rodadas, com meio segundo de pausa depois de fechar uma mão de blackjack.
+As decisões de blackjack esperam 250 ms; as de poker, 1,5 segundos. São permitidas
 120 rodadas por hora e 600 por dia, somadas entre os dois jogos. Dez pedidos
 fora de tempo num minuto suspendem as operações do jogador por 15 minutos.
 Mudar de separador, aparelho, passe ou reiniciar o Worker não reinicia isto.
